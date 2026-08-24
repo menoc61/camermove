@@ -39,15 +39,17 @@ Native mobile app · loyalty · tourism marketplace · dynamic pricing · AI fea
 ```
 camermove/
 ├─ apps/
-│  ├─ web/          # Next.js 15 (App Router) + TS + Tailwind + shadcn/ui (tweakcn theme cmt1ew8a7000004jp22krc04q)
-│  ├─ api/          # Node.js + Fastify + TS, REST /api/v1 (stateless, horizontally scalable)
-│  └─ worker/       # queue consumer (BullMQ/Redis): emails, WhatsApp, push, webhook+notifications jitter
+│  ├─ web/          # Next.js 16 (App Router) + TS 5.9 + Tailwind 4 + shadcn/ui (tweakcn theme cmt1ew8a7000004jp22krc04q) + Zustand
+│  ├─ api/          # Node.js + Fastify 5 + TS, REST /api/v1 (stateless, horizontally scalable) + Kafka producer
+│  └─ worker/       # Kafka consumer group + BullMQ processor: emails, WhatsApp, push, delayed jobs
 ├─ packages/
-│  ├─ shared/       # Zod schemas, TS types, i18n message keys, money/commission math
+│  ├─ shared/       # Zod schemas, TS types, i18n message keys, money/commission math, domain events
 │  ├─ db/           # Prisma client + repositories (single data-access layer)
 │  ├─ config/       # typed env/config, plugin registration, DI container
-│  └─ media/        # MinIO (S3) storage adapter + presigned URL helpers
-├─ docker-compose.yml  # postgres + redis + mailhog + minio (dev)
+│  ├─ media/        # MinIO (S3) storage adapter + presigned URL helpers
+│  ├─ events/       # Kafka producer/consumer wrappers, topic constants, event schemas
+│  └─ frontend/     # Zustand stores, React context, API client, query hooks, theme provider
+├─ docker-compose.yml  # postgres + redis + mailhog + minio + kafka (+ kafka-ui) (dev)
 ├─ turbo.json
 └─ .env / .env.example
 ```
@@ -56,10 +58,13 @@ camermove/
 
 **Scale design:**
 - API is **stateless** (JWT in header, no server session) → scale out horizontally behind a load balancer / Nginx.
-- **Redis** for rate limiting, distributed seat-hold, cache (search results), and as the BullMQ queue broker.
-- **Queue worker** (`apps/worker`) consumes non-critical jobs (notifications, media processing) off the request path so high read/write load isn't blocked by email/SMS/push latency.
-- **Postgres** primary + plan for read replicas; **Prisma** query layer; search results cached in Redis; pagination on every list endpoint.
-- Idempotency + retries for payment webhooks and outbound jobs (BullMQ repeatable/backoff).
+- **Kafka** is the durable **system-of-record event backbone**: the API publishes domain events (`booking.created`, `payment.completed`, `ticket.issued`, `notification.should-send`, `seat.held-expired`) to topics once within the DB transaction (outbox pattern to guarantee no lost/fake events). The worker's `apps/worker` is a **Kafka consumer group** that processes them idempotently with retries/backoff + DLQ. Replayable — future mobile app, analytics, and microservices consume the same topics without touching business logic.
+- **Redis + BullMQ** handles **delayed jobs** Kafka doesn't do natively: seat-hold expiry timers, scheduled trip reminders, notification retries with backoff.
+- **Redis** also for rate limiting, distributed seat-hold, and response cache (search results).
+- **Postgres** primary + plan for read replicas; **Prisma** query layer; pagination on every list endpoint.
+- Idempotency + dedup for payment webhooks and event processing (Kafka producer idempotence, consumer group offsets).
+
+**Frontend state (Zustand):** client-side state (auth session, search filters, cart/booking draft, settings) in `packages/frontend` Zustand stores, persisted where needed (e.g. auth token via `persist` middleware). Server data still fetched via API + React query hooks; Zustand holds only ephemeral UI/selection state — no duplication of server cache.
 
 **Customization / configurability:**
 - All config via typed env (`packages/config`) with a single Zod-validated schema; no hardcoded magic values.
@@ -135,14 +140,15 @@ Notification types: booking confirmation, payment confirmation, e-ticket, trip r
 - Transporter space: onboarding request, profile, vehicles, routes/schedules/pricing, capacity, bookings, payments, stats, pause/close offer.
 - Admin: dashboard, user/transporter/vehicle/trip/booking/payment/commission/notification mgmt, refund/cancellation, partner review, content mgmt, stats, audit log.
 - All copy through i18n (French default); no hardcoded strings. shadcn theme applied.
+- **State:** Zustand stores (auth session, search filters, booking draft, UI prefs) in `packages/frontend`; server data via React Query hooks; Zustand never duplicating server cache.
 
 ## 11. Security & NFR
 
-HTTPS-only, Zod validation on every endpoint, rate limiting (Redis), webhook signature verify, audit log, automated backups (Postgres + MinIO objects) with tested restore, monitoring (Sentry + uptime) from first deploy, evolvability via data/config. Never expose/store raw card data. Media uploads validated (MIME + size) and object keys server-generated.
+HTTPS-only, Zod validation on every endpoint, rate limiting (Redis), webhook signature verify, audit log, automated backups (Postgres + MinIO objects) with tested restore, monitoring (Sentry + uptime) from first deploy, evolvability via data/config. Never expose/store raw card data. Media uploads validated (MIME + size) and object keys server-generated. Kafka events idempotent (producer idempotence + consumer group offsets + DLQ).
 
 ## 12. Build sequence (each lot demoable vs §13)
 
-1. **Lot 0 Foundations:** monorepo scaffold (web/api/worker + shared/db/config/media), CI, Docker Compose (postgres+redis+mailhog+minio), Prisma schema + migrations, auth + RBAC (incl. Google OAuth via `SocialAuthProvider`), config/env layer, shadcn theme base.
+1. **Lot 0 Foundations:** monorepo scaffold (web/api/worker + shared/db/config/media/events/frontend), CI, Docker Compose (postgres+redis+mailhog+minio+kafka), Prisma schema + migrations, auth + RBAC (incl. Google OAuth via `SocialAuthProvider`), config/env layer, event infra (Kafka producer + topic constants), shadcn theme base, Zustand base store.
 2. **Lot 1 Search:** route/trip CRUD (minimal admin UI), search API, results/filter/sort UI, trip detail.
 3. **Lot 2 Booking core:** booking creation, seat hold + expiry (concurrency tests), passenger info, recap — stress-test double-booking here.
 4. **Lot 3 Payment:** NotchPay adapter + webhook, confirmation transition, failure/expiry release.
