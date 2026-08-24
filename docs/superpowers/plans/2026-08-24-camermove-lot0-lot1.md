@@ -22,6 +22,7 @@
 - Files are small and single-purpose; one module = one directory with `schema.ts`, `service.ts`, `repository.ts`, `routes.ts`, `types.ts`.
 - Never commit secrets. Never commit built artifacts (`dist/`, `.next/`, `node_modules/`).
 - APIs are versioned under `/api/v1`.
+- Monitoring from the first deploy: OpenTelemetry tracing + Prometheus `/metrics` on every app; Grafana dashboards + alerts; Sentry for error tracking. `METRICS_ENABLED` gates telemetry (no-op in test/dev without an OTel backend).
 
 ---
 
@@ -412,8 +413,8 @@ git commit -m "feat: add shared config package (env, errors, logger)"
 - Create: `.env.example`
 
 **Interfaces:**
-- Consumes: `packages/config` env names.
-- Produces: a one-command local infra stack. Postgres on `5432`, Redis `6379`, MinIO `9000`/`9001`, Kafka on `9092` (brokers `localhost:9092`), MailHog `1025`/`8025`, Kafka UI `8080`.
+- Consumes: `@camermove/config` env names.
+- Produces: a one-command local infra stack. Postgres on `5432`, Redis `6379`, MinIO `9000`/`9001`, Kafka on `9092` (brokers `localhost:9092`), MailHog `1025`/`8025`, Kafka UI `8080`, **Prometheus `9090`**, **Grafana `3001`**.
 
 - [ ] **Step 1: Write `docker-compose.yml`**
 
@@ -476,12 +477,48 @@ services:
     ports: ["8080:8080"]
     depends_on: [kafka]
 
+  prometheus:
+    image: prom/prometheus:latest
+    volumes: ["./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports: ["3001:3000"]
+    depends_on: [prometheus]
+    volumes: ["grafanadata:/var/lib/grafana"]
+
 volumes:
   pgdata:
   miniodata:
+  grafanadata:
 ```
 
-- [ ] **Step 2: Write `.env.example`**
+- [ ] **Step 2: Write `infra/prometheus.yml`**
+
+```yaml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:3000"]
+  - job_name: worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:4000"]
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+```
+
+- [ ] **Step 3: Write `.env.example`**
 
 ```
 NODE_ENV=development
@@ -513,18 +550,18 @@ NTFY_HOST=https://ntfy.sh
 - [ ] **Step 3: Copy env and start infrastructure**
 
 Run: `Copy-Item .env.example .env` then `docker compose up -d`
-Expected: containers `postgres`, `redis`, `minio`, `kafka`, `mailhog`, `kafka-ui` running (`docker compose ps` shows `Up`).
+Expected: containers `postgres`, `redis`, `minio`, `kafka`, `mailhog`, `kafka-ui`, `prometheus`, `grafana` running (`docker compose ps` shows `Up`).
 
 - [ ] **Step 4: Verify connectivity**
 
-Run: `docker compose exec postgres pg_isready -U camermove ; docker compose exec redis redis-cli ping`
-Expected: `accepting connections` and `PONG`.
+Run: `docker compose exec postgres pg_isready -U camermove ; docker compose exec redis redis-cli ping ; docker compose exec grafana curl -s localhost:3000/api/health`
+Expected: `accepting connections`, `PONG`, and Grafana health JSON.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add docker-compose.yml .env.example
-git commit -m "chore: add local infra docker compose stack"
+git add docker-compose.yml infra/prometheus.yml .env.example
+git commit -m "chore: add local infra docker compose stack with monitoring"
 ```
 
 ---
@@ -2978,6 +3015,264 @@ git commit -m "docs: add quick-start and verify Lot 0 + Lot 1 vertical slice"
 
 ---
 
+### Task 1.7: Observability — OpenTelemetry tracing + Prometheus `/metrics` on API and worker
+
+**Files:**
+- Create: `packages/observability/package.json`
+- Create: `packages/observability/tsconfig.json`
+- Create: `packages/observability/src/index.ts`
+- Create: `packages/observability/src/tracing.ts`
+- Create: `packages/observability/src/metrics.ts`
+- Create: `apps/api/src/plugins/metrics.ts`
+- Create: `infra/alerts.yml`
+- Create: `infra/dashboards/api-latency.json`
+- Test: `packages/observability/src/metrics.test.ts`
+- Modify: `apps/api/src/app.ts` (start tracing, register metrics + health), `apps/worker/src/index.ts` (start tracing), `apps/api/package.json`, `apps/worker/package.json`
+
+**Interfaces:**
+- Consumes: `@camermove/config` (`Env`).
+- Produces:
+  - `initTelemetry(env)` — sets up the OpenTelemetry Node SDK: auto-instruments Fastify (`@fastify/otel`), HTTP (`instrumentation-http`), Prisma (`@opentelemetry/instrumentation-prisma`), Redis (`@opentelemetry/instrumentation-ioredis`), and Kafka (`@opentelemetry/instrumentation-kafkajs`), exporting traces + metrics via OTLP HTTP to `OTEL_EXPORTER_OTLP_ENDPOINT` (gate `METRICS_ENABLED`).
+  - `metricsPlugin` (Fastify) — exposes `/metrics` on the API over the Prometheus default registry (histograms per route/method/status). Registered BEFORE routes so it captures all traffic; guard so only the API exposes it (worker exposes its own via an HTTP server in metric mode).
+  - `observe(spanName, attrs)` — a helper to create a manual span around an async op and push default Prometheus counters/histograms (e.g. `camermove_request_duration_ms`, `camermove_error_total`).
+  - `METRICS_ENABLED` env-driven; exports no-op when disabled so tests/dev without an OTel backend still work.
+
+- [ ] **Step 1: Write the failing test**
+
+`packages/observability/src/metrics.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest"
+import { observe, resetMetrics, readMetricsSummary } from "./metrics"
+
+describe("observe", () => {
+  it("records a counter after an op", async () => {
+    resetMetrics()
+    await observe("test.op", { route: "search" }, async () => "ok")
+    const summary = readMetricsSummary()
+    expect(summary).toContain('camermove_operations_total{name="test.op",route="search"} 1')
+  })
+
+  it("exposes a no-op outside metrics mode", async () => {
+    resetMetrics()
+    await observe("other.op", {}, async () => 1)
+    const summary = readMetricsSummary()
+    expect(summary).toContain('name="other.op"')
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pnpm --filter @camermove/observability test`
+Expected: FAIL — `observe` not exported.
+
+- [ ] **Step 3: Implement `metrics.ts`**
+
+```ts
+import { Counter, Histogram, Registry } from "prom-client"
+
+const registry = new Registry()
+const opsCounter = new Counter({ name: "camermove_operations_total", help: "Operations counter", labelNames: ["name", "route"], registers: [registry] })
+const opDuration = new Histogram({ name: "camermove_operation_duration_ms", help: "Operation duration ms", labelNames: ["name"], registers: [registry] })
+
+export function resetMetrics() {
+  registry.clear()
+}
+
+export function readMetricsSummary(): string {
+  return registry.metrics()
+}
+
+export async function observe<T>(name: string, attrs: Record<string, string>, fn: () => Promise<T>): Promise<T> {
+  const start = performance.now()
+  try {
+    return await fn()
+  } finally {
+    opDuration.observe({ name }, performance.now() - start)
+    opsCounter.inc({ name, route: attrs.route ?? "" })
+  }
+}
+
+export { registry }
+```
+
+- [ ] **Step 4: Implement `tracing.ts`**
+
+```ts
+import { NodeSDK } from "@opentelemetry/sdk-node"
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http"
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http"
+import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node"
+import type { Env } from "@camermove/config"
+
+export function initTelemetry(env: Env) {
+  if (env.NODE_ENV === "test" || !env.METRICS_ENABLED) {
+    return { shutdown: async () => {} }
+  }
+  const sdk = new NodeSDK({
+    traceExporter: new OTLPTraceExporter({ url: `${env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces` }),
+    metricReader: new PeriodicExportingMetricReader({ exporter: new OTLPMetricExporter({ url: `${env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics` }) }),
+    instrumentations: [getNodeAutoInstrumentations()],
+  })
+  sdk.start()
+  return { shutdown: async () => sdk.shutdown() }
+}
+```
+
+- [ ] **Step 5: Implement `packages/observability/src/index.ts`**
+
+```ts
+export * from "./metrics"
+export * from "./tracing"
+```
+
+- [ ] **Step 6: Implement `apps/api/src/plugins/metrics.ts`**
+
+```ts
+import fp from "fastify-plugin"
+import registerMetrics from "@fastify/metrics"
+import type { FastifyInstance } from "fastify"
+
+export const metricsPlugin = fp(async (app: FastifyInstance) => {
+  await app.register(registerMetrics, { endpoint: "/metrics" })
+})
+```
+
+- [ ] **Step 7: Wire into `apps/api/src/app.ts`**
+
+Add at the top of `buildApp` (before other plugins, so `/metrics` and traces capture everything):
+
+```ts
+import { initTelemetry } from "@camermove/observability"
+import { metricsPlugin } from "./plugins/metrics"
+// after Fastify({ logger: true }):
+const shutdown = initTelemetry(env)
+app.addHook("onClose", async () => { await shutdown.shutdown() })
+await app.register(metricsPlugin)
+```
+
+- [ ] **Step 8: Wire tracing into `apps/worker/src/index.ts`**
+
+```ts
+import { initTelemetry } from "@camermove/observability"
+// at top of main():
+const telemetry = initTelemetry(env)
+process.on("SIGTERM", async () => { await telemetry.shutdown(); await consumer.disconnect(); process.exit(0) })
+```
+
+- [ ] **Step 9: Write `infra/alerts.yml`**
+
+```yaml
+groups:
+  - name: camermove
+    rules:
+      - alert: HighErrorRate
+        expr: rate(camermove_error_total[5m]) > 0.05
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "High API error rate" }
+      - alert: SlowP95
+        expr: histogram_quantile(0.95, rate(camermove_operation_duration_ms_bucket[5m])) > 2000
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "p95 latency over 2s" }
+```
+
+- [ ] **Step 10: Write `infra/dashboards/api-latency.json`** (minimal valid Grafana dashboard)
+
+```json
+{
+  "title": "CamerMove API",
+  "uid": "camermove-api",
+  "panels": [
+    {
+      "title": "Error rate",
+      "type": "timeseries",
+      "targets": [{ "expr": "rate(camermove_error_total[5m])", "refId": "A" }]
+    },
+    {
+      "title": "p95 latency",
+      "type": "timeseries",
+      "targets": [{ "expr": "histogram_quantile(0.95, rate(camermove_operation_duration_ms_bucket[5m]))", "refId": "A" }]
+    }
+  ]
+}
+```
+
+- [ ] **Step 11: Write `packages/observability/package.json`**
+
+```json
+{
+  "name": "@camermove/observability",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
+  "dependencies": {
+    "@camermove/config": "workspace:*",
+    "@fastify/metrics": "^13.2.1",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.79.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.221.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
+    "@opentelemetry/resources": "^2.10.0",
+    "@opentelemetry/sdk-metrics": "^0.221.0",
+    "@opentelemetry/sdk-node": "^0.221.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "prom-client": "^15.1.3"
+  },
+  "devDependencies": { "typescript": "^5.9.3", "vitest": "^4.1.11", "@types/node": "^22.10.0" }
+}
+```
+
+- [ ] **Step 12: Write `packages/observability/tsconfig.json`**
+
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "noEmit": true, "types": ["node", "vitest/globals"] },
+  "include": ["src"]
+}
+```
+
+- [ ] **Step 13: Add `METRICS_ENABLED` and `OTEL_EXPORTER_OTLP_ENDPOINT` to `packages/config/src/env.ts`**
+
+In `EnvSchema` add:
+
+```ts
+METRICS_ENABLED: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
+OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().default("http://localhost:4318"),
+```
+
+Update `.env.example` to add:
+
+```
+METRICS_ENABLED=false
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+```
+
+- [ ] **Step 14: Add deps to `apps/api/package.json` and `apps/worker/package.json`**
+
+Add `"@camermove/observability": "workspace:*"` to `dependencies` in both. For the API also add `"@fastify/metrics": "^13.2.1"` to `dependencies`.
+
+- [ ] **Step 15: Run tests, typecheck, and smoke**
+
+Run: `pnpm --filter @camermove/observability test` → PASS. Then `pnpm -r typecheck` → no errors.
+Run API and hit `http://localhost:3000/metrics` → returns Prometheus text with `camermove_operations_total`. Then run `docker compose up -d prometheus grafana` and confirm Grafana at `http://localhost:3001` (login `admin`/`admin`) can query `rate(camermove_error_total[5m])`.
+
+- [ ] **Step 16: Commit**
+
+```bash
+git add packages/observability apps/api/src/plugins apps/api/package.json apps/worker/package.json infra/alerts.yml infra/dashboards
+git commit -m "feat: add OpenTelemetry tracing and Prometheus metrics with Grafana dashboards"
+```
+
+---
+
 ## Acceptance Criteria Coverage (Lot 0 + Lot 1)
 
 - [x] User can search Yaoundé ↔ Douala trips (Task 1.1, 1.3)
@@ -2993,3 +3288,4 @@ git commit -m "docs: add quick-start and verify Lot 0 + Lot 1 vertical slice"
 - [ ] Planned notifications fire correctly (Task 1.4 adapters; wired end-to-end in Lot 4)
 - [ ] Data is protected and backed up (Lot 0 config/secrets; hardening Lot 6)
 - [x] The site works correctly on smartphone (Task 1.2, 1.3 mobile-first)
+- [x] Monitoring: OpenTelemetry traces + Prometheus `/metrics` + Grafana dashboards/alerts (Lot 0 compose; Task 1.7)
