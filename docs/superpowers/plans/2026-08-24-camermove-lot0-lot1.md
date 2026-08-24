@@ -3074,6 +3074,7 @@ import { Counter, Histogram, Registry } from "prom-client"
 
 const registry = new Registry()
 const opsCounter = new Counter({ name: "camermove_operations_total", help: "Operations counter", labelNames: ["name", "route"], registers: [registry] })
+const errorCounter = new Counter({ name: "camermove_error_total", help: "Error counter", labelNames: ["name"], registers: [registry] })
 const opDuration = new Histogram({ name: "camermove_operation_duration_ms", help: "Operation duration ms", labelNames: ["name"], registers: [registry] })
 
 export function resetMetrics() {
@@ -3088,6 +3089,9 @@ export async function observe<T>(name: string, attrs: Record<string, string>, fn
   const start = performance.now()
   try {
     return await fn()
+  } catch (err) {
+    errorCounter.inc({ name })
+    throw err
   } finally {
     opDuration.observe({ name }, performance.now() - start)
     opsCounter.inc({ name, route: attrs.route ?? "" })
@@ -3132,11 +3136,11 @@ export * from "./tracing"
 
 ```ts
 import fp from "fastify-plugin"
-import registerMetrics from "@fastify/metrics"
+import fastifyMetrics from "fastify-metrics"
 import type { FastifyInstance } from "fastify"
 
 export const metricsPlugin = fp(async (app: FastifyInstance) => {
-  await app.register(registerMetrics, { endpoint: "/metrics" })
+  await app.register(fastifyMetrics, { endpoint: "/metrics" })
 })
 ```
 
@@ -3214,7 +3218,6 @@ groups:
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
   "dependencies": {
     "@camermove/config": "workspace:*",
-    "@fastify/metrics": "^13.2.1",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/auto-instrumentations-node": "^0.79.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.221.0",
@@ -3257,7 +3260,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 
 - [ ] **Step 14: Add deps to `apps/api/package.json` and `apps/worker/package.json`**
 
-Add `"@camermove/observability": "workspace:*"` to `dependencies` in both. For the API also add `"@fastify/metrics": "^13.2.1"` to `dependencies`.
+Add `"@camermove/observability": "workspace:*"` to `dependencies` in both. For the API also add `"fastify-metrics": "^13.2.1"` to `dependencies`.
 
 - [ ] **Step 15: Run tests, typecheck, and smoke**
 
