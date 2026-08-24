@@ -4,6 +4,8 @@ import { loadEnv, AppError } from "@camermove/config"
 import { authRoutes } from "./auth/routes"
 import { authPlugin } from "./auth/plugins"
 import { searchRoutes } from "./search/routes"
+import { bookingRoutes } from "./bookings/routes"
+import { adminSettingsRoutes } from "./admin/settings"
 import { swaggerPlugin } from "./plugins/swagger"
 import { metricsPlugin } from "./plugins/metrics"
 import { metadataPlugin } from "./plugins/metadata"
@@ -34,6 +36,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   })
   await app.register(authRoutes, { prefix: "/api/v1" })
   await app.register(searchRoutes, { prefix: "/api/v1" })
+  await app.register(bookingRoutes, { prefix: "/api/v1" })
+  await app.register(adminSettingsRoutes, { prefix: "/api/v1" })
   app.get("/health", async () => ({ status: "ok" }))
   return app
 }

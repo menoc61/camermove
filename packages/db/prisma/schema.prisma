@@ -311,3 +311,18 @@ model PartnerApplication {
   documents      Document[]
   createdAt      DateTime                @default(now())
 }
+
+model AppSettings {
+  id                String   @id @default("global")
+  commissionPercent Decimal  @default(10) @db.Decimal(5, 2)
+  holdExpiryMinutes Int      @default(15)
+  cancellationPolicy String  @default("Annulation possible jusqu'à 1h avant départ")
+  smtpHost          String?
+  smtpPort          Int?
+  smtpUser          String?
+  smtpFrom          String?
+  featureFlags      Json?    @default("{}")
+  maintenanceMode   Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
+  updatedBy         String?
+}
