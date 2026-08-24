@@ -8,3 +8,5 @@ dist/
 .env.*.local
 coverage/
 .DS_Store
+packages/db/generated/
+packages/db/.env
