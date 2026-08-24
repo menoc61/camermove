@@ -48,8 +48,9 @@ camermove/
 │  ├─ config/       # typed env/config, plugin registration, DI container
 │  ├─ media/        # MinIO (S3) storage adapter + presigned URL helpers
 │  ├─ events/       # Kafka producer/consumer wrappers, topic constants, event schemas
-│  └─ frontend/     # Zustand stores, React context, API client, query hooks, theme provider
-├─ docker-compose.yml  # postgres + redis + mailhog + minio + kafka (+ kafka-ui) (dev)
+│  ├─ frontend/     # Zustand stores, React context, API client, query hooks, theme provider
+│  └─ observability/ # OTel setup (tracing + metrics), Prometheus metrics helpers, dashboard/alert configs
+├─ docker-compose.yml  # postgres + redis + mailhog + minio + kafka (+ kafka-ui) + prometheus + grafana (+ loki/tempo) (dev)
 ├─ turbo.json
 └─ .env / .env.example
 ```
@@ -63,6 +64,13 @@ camermove/
 - **Redis** also for rate limiting, distributed seat-hold, and response cache (search results).
 - **Postgres** primary + plan for read replicas; **Prisma** query layer; pagination on every list endpoint.
 - Idempotency + dedup for payment webhooks and event processing (Kafka producer idempotence, consumer group offsets).
+
+**Observability (OpenTelemetry + Prometheus + Grafana):**
+- **OpenTelemetry** SDK auto-instruments Fastify, Prisma, Redis, and Kafka: tracing with W3C trace-context propagation across API → Kafka → worker, spans named per route/module with attributes (route, role, HTTP status, DB latency).
+- **Prometheus** scrapes `/metrics` from each app (default metrics + OTel exporter) and the infra (Postgres/Redis/Kafka/MinIO exporters); also `grafana` dashboards (API latency p50/95/99, error rate, booking throughput, payment success, queue depth, Kafka consumer lag).
+- **Grafana** — single UI: metrics dashboards, logs (Loki optional), and alerting; correlated with Sentry for error traces.
+- **Compose** adds a `prometheus` + `grafana` (+ optional `loki`, `tempo`) service; a `metrics` Fastify plugin exposes `/metrics` (authorized in prod); OTel collector sidecar in deploy.
+- Env: `OTEL_EXPORTER_OTLP_ENDPOINT`, `METRICS_ENABLED`.
 
 **Frontend state (Zustand):** client-side state (auth session, search filters, cart/booking draft, settings) in `packages/frontend` Zustand stores, persisted where needed (e.g. auth token via `persist` middleware). Server data still fetched via API + React query hooks; Zustand holds only ephemeral UI/selection state — no duplication of server cache.
 
@@ -144,11 +152,11 @@ Notification types: booking confirmation, payment confirmation, e-ticket, trip r
 
 ## 11. Security & NFR
 
-HTTPS-only, Zod validation on every endpoint, rate limiting (Redis), webhook signature verify, audit log, automated backups (Postgres + MinIO objects) with tested restore, monitoring (Sentry + uptime) from first deploy, evolvability via data/config. Never expose/store raw card data. Media uploads validated (MIME + size) and object keys server-generated. Kafka events idempotent (producer idempotence + consumer group offsets + DLQ).
+HTTPS-only, Zod validation on every endpoint, rate limiting (Redis), webhook signature verify, audit log, automated backups (Postgres + MinIO objects) with tested restore, evolvability via data/config. Never expose/store raw card data. Media uploads validated (MIME + size) and object keys server-generated. Kafka events idempotent (producer idempotence + consumer group offsets + DLQ). **Full observability from first deploy:** OpenTelemetry distributed traces, Prometheus `/metrics`, Grafana dashboards + alerts, Sentry error tracking.
 
 ## 12. Build sequence (each lot demoable vs §13)
 
-1. **Lot 0 Foundations:** monorepo scaffold (web/api/worker + shared/db/config/media/events/frontend), CI, Docker Compose (postgres+redis+mailhog+minio+kafka), Prisma schema + migrations, auth + RBAC (incl. Google OAuth via `SocialAuthProvider`), config/env layer, event infra (Kafka producer + topic constants), shadcn theme base, Zustand base store.
+1. **Lot 0 Foundations:** monorepo scaffold (web/api/worker + shared/db/config/media/events/frontend/observability), CI, Docker Compose (postgres+redis+mailhog+minio+kafka+prometheus+grafana), Prisma schema + migrations, auth + RBAC (incl. Google OAuth via `SocialAuthProvider`), config/env layer, event infra (Kafka producer + topic constants), OTel/Prometheus/Grafana wiring, shadcn theme base, Zustand base store.
 2. **Lot 1 Search:** route/trip CRUD (minimal admin UI), search API, results/filter/sort UI, trip detail.
 3. **Lot 2 Booking core:** booking creation, seat hold + expiry (concurrency tests), passenger info, recap — stress-test double-booking here.
 4. **Lot 3 Payment:** NotchPay adapter + webhook, confirmation transition, failure/expiry release.
