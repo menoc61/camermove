@@ -1,4 +1,23 @@
 import { z } from 'zod'
+import dotenv from 'dotenv'
+import path from 'node:path'
+import fs from 'node:fs'
+
+// Auto-load .env from repo root (once). Search up from cwd.
+try {
+  let dir = process.cwd()
+  for (let i = 0; i < 4; i++) {
+    const candidate = path.join(dir, '.env')
+    if (fs.existsSync(candidate)) {
+      dotenv.config({ path: candidate })
+      break
+    }
+    const parent = path.dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  if (!process.env.DATABASE_URL) dotenv.config()
+} catch {}
 
 const secret = z.string().min(1)
 
@@ -27,6 +46,8 @@ const EnvSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_WHATSAPP_FROM: z.string().optional(),
   NTFY_HOST: z.string().default('https://ntfy.sh'),
+  METRICS_ENABLED: z.string().optional().default("false").transform((v) => v === "true"),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().default('http://localhost:4318'),
 })
 
 export type Env = z.infer<typeof EnvSchema>

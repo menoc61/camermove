@@ -1,3 +1,5 @@
 export { prisma } from "./prisma"
-export { Prisma } from "../generated/prisma/client"
-export type * from "../generated/prisma/client"
+export { Prisma } from "@prisma/client"
+export type * from "@prisma/client"
+export * from "./repositories/seat.repository"
+export * from "./repositories/user.repository"

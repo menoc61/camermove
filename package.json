@@ -2,7 +2,9 @@
   "name": "camermove",
   "private": true,
   "packageManager": "pnpm@11.9.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
@@ -14,5 +16,8 @@
   "devDependencies": {
     "prettier": "^3.6.0",
     "turbo": "^2.10.11"
+  },
+  "dependencies": {
+    "dotenv": "17.4.2"
   }
 }

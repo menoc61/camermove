@@ -1,0 +1,34 @@
+{
+  "name": "@camermove/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@camermove/config": "workspace:*",
+    "@camermove/db": "workspace:*",
+    "@camermove/events": "workspace:*",
+    "@camermove/observability": "workspace:*",
+    "@fastify/cors": "^11.3.0",
+    "argon2": "^0.45.1",
+    "fastify": "^5.12.1",
+    "fastify-metrics": "^13.2.1",
+    "fastify-plugin": "^5.0.1",
+    "jsonwebtoken": "^9.0.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}

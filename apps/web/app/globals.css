@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@theme {
+  --color-primary: #0e9f8f;
+  --color-primary-dark: #0b8274;
+  --color-accent: #f4b607;
+  --color-bg: #f5f8fa;
+  --radius-card: 1rem;
+}
+:root { --background: #f5f8fa; --foreground: #0f172a; }
+body { background: var(--background); color: var(--foreground); font-family: system-ui, sans-serif; }
