@@ -1,6 +1,16 @@
 import { z } from "zod"
 import { prisma } from "@camermove/db"
-import { BadRequestError } from "@camermove/config"
+import { BadRequestError, loadEnv } from "@camermove/config"
+
+function envMax(key: string, fallback: number): number {
+  try {
+    const env = loadEnv() as Record<string, unknown>
+    const v = env[key]
+    return typeof v === "number" && v > 0 ? v : fallback
+  } catch {
+    return fallback
+  }
+}
 
 export const AdvancedSearchQuery = z.object({
   origin: z.string().optional(),
@@ -18,8 +28,8 @@ export const AdvancedSearchQuery = z.object({
   orderBy: z.string().optional(),
   groupBy: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
-  perPage: z.coerce.number().int().min(1).max(100).default(20),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
+  perPage: z.coerce.number().int().min(1).max(envMax("PAGINATION_MAX_PER_PAGE", 100)).default(envMax("PAGINATION_DEFAULT_PER_PAGE", 20)),
+  limit: z.coerce.number().int().min(1).max(envMax("SEARCH_MAX_LIMIT", 100)).optional(),
   offset: z.coerce.number().int().min(0).optional(),
   status: z.string().optional().default("active"),
 })
@@ -124,7 +134,7 @@ export async function advancedSearch(query: AdvancedSearchQuery) {
 }
 
 export const BulkActionSchema = z.object({
-  ids: z.array(z.string()).min(1).max(100),
+  ids: z.array(z.string()).min(1).max(envMax("BULK_MAX_IDS", 100)),
   action: z.enum(["activate", "deactivate", "delete"]),
 })
 

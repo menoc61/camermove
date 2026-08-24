@@ -1,4 +1,15 @@
 import { z } from "zod"
+import { loadEnv } from "@camermove/config"
+
+function envMax(key: string, fallback: number): number {
+  try {
+    const env = loadEnv() as Record<string, unknown>
+    const v = env[key]
+    return typeof v === "number" && v > 0 ? v : fallback
+  } catch {
+    return fallback
+  }
+}
 
 export const SearchQuery = z.object({
   origin: z.string().min(1),
@@ -9,6 +20,6 @@ export const SearchQuery = z.object({
   minPrice: z.coerce.number().int().min(0).optional(),
   maxPrice: z.coerce.number().int().min(0).optional(),
   page: z.coerce.number().int().min(1).default(1),
-  perPage: z.coerce.number().int().min(1).max(100).default(20),
+  perPage: z.coerce.number().int().min(1).max(envMax("PAGINATION_MAX_PER_PAGE", 100)).default(envMax("PAGINATION_DEFAULT_PER_PAGE", 20)),
 })
 export type SearchQuery = z.infer<typeof SearchQuery>

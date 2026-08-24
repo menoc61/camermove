@@ -1,4 +1,15 @@
 import { z } from "zod"
+import { loadEnv } from "@camermove/config"
+
+function envMax(key: keyof ReturnType<typeof loadEnv>, fallback: number): number {
+  try {
+    const env = loadEnv() as Record<string, unknown>
+    const v = env[key as string]
+    return typeof v === "number" && v > 0 ? v : fallback
+  } catch {
+    return fallback
+  }
+}
 
 export const OrderBySchema = z
   .string()
@@ -8,8 +19,8 @@ export const OrderBySchema = z
 
 export const PaginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  perPage: z.coerce.number().int().min(1).max(100).default(20),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
+  perPage: z.coerce.number().int().min(1).max(envMax("PAGINATION_MAX_PER_PAGE", 100)).default(envMax("PAGINATION_DEFAULT_PER_PAGE", 20)),
+  limit: z.coerce.number().int().min(1).max(envMax("SEARCH_MAX_LIMIT", 100)).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 })
 
@@ -50,7 +61,7 @@ export function buildPagination(input: { page?: number; perPage?: number; limit?
 }
 
 export const BulkActionSchema = z.object({
-  ids: z.array(z.string()).min(1).max(100),
+  ids: z.array(z.string()).min(1).max(envMax("BULK_MAX_IDS", 100)),
   action: z.enum(["delete", "archive", "activate", "deactivate"]),
 })
 

@@ -220,6 +220,10 @@ model Booking {
   tickets       Ticket[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+
+  @@index([userId, status])
+  @@index([tripId])
+  @@index([status, holdExpiresAt])
 }
 
 model Passenger {

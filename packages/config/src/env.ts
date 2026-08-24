@@ -54,6 +54,19 @@ const EnvSchema = z.object({
   SMTP_SECURE: z.string().optional().default("false").transform((v) => v === "true"),
   METRICS_ENABLED: z.string().optional().default("false").transform((v) => v === "true"),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().default('http://localhost:4318'),
+  // System maxima — all tunable via .env (no hardcoded limits)
+  RATE_LIMIT_IP_GENERAL_MAX: z.coerce.number().int().positive().default(100),
+  RATE_LIMIT_IP_AUTH_MAX: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_IP_SEARCH_MAX: z.coerce.number().int().positive().default(30),
+  RATE_LIMIT_APP_GENERAL_MAX: z.coerce.number().int().positive().default(5000),
+  RATE_LIMIT_APP_AUTH_MAX: z.coerce.number().int().positive().default(500),
+  RATE_LIMIT_APP_SEARCH_MAX: z.coerce.number().int().positive().default(1000),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+  PAGINATION_MAX_PER_PAGE: z.coerce.number().int().positive().default(100),
+  PAGINATION_DEFAULT_PER_PAGE: z.coerce.number().int().positive().default(20),
+  BULK_MAX_IDS: z.coerce.number().int().positive().default(100),
+  SEARCH_MAX_LIMIT: z.coerce.number().int().positive().default(100),
+  SEARCH_DEFAULT_LIMIT: z.coerce.number().int().positive().default(20),
 })
 
 export type Env = z.infer<typeof EnvSchema>

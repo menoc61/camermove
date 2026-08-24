@@ -7,9 +7,11 @@ import { searchRoutes } from "./search/routes"
 import { swaggerPlugin } from "./plugins/swagger"
 import { metricsPlugin } from "./plugins/metrics"
 import { metadataPlugin } from "./plugins/metadata"
+import { rateLimitPlugin } from "./plugins/rateLimit"
+import { idempotencyPlugin } from "./plugins/idempotency"
 
 export async function buildApp(): Promise<FastifyInstance> {
-  const app = Fastify({ logger: true })
+  const app = Fastify({ logger: true, trustProxy: true })
   await app.register(cors, { origin: true, credentials: true })
   await app.register(swaggerPlugin)
   const env = loadEnv()
@@ -17,6 +19,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     await app.register(metricsPlugin)
   }
   await app.register(metadataPlugin)
+  await app.register(rateLimitPlugin)
+  await app.register(idempotencyPlugin)
   await app.register(authPlugin)
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof AppError) {
