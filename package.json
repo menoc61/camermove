@@ -11,7 +11,11 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "smoke": "tsx scripts/smoke/index.ts all",
+    "smoke:auth": "tsx scripts/smoke/index.ts auth",
+    "smoke:search": "tsx scripts/smoke/index.ts search",
+    "swagger:export": "tsx scripts/swagger-export.ts"
   },
   "devDependencies": {
     "prettier": "^3.6.0",

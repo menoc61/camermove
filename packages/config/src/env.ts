@@ -46,6 +46,12 @@ const EnvSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_WHATSAPP_FROM: z.string().optional(),
   NTFY_HOST: z.string().default('https://ntfy.sh'),
+  SMTP_HOST: z.string().default('localhost'),
+  SMTP_PORT: z.coerce.number().int().default(1025),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().default('no-reply@camermove.cm'),
+  SMTP_SECURE: z.string().optional().default("false").transform((v) => v === "true"),
   METRICS_ENABLED: z.string().optional().default("false").transform((v) => v === "true"),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().default('http://localhost:4318'),
 })

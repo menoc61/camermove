@@ -4,10 +4,19 @@ import { loadEnv, AppError } from "@camermove/config"
 import { authRoutes } from "./auth/routes"
 import { authPlugin } from "./auth/plugins"
 import { searchRoutes } from "./search/routes"
+import { swaggerPlugin } from "./plugins/swagger"
+import { metricsPlugin } from "./plugins/metrics"
+import { metadataPlugin } from "./plugins/metadata"
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
   await app.register(cors, { origin: true, credentials: true })
+  await app.register(swaggerPlugin)
+  const env = loadEnv()
+  if ((env as unknown as { METRICS_ENABLED: boolean }).METRICS_ENABLED) {
+    await app.register(metricsPlugin)
+  }
+  await app.register(metadataPlugin)
   await app.register(authPlugin)
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof AppError) {

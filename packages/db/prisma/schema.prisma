@@ -187,6 +187,11 @@ model Trip {
   seatAvailability    SeatAvailability?
   bookings            Booking[]
   createdAt           DateTime         @default(now())
+
+  @@index([departureAt])
+  @@index([price])
+  @@index([status])
+  @@index([routeId, departureAt])
 }
 
 model SeatAvailability {
