@@ -34,21 +34,39 @@ Native mobile app · loyalty · tourism marketplace · dynamic pricing · AI fea
 
 ## 4. Architecture
 
-**Monorepo (Turborepo)** — clean API/frontend split so a mobile app can reuse the API.
+**Modular monorepo (Turborepo)** — clean API/frontend split so a mobile app can reuse the API. Built for **horizontal scale** (thousands of requests) and **maintainability** via strict module boundaries.
 
 ```
 camermove/
 ├─ apps/
 │  ├─ web/          # Next.js 15 (App Router) + TS + Tailwind + shadcn/ui (tweakcn theme cmt1ew8a7000004jp22krc04q)
-│  └─ api/          # Node.js + Fastify + TS, REST /api/v1
+│  ├─ api/          # Node.js + Fastify + TS, REST /api/v1 (stateless, horizontally scalable)
+│  └─ worker/       # queue consumer (BullMQ/Redis): emails, WhatsApp, push, webhook+notifications jitter
 ├─ packages/
-│  └─ shared/       # Zod schemas, TS types, i18n message keys
-├─ docker-compose.yml  # postgres + redis + mailhog (dev)
+│  ├─ shared/       # Zod schemas, TS types, i18n message keys, money/commission math
+│  ├─ db/           # Prisma client + repositories (single data-access layer)
+│  ├─ config/       # typed env/config, plugin registration, DI container
+│  └─ media/        # MinIO (S3) storage adapter + presigned URL helpers
+├─ docker-compose.yml  # postgres + redis + mailhog + minio (dev)
 ├─ turbo.json
 └─ .env / .env.example
 ```
 
-**Invariant (§4/§30):** all business logic (search, availability, booking, commission) lives in `apps/api`. The web app only calls the API.
+**Invariant (§4/§30):** all business logic (search, availability, booking, commission) lives in `apps/api` + `packages/*`. The web app only calls the API.
+
+**Scale design:**
+- API is **stateless** (JWT in header, no server session) → scale out horizontally behind a load balancer / Nginx.
+- **Redis** for rate limiting, distributed seat-hold, cache (search results), and as the BullMQ queue broker.
+- **Queue worker** (`apps/worker`) consumes non-critical jobs (notifications, media processing) off the request path so high read/write load isn't blocked by email/SMS/push latency.
+- **Postgres** primary + plan for read replicas; **Prisma** query layer; search results cached in Redis; pagination on every list endpoint.
+- Idempotency + retries for payment webhooks and outbound jobs (BullMQ repeatable/backoff).
+
+**Customization / configurability:**
+- All config via typed env (`packages/config`) with a single Zod-validated schema; no hardcoded magic values.
+- Commission %, cancellation policy, feature flags, and timezone/price tables stored in the DB, editable from admin without redeploy.
+- New cities/routes/transporters added via data/config — never a schema rewrite or redeploy (§12).
+
+**Modularity principles:** each module = Fastify plugin + service + repository, with explicit service-layer interfaces. Controllers stay thin. Cross-module calls go through services (no direct repository access across modules). Modules are independently testable; shared business math (money, commission) lives in `packages/shared` and is unit-tested once, reused by both web and API.
 
 ## 5. Data model (PostgreSQL via Prisma)
 
@@ -58,7 +76,16 @@ Entities: **User, Transporter, Vehicle, Route, Trip, SeatAvailability, Booking, 
 
 ## 6. Backend modules
 
-`auth`, `users`, `transporters`, `vehicles`, `routes`, `trips`, `search`, `bookings`, `payments`, `commissions`, `tickets`, `notifications`, `admin`, `stats` — each a Fastify plugin + service + Prisma repository. Controllers thin; business rules in services (unit-tested).
+`auth`, `users`, `transporters`, `vehicles`, `routes`, `trips`, `search`, `bookings`, `payments`, `commissions`, `tickets`, `notifications`, `media`, `admin`, `stats` — each a Fastify plugin + service + Prisma repository. Controllers thin; business rules in services (unit-tested).
+
+### Media management (MinIO — S3-compatible)
+
+- **Storage:** self-hosted **MinIO** in Docker Compose (dev) / deployable to K8s or a managed S3 endpoint later. Uses the official `minio` JS SDK.
+- **Access pattern:** server issues **presigned PUT** URLs for direct browser upload (transporter logos, required documents/justificatifs) and **presigned GET** for secure download. Traverser files never pass through the API node — keeps the API thin and avoids buffering large objects in memory.
+- **Buckets:** e.g. `transporters`, `logos`, `tickets` (QR rendering), `docs`. Per-tenant/purpose prefixing. Private buckets by default; public read only where needed.
+- **Key design:** media storage behind a `packages/media` adapter interface so MinIO can be swapped to AWS S3 / Cloudinary / GCS via env config without touching module code.
+- **Secret handling:** MinIO access key/secret in `.env`, never committed. All object names stored in the DB (`Media` reference columns on `Transporter.documents`, `Transporter.logo`, `Vehicle.*`); raw keys not hardcoded in the UI.
+- **Security:** validate MIME type + size on upload, never trust client-supplied paths (server generates object keys), deny public access to sensitive docs, set bucket policies conservatively.
 
 ## 7. Payments — NotchPay (sandbox)
 
@@ -104,16 +131,16 @@ Notification types: booking confirmation, payment confirmation, e-ticket, trip r
 
 ## 11. Security & NFR
 
-HTTPS-only, Zod validation on every endpoint, rate limiting (Redis), webhook signature verify, audit log, automated backups with tested restore, monitoring from first deploy, evolvability via data/config. Never expose/store raw card data.
+HTTPS-only, Zod validation on every endpoint, rate limiting (Redis), webhook signature verify, audit log, automated backups (Postgres + MinIO objects) with tested restore, monitoring (Sentry + uptime) from first deploy, evolvability via data/config. Never expose/store raw card data. Media uploads validated (MIME + size) and object keys server-generated.
 
 ## 12. Build sequence (each lot demoable vs §13)
 
-1. **Lot 0 Foundations:** monorepo scaffold, CI, Docker Compose (postgres+redis+mailhog), Prisma schema + migrations, auth + RBAC, shadcn theme base.
+1. **Lot 0 Foundations:** monorepo scaffold (web/api/worker + shared/db/config/media), CI, Docker Compose (postgres+redis+mailhog+minio), Prisma schema + migrations, auth + RBAC, config/env layer, shadcn theme base.
 2. **Lot 1 Search:** route/trip CRUD (minimal admin UI), search API, results/filter/sort UI, trip detail.
 3. **Lot 2 Booking core:** booking creation, seat hold + expiry (concurrency tests), passenger info, recap — stress-test double-booking here.
 4. **Lot 3 Payment:** NotchPay adapter + webhook, confirmation transition, failure/expiry release.
 5. **Lot 4 Ticketing & notifications:** e-ticket (QR/code), email + WhatsApp + push, traveler dashboard.
-6. **Lot 5 Transporter & admin:** transporter self-service, admin CRUD + stats + audit log, partner workflow, commission config/reporting.
+6. **Lot 5 Transporter & admin:** transporter self-service, admin CRUD + stats + audit log, partner workflow, commission config/reporting, media upload presigned flow (logos/documents → MinIO).
 7. **Lot 6 Polish & hardening:** cancellation/refund rules, public/legal pages, security + load pass, backup/restore drill.
 8. **Lot 7 Pilot:** deploy, seed real transporters, run full live path, collect feedback.
 
