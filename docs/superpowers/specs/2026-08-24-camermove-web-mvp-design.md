@@ -70,7 +70,7 @@ camermove/
 
 ## 5. Data model (PostgreSQL via Prisma)
 
-Entities: **User, Transporter, Vehicle, Route, Trip, SeatAvailability, Booking, Payment, Commission, Ticket, Notification, AuditLog, PartnerApplication.**
+Entities: **User, SocialAccount, Transporter, Vehicle, Route, Trip, SeatAvailability, Booking, Payment, Commission, Ticket, Notification, AuditLog, PartnerApplication.**
 
 **Critical invariant:** booking a seat is **atomic and race-safe** — DB transaction + row-level lock (`SELECT ... FOR UPDATE`) for decrement, with a Redis-driven hold-expiry timer. Dedicated tests simulating concurrent bookings on the last seat before the feature is considered done.
 
@@ -102,6 +102,13 @@ Env: `N_PUBLIC_KEY`, `N_PRIVATE_KEY`, `N_HASH_KEY`, `NOTCHPAY_BASE_URL=https://a
 ## 8. Auth & RBAC
 
 JWT (access+refresh), bcrypt password hashing, 4 roles enforced by API middleware. Admin/super-admin behind stronger auth.
+
+**Google OAuth (social login):** travelers (and transporter staff) can sign up/sign in with Google in addition to email+password.
+- Server-side OAuth 2.0 via a `SocialAuthProvider` interface: on `GET /auth/google` → redirect to Google consent; Google redirects to `/auth/google/callback`; exchange code → validate `id_token` (verify signature + `aud` + `iss`) → upsert `User` (email as unique key, `emailVerified=true`, link a `SocialAccount` row) → issue our JWT.
+- `User` model gains a `SocialAccount[]` relation (provider, providerUserId, email) so multiple providers (Google now; Apple/Facebook later) plug in behind the same interface.
+- New users created via OAuth get a nullable passwordHash (or a random unusable hash) and `role=traveler` by default.
+- No raw provider token ever stored; only our access+refresh JWTs. Google `client_id`/`client_secret` in `.env`, never committed. Works alongside email/password; `SocialAuthProvider` interface means Google can be swapped or extended without touching the auth service.
+- Frontend shows "Continuer avec Google" on login/register (dev: use Google Cloud OAuth test user; without creds the button hides — env-gated).
 
 ## 9. Notifications
 
@@ -135,7 +142,7 @@ HTTPS-only, Zod validation on every endpoint, rate limiting (Redis), webhook sig
 
 ## 12. Build sequence (each lot demoable vs §13)
 
-1. **Lot 0 Foundations:** monorepo scaffold (web/api/worker + shared/db/config/media), CI, Docker Compose (postgres+redis+mailhog+minio), Prisma schema + migrations, auth + RBAC, config/env layer, shadcn theme base.
+1. **Lot 0 Foundations:** monorepo scaffold (web/api/worker + shared/db/config/media), CI, Docker Compose (postgres+redis+mailhog+minio), Prisma schema + migrations, auth + RBAC (incl. Google OAuth via `SocialAuthProvider`), config/env layer, shadcn theme base.
 2. **Lot 1 Search:** route/trip CRUD (minimal admin UI), search API, results/filter/sort UI, trip detail.
 3. **Lot 2 Booking core:** booking creation, seat hold + expiry (concurrency tests), passenger info, recap — stress-test double-booking here.
 4. **Lot 3 Payment:** NotchPay adapter + webhook, confirmation transition, failure/expiry release.
