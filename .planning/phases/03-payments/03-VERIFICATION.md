@@ -1,18 +1,56 @@
 ---
 phase: 03-payments
-verified: 2026-08-25T18:00:00Z
-status: passed
-score: 10/10 must-haves verified
-behavior_unverified: 0
+verified: 2026-08-25T10:34:37Z
+status: human_needed
+score: 5/8 must-haves verified
+behavior_unverified: 3
 overrides_applied: 0
+prohibitions_flagged: 7 # judgment-tier prohibitions — LLM-judged PASS (non-authoritative); human review recommended
+re_verification:
+  previous_status: passed
+  previous_score: 10/10
+  gaps_closed: []
+  gaps_remaining: []
+  regressions: []
+behavior_unverified_items:
+  - truth: "POST /payments creates a live NotchPay/CinetPay session and Idempotency-Key replay returns same status+body without re-calling provider"
+    test: "docker compose up -d; register user; create booking in pending_payment; POST /api/v1/payments with sandbox keys + Idempotency-Key k1; replay with same k1"
+    expected: "201 {payment, authorizationUrl, paymentUrl}; replay returns identical body; provider dashboard shows exactly 1 transaction; second booking attempt on same booking returns existing pending payment"
+    why_human: "Requires live provider sandbox + running stack; no test exists anywhere under apps/api/src/payments and server was not running at verification time"
+  - truth: "Webhook delivery idempotently updates Payment.status — duplicate deliveries and worker replays never double-confirm, double-book seats, or duplicate Commission"
+    test: "Send valid-HMAC webhook to /api/v1/webhooks/notchpay twice (same event id), let worker consume both; inspect Payment/Booking/SeatAvailability/Commission rows"
+    expected: "First → 200 received; second → 200 status:duplicate; exactly one Payment.status=success, one Booking confirmed, seatsHeld decremented once, exactly one Commission row"
+    why_human: "State transition + ordering invariant across Redis/Kafka/Postgres; grep proves symbols exist but cannot prove the transition holds at runtime"
+  - truth: "On success booking→confirmed + seats→booked + commission persisted (override-aware); on failure/expiry seats released; reconciliation recovers stale pending; refund releases seatsBooked"
+    test: "With stack up: drive one booking through success webhook, one through failure, insert a pending payment createdAt 10m ago then trigger reconcileStalePayments, call refundPayment on a confirmed booking"
+    expected: "Success path confirms + books seats + Commission.percentApplied honors featureFlags.transporterCommissions override; failure path releases held seats and expires booking; stale pending driven to terminal state; refund moves seatsBooked→seatsAvailable and voids tickets"
+    why_human: "All are transactional state transitions (FOR UPDATE serialization vs expireHolds race) that no automated test exercises; presence checks cannot see runtime outcomes"
+human_verification:
+  - test: "MVP-format decision (escalation): ROADMAP marks Phase 3 mode:mvp but goal is not user-story format ('As a…, I want to…, so that….')"
+    expected: "Human decides: either run /gsd mvp-phase 3 to reformat the goal, or accept the current goal wording for this already-executed phase"
+    why_human: "Canonical validator gsd-tools query user-story.validate returned false; MVP-narrowed User Flow Coverage cannot be produced without a fabricated story"
+  - test: "Live payment initiation + idempotent replay against NotchPay/CinetPay sandboxes (see behavior_unverified_items #1)"
+    expected: "201 with live authorization_url/payment_url; identical replay body; 1 provider transaction"
+    why_human: "Needs provider credentials + running docker compose stack"
+  - test: "Webhook end-to-end: valid HMAC → 200 received; replay same id → 200 duplicate; worker transitions Payment→success, Booking→confirmed, seats→booked, Commission created once (see behavior_unverified_items #2/#3)"
+    expected: "Exactly-once state transition; percentApplied matches AppSettings override"
+    why_human: "Runtime cross-service behavior; no payments test suite exists"
+  - test: "CinetPay never-trust-notify check: deliver notify with spoofed cpm_amount while /v2/payment/check reports different amount"
+    expected: "Worker maps to failed (amount mismatch), does not confirm booking"
+    why_human: "Requires mocking/mismatching provider responses at runtime"
+  - test: "Expiry race: fire expireHolds and confirmPaymentSuccess concurrently on one nearly-expired booking"
+    expected: "One wins under FOR UPDATE; seatsHeld never negative; no duplicate Commission"
+    why_human: "Concurrency invariant; cannot be observed by static checks"
 ---
 
-# Phase 03: Payments Verification Report
+# Phase 3: Payments Verification Report
 
 **Phase Goal:** Bookings can be paid and confirmed via NotchPay + CinetPay (dual provider), enterprise-grade.
-**Verified:** 2026-08-25T18:00:00Z
-**Status:** passed
-**Re-verification:** No — initial verification
+**Verified:** 2026-08-25T10:34:37Z
+**Status:** human_needed
+**Re-verification:** Yes — fresh verification of current codebase state (prior report passed 10/10; no payments code changed since prior verification commit `7c57a93`, confirmed via `git log 7c57a93..HEAD`)
+
+> **Mode note (escalation).** ROADMAP.md declares Phase 3 `mode: mvp`, but the canonical guard `gsd-tools query user-story.validate --story "<goal>"` returned **false** — the goal is not in User Story format. Per verifier policy the MVP-narrowed User Flow Coverage framing is therefore NOT applied (it would be fabricated); this report uses the standard goal-backward methodology against the roadmap Success Criteria. Human decision requested above.
 
 ## Goal Achievement
 
@@ -20,115 +58,144 @@ overrides_applied: 0
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | POST /payments creates NotchPay/CinetPay session and returns authorization_url/payment_url (Idempotency-Key + one-pending guard, XAF multiple-of-5 for CinetPay) | ✓ VERIFIED | `apps/api/src/payments/routes.ts:8` POST 201 returns `{payment, authorizationUrl, paymentUrl}`; `service.ts:32-84` pre-check `findPendingPaymentByBookingId` + tx `SELECT FOR UPDATE` dedup + `amount=booking.totalAmount` + `amount%5` guard for cinetpay; `providers/cinetpay.adapter.ts:27` throws BadRequestError multiple-of-5; `providers/notchpay.adapter.ts:22` fetch `/payments` with 10s AbortController; `plugins/idempotency.ts` global preHandler caches 24h on Idempotency-Key; typecheck 0 errors |
-| 2 | Webhook verified (X-Notch-Signature / x-token HMAC) + SET NX dedup + Kafka enqueue → 200 fast, idempotently updates Payment.status (never trusts notify payload alone — CinetPay double-verifies via /v2/payment/check) | ✓ VERIFIED | `webhooks/verify.ts:7` `timingSafeEqual` on raw hex, 15-field concat + fallback; `webhooks/notchpay.ts:24` rawBody string check, `x-notch-signature` 401/403, `verifyNotchSignature` delegate, `redis.set NX EX 7d` + memory fallback, `200 duplicate/received` no DB mutation; `webhooks/cinetpay.ts:28` `x-token` + `verifyCinetToken` + fallback hmac, composite `cinetpay:cpm_trans_id:cpm_trans_date` dedup; `jobs/reconciliation.ts:39` `mustVerifyProvider` calls `getProvider().verifyPayment` mandatory, CinetPay amount/currency mismatch → failed; `providers/cinetpay.adapter.ts:115` `code==="00" && status==="ACCEPTED"` success else pending/failed |
-| 3 | On success, booking→confirmed, seats→booked, commission persisted (global + per-transporter override); on failure/expiry seats released; reconciliation recovers stuck pending; refund releases seats; exportable payments | ✓ VERIFIED | `jobs/reconciliation.ts:63` `confirmPaymentSuccess` tx `FOR UPDATE` Booking+SeatAvailability, re-fetch under lock, guards `status===success` idempotent + `freshBooking.status==="pending_payment"` expiry race, `seatsHeld decrement Math.min(seatCount,held)` + `seatsBooked increment`, `computeCommission` + `@unique(bookingId)` catch duplicate, `AuditLog payment.success` + Kafka `paymentCompleted`; `failPayment:169` tx releases `seatsHeld→seatsAvailable` + booking `expired`; `reconcileStalePayments:291` >5m pending → verifyPayment → confirm/fail; `jobs/refund.ts:7` guards `confirmed+success`, tx `refunded` + seats reversal + ticket void; `routes.ts:37` GET /payments/export + /admin/payments/export RBAC + `SEARCH_MAX_LIMIT` + `sendExport` CSV Content-Disposition |
-| 4 | A traveler can initiate a payment and the system holds a provider-agnostic abstraction that can talk to NotchPay or CinetPay without changing call sites | ✓ VERIFIED | `providers/types.ts:38` `PaymentProvider` interface + `PAYMENT_PROVIDERS` const + `SupportedProvider`; `providers/index.ts:6` `getProvider(name)` lazy `loadEnv()` switch returns `NotchPayAdapter`/`CinetPayAdapter`; `service.ts:63` `getProvider(provider).createPayment(input)` single call site |
-| 5 | Webhook signature verification uses timingSafeEqual on raw body bytes, not JSON.stringify(parsed) | ✓ VERIFIED | `webhooks/verify.ts:9` `createHmac("sha256",hashKey).update(rawBody).digest("hex")` + `timingSafeEqual(Buffer.from(expected,"hex"),Buffer.from(signature,"hex"))`; `plugins/rawBody.ts:12` captures `req.rawBody` string via `addContentTypeParser parseAs:"string"` before JSON.parse, both json+form; `webhooks/notchpay.ts:69` delegates `verifyNotchSignature(bodyStr,signature,secret)` never inline |
-| 6 | Commission math is integer XAF with Math.round, shared via packages/shared, not duplicated | ✓ VERIFIED | `packages/shared/src/money.ts:10` `Math.round((gross*percent)/100)` + `net=gross-commission`; `packages/shared/src/index.ts` barrel; `payments/commission.ts:2` imports `calcCommission` from `@camermove/shared`, never inline; `commission.ts:34` reads `AppSettings.commissionPercent` 30s cache `getCached/setCached` + `featureFlags.transporterCommissions[transporterId]` override |
-| 7 | Only the booking owner can pay; booking must be pending_payment else 409; one pending/processing payment per booking enforced | ✓ VERIFIED | `service.ts:28` `NotFoundError` if null, `ForbiddenError` if `booking.userId !== userId`, `ConflictError` if `status !== pending_payment`; `service.ts:32` `findPendingPaymentByBookingId` pre-check return existing, `79` tx `SELECT FOR UPDATE` + re-check `findFirst pending|processing` race guard; `routes.ts:8` `requireAuth()` + `req.log.info {...meta, bookingId, provider}` |
-| 8 | GET /payments/:id is owner-or-admin scoped; GET /payments and GET /payments/export support dateFrom/dateTo + RBAC + SEARCH_MAX_LIMIT streaming CSV | ✓ VERIFIED | `service.ts:151` `getPaymentById` checks `role admin/super_admin` else `booking.userId !== requester.id` → 403; `service.ts:160` `listPayments` traveler `where.booking={userId}` else admin all, dateFrom/dateTo on createdAt, q on providerRef/reference, orderBy parse; `routes.ts:37` export parses `parseExportQuery`, traveler filter, `prisma.payment.findMany take: env.SEARCH_MAX_LIMIT` + `sendExport` Content-Disposition; admin aliases `app.get("/admin/payments", requireAuth("admin"))` |
-| 9 | Commission calculation reads AppSettings.commissionPercent cached 30s + per-transporter override from featureFlags.transporterCommissions, rounded integer XAF | ✓ VERIFIED | `payments/commission.ts:8` `getAppSettingsCached` `getCached("appsettings:global")` 30s + `prisma.appSettings.findUnique/create` + `setCached`; `30` `computeCommission(gross,transporterId)` picks `overrides?.transporterCommissions[transporterId] ?? globalPct` then `calcCommission` |
-| 10 | On success worker transactionally Payment→success, Booking→confirmed, seats, Commission, AuditLog+Kafka; duplicate delivery idempotent; failure/expired/refund seats released; reconciliation recovers | ✓ VERIFIED | See truth 3 evidence plus `reconciliation.ts:79` `if freshPayment.status==="success" return` + `refunded/failed/expired` guards, `Commission @unique(bookingId)` catch, `seatsHeld` clamp `Math.min`; `refund.ts:30` tx `SELECT FOR UPDATE` + `payment.refunded` + `booking.refunded` + `seatsBooked decrement` + `ticket void` + `AuditLog payment.refunded` + `paymentRefunded` publish; `worker/src/index.ts:19` handler `paymentWebhookReceived` + hourly `setInterval reconcileStalePayments` + SIGTERM clear |
+| 1 | POST /payments creates NotchPay/CinetPay session and returns authorization_url/payment_url (Idempotency-Key + one-pending guard, XAF multiple-of-5 for CinetPay) | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | All code present + wired: `routes.ts:8-23` POST 201 returns `{payment, authorizationUrl, paymentUrl}`; `service.ts:29-42` ownership/status guards + `amount=booking.totalAmount` + `%5` guard; `service.ts:80-84` in-tx `SELECT FOR UPDATE` re-check; `idempotency.ts:12-41` global preHandler caches 24h on Idempotency-Key (registered `app.ts:31` before routes); adapters return real URLs (`notchpay.adapter.ts:50-54`, `cinetpay.adapter.ts:68-74`). But the asserted runtime flow (live provider session + byte-identical replay) has **no test** (`apps/api/src/payments/**` contains zero `*.test.ts`; repo tests cover auth/bookings/env/seats/topics/media only) and server was down at verify time → see Human Verification |
+| 2 | Webhook verified (X-Notch-Signature / x-token HMAC) + SET NX dedup + Kafka enqueue → 200 fast; idempotently updates Payment.status; CinetPay double-verifies via /v2/payment/check | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Receipt side fully verifiable by inspection: `notchpay.ts:24-45` rawBody→401→403 via `verifyNotchSignature(rawBody,…)`; `:61-83` Redis `SET NX EX 7d` dedup + memory fallback → 200 `duplicate`; `:94-123` Kafka enqueue w/ Redis-list fallback → 200 `received`, no business logic; cinetpay mirror `cinetpay.ts:30-89` incl. composite deliveryId; worker gate `reconciliation.ts:36-61 mustVerifyProvider` mandatory `verifyPayment` + amount/currency mismatch → failed. But runtime properties (dedup atomicity under concurrency, <100ms p99, exactly-once Payment.status transition) are unexercised by any test → see Human Verification |
+| 3 | On success booking→confirmed + seats→booked + commission persisted (global + per-transporter override); failure/expiry releases seats; reconciliation recovers stuck pending; refund releases seats; exportable payments | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Transitions present + wired: `confirmPaymentSuccess` (`reconciliation.ts:69-147`) FOR UPDATE ×2, idempotency guards `:80-83`, clamp `Math.min` `:92`, Commission create + @unique catch `:110-126`; `failPayment` `:169-216` releases seatsHeld→seatsAvailable only if still pending_payment; `reconcileStalePayments` `:291-329` >5m take 100; `refund.ts:30-76` tx refunded + seat reversal + ticket void; export `routes.ts:37-92` RBAC+dates+`SEARCH_MAX_LIMIT`+`sendExport`. No test exercises any transition → see Human Verification |
+| 4 | Provider-agnostic abstraction talks to NotchPay or CinetPay without changing call sites | ✓ VERIFIED | `providers/types.ts:38-43` `PaymentProvider` interface; `providers/index.ts:6-25` `getProvider` factory lazy `loadEnv()`, unknown → BadRequestError; single call sites `service.ts:63` and `reconciliation.ts:38,300` — zero provider branching outside factory (grep confirms) |
+| 5 | Webhook signature verification uses timingSafeEqual on raw body bytes, not JSON.stringify(parsed) | ✓ VERIFIED | `webhooks/verify.ts:9-11` HMAC over raw string + `timingSafeEqual(Buffer,Buffer)` hex in try/catch; `plugins/rawBody.ts:12-41` captures `req.rawBody` string via `addContentTypeParser parseAs:"string"` BEFORE JSON.parse (json + form); `notchpay.ts:42` verifies `req.rawBody` verbatim; adapters delegate (`notchpay.adapter.ts:69`, `cinetpay.adapter.ts:182`) — no inline HMAC in verification path |
+| 6 | Commission math is integer XAF with Math.round, shared via packages/shared, not duplicated | ✓ VERIFIED | `packages/shared/src/money.ts:6-19` `calcCommission`/`calcRefund` Math.round integer-only; consumed via `@camermove/shared` in `commission.ts:2` + `refund.ts:2`; workspace dep wired `apps/api/package.json:18`; grep shows no other commission math in payments. ℹ️ Info: `bookings/cancellation.ts:121-122` has inline refund-tier Math.round — Phase 2 file, out of this phase's scope, integer-consistent |
+| 7 | Only the booking owner can pay; GET /payments/:id owner-or-admin scoped; list/export RBAC + dateFrom/dateTo + SEARCH_MAX_LIMIT streaming CSV | ✓ VERIFIED | `service.ts:29` ForbiddenError if `booking.userId !== userId`; `:151-158 getPaymentById` admin/super_admin bypass else owner-only 403; `listPayments:164-168` traveler `where.booking={userId}`; `routes.ts:37-61` export traveler-scoped + date filters + `take: env.SEARCH_MAX_LIMIT` + `sendExport`; `/admin/payments(+export)` aliases `requireAuth("admin")` `routes.ts:64-92` |
+| 8 | Commission calculation reads AppSettings.commissionPercent cached 30s + per-transporter override from featureFlags.transporterCommissions, rounded integer XAF | ✓ VERIFIED | `commission.ts:5-6` `CACHE_KEY="appsettings:global"`, TTL 30; `:8-28` getCached→DB fallback→lazy create→setCached; `:34-38 computeCommission` override pick `overrides[transporterId] ?? globalPct` → `calcCommission`; consumed by hold-extension `service.ts:104-105` and confirm tx `reconciliation.ts:109` |
 
-**Score:** 10/10 truths verified (0 present, behavior-unverified)
+**Score:** 5/8 truths verified (3 present, behavior-unverified)
+
+### Deferred Items
+
+| # | Item | Addressed In | Evidence |
+|---|------|-------------|----------|
+| 1 | PAY-03 text says "ticket … created" on success — `confirmPaymentSuccess` does not create a Ticket (only AuditLog + Kafka events ready for consumers) | Phase 4 | REQUIREMENTS.md traceability maps TICK-01/TICK-02 ("e-ticket with QR/verificationCode") to Phase 4; ROADMAP Phase 4 goal: "Confirmed bookings yield e-tickets"; prior verification documented same deferral |
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `packages/db/prisma/schema.prisma` | cinetpay enum + expired status + indexes | ✓ VERIFIED | Contains `cinetpay`, `expired`, 4 Payment indexes `@@index([status,createdAt])` etc., migration `20260825093916_payments_cinetpay_provider` SQL adds enum values + indexes, `prisma validate` passes via typecheck, Commission `@unique(bookingId)` |
-| `packages/shared/src/money.ts` | calcCommission + calcRefund integer XAF | ✓ VERIFIED | 20 lines, `Math.round` only, exports both, barrel `packages/shared/src/index.ts` re-exports, `apps/api/package.json` workspace dep `@camermove/shared` linked, typecheck 0 |
-| `apps/api/src/payments/providers/types.ts` | PaymentProvider seam | ✓ VERIFIED | Exports `PaymentProvider`, `SupportedProvider`, `CreatePaymentInput/Result`, `VerifyPaymentResult`, `PAYMENT_PROVIDERS` const, no Fastify imports |
-| `apps/api/src/payments/providers/notchpay.adapter.ts` | NotchPayAdapter raw fetch + HMAC delegate | ✓ VERIFIED | 110 lines, `fetch NOTCHPAY_BASE_URL/payments` 10s AbortController, `verifyWebhookSignature` delegates to `verifyNotchSignature`, never logs secrets, `verifyPayment` maps `complete→success` |
-| `apps/api/src/payments/providers/cinetpay.adapter.ts` | CinetPayAdapter /v2/payment + check + multiple-of-5 | ✓ VERIFIED | 184 lines, guards `currency XAF` + `amount%5`, fetch `/v2/payment` code `201` + `/v2/payment/check` code `00`+ACCEPTED, `verifyWebhookSignature` parses form + delegates `verifyCinetToken` |
-| `apps/api/src/payments/providers/index.ts` | getProvider factory lazy loadEnv | ✓ VERIFIED | Lazy `loadEnv()` inside function, throws `BadRequestError` for unknown, returns correct adapter, substantive not stub |
-| `apps/api/src/payments/webhooks/verify.ts` | verifyNotchSignature + verifyCinetToken pure helpers | ✓ VERIFIED | 63 lines, both use `timingSafeEqual` hex, 15-field concat exact order + fallback `Object.values.join("")`, pure crypto no Fastify/DB, tested via manual vector in SUMMARY |
-| `apps/api/src/payments/schema.ts` | Zod CreatePaymentBody etc | ✓ VERIFIED | Exports `CreatePaymentBody` (provider enum notchpay/cinetpay, method optional, phone/email), `PaymentParams` cuid, `PaymentListQuery` paginated, `PaymentExportQuery`, inferred types |
-| `apps/api/src/payments/repository.ts` | thin prisma wrappers | ✓ VERIFIED | Exports `findPaymentById` with `booking.trip`, `findPendingPaymentByBookingId` pending|processing, `listPayments`+count, `createPaymentRecord`, `findPendingPaymentsOlderThan` |
-| `apps/api/src/payments/commission.ts` | 30s cached AppSettings + computeCommission | ✓ VERIFIED | 39 lines, `getAppSettingsCached` via `getCached/setCached` 30s, fallback create-if-missing, `computeCommission` override pick + `calcCommission`, substantive |
-| `apps/api/src/payments/service.ts` | guarded createPayment + queries | ✓ VERIFIED | 198 lines, ACID guards ownership/status/one-pending, server-derived amount/notifyUrl/callbackUrl, tx hold extension 5m threshold via `getAppSettingsCached`, AuditLog+Kafka best-effort, never trusts client amount |
-| `apps/api/src/payments/routes.ts` | paymentRoutes POST/GET/export + admin aliases | ✓ VERIFIED | 93 lines, `POST /payments requireAuth` 201, `GET /payments`, `GET /payments/:id`, `GET /payments/export` RBAC+SEARCH_MAX_LIMIT+sendExport, `/admin/payments` aliases, `req.log.info {...meta, bookingId, provider}` per AGENTS §2 |
-| `apps/api/src/payments/webhooks/notchpay.ts` | POST /webhooks/notchpay HMAC + dedup + enqueue 200 fast | ✓ VERIFIED | 126 lines, `config:{rateLimit:false}`, `rawBody` check 400, `x-notch-signature` 401/403, `verifyNotchSignature` on rawBody, `event.id` deliveryId, `SET NX EX 7d` dedup + 200 duplicate, Kafka `payment.webhook.received` enqueue <100ms, no business logic |
-| `apps/api/src/payments/webhooks/cinetpay.ts` | POST /webhooks/cinetpay x-token + dedup | ✓ VERIFIED | 129 lines, `x-token` 401/503/403, `verifyCinetToken` 15-field + explicit SHA256 fallback, `cinetpay:cpm_trans_id:cpm_trans_date` deliveryId, same 7d dedup + enqueue, `rateLimit:false`, documents worker double-verify |
-| `apps/api/src/payments/jobs/reconciliation.ts` | processPaymentWebhook + confirm/fail + reconcileStalePayments FOR UPDATE | ✓ VERIFIED | 329 lines <300? slightly over but split to refund.ts, contains `FOR UPDATE` ×4, `confirmPaymentSuccess` idempotent+clamp+Commission unique catch, `mustVerifyProvider` mandatory, `processPaymentWebhook` dual lookup reference, `reconcileStalePayments` >5m take 100 |
-| `apps/api/src/payments/jobs/refund.ts` | refundPayment | ✓ VERIFIED | 91 lines, guards `confirmed+success`, `evaluateCancellation` tier fallback `calcRefund`, tx `FOR UPDATE` + status `refunded` + seats reversal + ticket void + AuditLog + `paymentRefunded` publish |
-| `apps/api/src/plugins/rawBody.ts` | global rawBody capture | ✓ VERIFIED | 45 lines, `addContentTypeParser` json parseAs string storing `req.rawBody` + form parser, registered in `app.ts:28` before metadata/rateLimit |
-| `apps/worker/src/index.ts` | paymentWebhookReceived consumer + hourly reconciliation | ✓ VERIFIED | Contains `paymentWebhookReceived` dynamic import `reconciliation.js`, `setInterval 60*60*1000` reconcileStalePayments, graceful SIGTERM clear, log `payment handlers registered`, `telemetry.shutdown` |
-| `apps/api/src/app.ts` | registers payments + webhooks + rawBodyPlugin | ✓ VERIFIED | Registers `rawBodyPlugin` first, `metadata→rateLimit→idempotency→auth`, then `paymentRoutes`, `notchpayWebhookRoutes`, `cinetpayWebhookRoutes` all under `/api/v1`, preserves order, typecheck 0 |
-| `packages/config/src/env.ts` | CINETPAY_* optional secrets | ✓ VERIFIED | `CINETPAY_APIKEY/SITE_ID` optional string, `CINETPAY_SECRET_KEY` secret.optional(), `CINETPAY_BASE_URL` url default, `NOTCHPAY_*` secret, via `loadEnv()` never process.env elsewhere |
-| `packages/events/src/topics.ts` | 4 new payment topics | ✓ VERIFIED | `paymentInitiated`, `paymentFailed`, `paymentRefunded`, `paymentWebhookReceived` plus `paymentCompleted`, as const |
-| `packages/db/prisma/migrations/20260825093916_payments_cinetpay_provider/migration.sql` | cinetpay migration | ✓ VERIFIED | ALTER TYPE add `cinetpay` + `expired`, 4 CREATE INDEX Payment, committed `2c98941` |
+| `packages/db/prisma/schema.prisma` | cinetpay enum + expired status + indexes + Commission unique | ✓ VERIFIED | `PaymentProvider.cinetpay` line 54; `PaymentStatus.expired`; Payment indexes lines 253-256; `Commission.bookingId @unique` line 262; `prisma validate` passes |
+| `packages/db/prisma/migrations/20260825093916_payments_cinetpay_provider/migration.sql` | migration SQL | ✓ VERIFIED | ALTER TYPE ×2 + CREATE INDEX ×4, committed |
+| `packages/shared/src/money.ts` | calcCommission + calcRefund integer XAF | ✓ VERIFIED | 20 lines substantive; barrel `index.ts` re-export; typecheck green |
+| `apps/api/src/payments/providers/types.ts` | PaymentProvider seam | ✓ VERIFIED | Interface + PAYMENT_PROVIDERS const + input/result types; pure, no framework imports |
+| `apps/api/src/payments/providers/notchpay.adapter.ts` | raw-fetch adapter + HMAC delegate | ✓ VERIFIED | 110 lines; POST/GET fetch with 10s AbortController; non-ok throws with status+body; delegates signature to verify.ts |
+| `apps/api/src/payments/providers/cinetpay.adapter.ts` | /v2/payment + check + %5 guard | ✓ VERIFIED | 184 lines; XAF + multiple-of-5 BadRequestError; code 201 success mapping; check API code 00+ACCEPTED; form-parse delegate |
+| `apps/api/src/payments/providers/index.ts` | getProvider factory | ✓ VERIFIED | Lazy loadEnv inside fn; injected env objects; typed errors |
+| `apps/api/src/payments/webhooks/verify.ts` | pure crypto helpers | ✓ VERIFIED | 63 lines; both helpers timingSafeEqual hex; 15-field concat + documented Object.values fallback; zero Fastify/DB imports |
+| `apps/api/src/payments/schema.ts` | Zod schemas | ✓ VERIFIED | CreatePaymentBody (provider enum, method optional, no amount field — client can never send amount), Params, ListQuery, ExportQuery + inferred types |
+| `apps/api/src/payments/repository.ts` | thin prisma wrappers | ✓ VERIFIED | findPendingPaymentByBookingId (pending\|processing), findById incl booking.trip, list+count, create, findPendingPaymentsOlderThan |
+| `apps/api/src/payments/commission.ts` | cached settings + computeCommission | ✓ VERIFIED | 39 lines; 30s cache; override pick; shared math only |
+| `apps/api/src/payments/service.ts` | guarded createPayment + queries | ✓ VERIFIED | 198 lines; ownership/status/one-pending (pre-check + in-tx FOR UPDATE re-check); server-derived amount/URLs; hold extension from cached settings; audit in-tx; best-effort Kafka |
+| `apps/api/src/payments/routes.ts` | routes + admin aliases + export | ✓ VERIFIED | POST 201 w/ authorizationUrl+paymentUrl; GET list/detail; export CSV; requireAuth everywhere; req.log.info with meta per AGENTS §2 |
+| `apps/api/src/payments/webhooks/notchpay.ts` | verify→dedup→enqueue→200 fast | ✓ VERIFIED | 126 lines; rateLimit:false; 400/401/403/503 ladder; SET NX EX 7d + memory prune; Kafka + redis-list fallback; enqueue-failure keeps NX key & returns 500 for provider retry |
+| `apps/api/src/payments/webhooks/cinetpay.ts` | x-token verify + composite dedup | ✓ VERIFIED | 129 lines; form parse from rawForm; 15-field helper + explicit plan-mandated fallback; `cinetpay:{trans_id}:{trans_date}` deliveryId; header documents worker double-verify contract |
+| `apps/api/src/payments/jobs/reconciliation.ts` | processPaymentWebhook + confirm/fail + reconcile | ✓ VERIFIED | 329 lines; FOR UPDATE ×4; idempotency + expiry-race guards; clamp; Commission unique catch; mandatory verify step; dual lookup reference/providerRef; UnrecoverableError → DLQ semantics |
+| `apps/api/src/payments/jobs/refund.ts` | refundPayment | ✓ VERIFIED | 91 lines; confirmed+success guards; cancellation-tier fallback calcRefund(100%); tx FOR UPDATE + reversal + ticket void + audit + event |
+| `apps/api/src/plugins/rawBody.ts` | global rawBody capture | ✓ VERIFIED | 45 lines; json+form parsers storing req.rawBody string then parsing; registered `app.ts:28` before metadata/rateLimit |
+| `apps/worker/src/index.ts` | paymentWebhookReceived consumer + hourly reconcile | ✓ VERIFIED | Handler dynamic-imports reconciliation.js; setInterval hourly; SIGTERM clear; telemetry shutdown |
+| `apps/api/src/app.ts` | registration order | ✓ VERIFIED | rawBodyPlugin → metadata → rateLimit → idempotency → auth → paymentRoutes → both webhook routes under /api/v1 |
+| `packages/config/src/env.ts` | CINETPAY_* env | ✓ VERIFIED | APIKEY/SITE_ID optional, SECRET_KEY secret.optional(), BASE_URL default; .env.example lines 21-24 mirror |
+| `packages/events/src/topics.ts` | 4 new payment topics | ✓ VERIFIED | paymentInitiated/Failed/Refunded/WebhookReceived + existing Completed, as const |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|----|-----|--------|---------|
-| `notchpay.adapter.ts` → `webhooks/verify.ts` | HMAC helper | `verifyNotchSignature` delegate | ✓ WIRED | `providers/notchpay.adapter.ts:69` `return verifyNotchSignature(bodyStr,signature,secret)` — never inline HMAC, grep confirms only delegate |
-| `cinetpay.adapter.ts` → `webhooks/verify.ts` | HMAC helper | `verifyCinetToken` delegate | ✓ WIRED | `providers/cinetpay.adapter.ts:182` `return verifyCinetToken(form,signature,secret)` |
-| `cinetpay.adapter.ts` → `packages/config/src/env.ts` | `loadEnv()` | typed env, never process.env | ✓ WIRED | `providers/index.ts:8` `loadEnv()` inside `getProvider`, adapter receives injected env object, no `process.env` in adapter file |
-| `payments/service.ts` → `providers/index.ts` | `getProvider` | server-derived amount | ✓ WIRED | `service.ts:63` `getProvider(provider).createPayment({reference, amount:booking.totalAmount,...})` never client amount |
-| `payments/service.ts` → `packages/shared/src/money.ts` | `calcCommission` | commission math | ✓ WIRED | `payments/commission.ts:2` `import {calcCommission} from "@camermove/shared"` + `38` `calcCommission(gross,pct)`, `money.ts` barrel via `@camermove/shared` workspace, typecheck proves wiring |
-| `webhooks/notchpay.ts` → `webhooks/verify.ts` | `verifyNotchSignature` rawBody | raw bytes HMAC | ✓ WIRED | `notchpay.ts:42` `verifyNotchSignature(rawBody,sig,hashKey)` where `rawBody` is `req.rawBody` string from rawBodyPlugin, never `JSON.stringify(parsed)` |
-| `webhooks/cinetpay.ts` → `jobs/reconciliation.ts` | `payment/check` double-verify | worker contract | ✓ WIRED | `cinetpay.ts` header comment `does NOT call /v2/payment/check — that happens in worker`, `reconciliation.ts:39` `mustVerifyProvider` does `verifyPayment(providerRef)` with CinetPay `code 00 + ACCEPTED + amount guard` before `confirmPaymentSuccess` |
-| `jobs/reconciliation.ts` → `schema.prisma` | `FOR UPDATE` + `@unique` | row locks + commission dedup | ✓ WIRED | `reconciliation.ts:72` `SELECT "id" FROM "Booking" WHERE id= FOR UPDATE` + `73` SeatAvailability FOR UPDATE inside `$transaction`, `schema.prisma:262` `Commission bookingId @unique`, `reconciliation.ts:122` catch Unique constraint idempotent |
-| `routes.ts` → `service.ts` | `createPayment` | metadata logging | ✓ WIRED | `routes.ts:13` `createPayment({bookingId,userId,provider,phone,email,method,meta})` + `req.log.info({...meta,bookingId,provider,ip,ua})` per AGENTS §2 |
-| `app.ts` → `plugins/rawBody.ts` | global rawBody | HMAC raw bytes | ✓ WIRED | `app.ts:28` `await app.register(rawBodyPlugin)` before metadata/rateLimit, `rawBody.ts:12` two `addContentTypeParser` storing `req.rawBody` string |
+| notchpay.adapter.ts | webhooks/verify.ts | verifyNotchSignature delegate | ✓ WIRED | adapter line 69; tool query + manual read confirm no inline HMAC |
+| cinetpay.adapter.ts | packages/config/env.ts | loadEnv-injected env | ✓ WIRED | factory injects env object; no process.env in adapters |
+| payments/service.ts | providers/index.ts | getProvider().createPayment | ✓ WIRED | service.ts:63-75; amount always booking.totalAmount |
+| payments/commission.ts | packages/shared/money.ts | calcCommission import | ✓ WIRED | import + call; workspace dep declared; typecheck proves resolution |
+| webhooks/notchpay.ts | webhooks/verify.ts | rawBody HMAC | ✓ WIRED | verifies req.rawBody string pre-parse |
+| webhooks/cinetpay.ts | jobs/reconciliation.ts | enqueue-only contract; worker calls /v2/payment/check | ✓ WIRED | handler contains no verify-API call or DB mutation; mustVerifyProvider in worker performs it |
+| jobs/reconciliation.ts | schema.prisma | FOR UPDATE + @unique | ✓ WIRED | $queryRaw locks Booking+SeatAvailability; Commission bookingId @unique + catch |
+| routes.ts | service.ts | createPayment + metadata log | ✓ WIRED | routes.ts:13-21 + structured log with meta |
+| app.ts | plugins/rawBody.ts | global registration first | ✓ WIRED | registered line 28 ahead of parsers/consumers |
+| worker/index.ts | payments/jobs/reconciliation.js | consumer + interval | ✓ WIRED | dynamic imports for handler + reconcileStalePayments |
 
 ### Data-Flow Trace (Level 4)
 
 | Artifact | Data Variable | Source | Produces Real Data | Status |
 |----------|---------------|--------|--------------------|--------|
-| `payments/service.ts` createPayment | `amount = booking.totalAmount` | `prisma.booking.findUnique include trip` → server-derived | ✓ FLOWING | `service.ts:39` amount never from `req.body`, validated XAF+multiple-of-5, passed to `provider.createPayment` + `prisma.payment.create` |
-| `payments/commission.ts` computeCommission | `commissionAmount/netAmount` | `AppSettings` DB row cached 30s via `getCached/setCached` + `featureFlags.transporterCommissions` override → `calcCommission` Math.round | ✓ FLOWING | Reads DB, not hardcoded 10%, override per transporter, persisted in `jobs/reconciliation.ts:109` `commission.create` |
-| `payments/routes.ts` list/export | `data,total` | `prisma.payment.findMany/count` where `booking.userId` RBAC + dateFrom/dateTo | ✓ FLOWING | traveler-scoped vs admin, paginated meta `total/totalPages`, export `take: SEARCH_MAX_LIMIT` streamed CSV via `sendExport` with Content-Disposition |
-| `jobs/reconciliation.ts` confirmPaymentSuccess | `seatsHeld/seatsBooked` + `Commission` | `SeatAvailability` locked row + `Booking.trip.transportId` → commission persisted | ✓ FLOWING | Decrement `seatsHeld` clamp + increment `seatsBooked`, Commission @unique guard prevents duplicate on retry, AuditLog written inside tx |
-| `webhooks/notchpay.ts` | `deliveryId=event.id` | `rawBody` JSON parse `event.data.reference` → `aggregateId` Kafka | ✓ FLOWING | Enqueue `payment.webhook.received` with aggregateId reference, not static, then worker resolves via Booking reference lookup |
+| service.createPayment | amount | booking.totalAmount via prisma include | ✓ FLOWING | never client-supplied; schema has no amount field |
+| commission.computeCommission | pct + amounts | AppSettings row cached 30s + featureFlags override | ✓ FLOWING | DB-backed, not hardcoded; persisted into Commission on confirm |
+| routes list/export | data,total | prisma.payment.findMany/count scoped by requester | ✓ FLOWING | RBAC where-clause + pagination meta + capped export |
+| confirmPaymentSuccess | seatsHeld/seatsBooked, Commission | locked SeatAvailability row + booking.trip.transportId | ✓ FLOWING | clamped decrement/increment; commission persisted with percentApplied |
+| webhook handlers | aggregateId | parsed rawBody reference/cpm_trans_id | ✓ FLOWING | real event payload enqueued, not synthetic |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Prisma validates + client has cinetpay | `pnpm --filter @camermove/db prisma validate` + generated client | `prisma validate` passes (typecheck 0 proves generation includes cinetpay), migration SQL alters enum | ✓ PASS |
-| pnpm -r typecheck 0 errors | `pnpm -r typecheck` | 10/11 workspaces Done, 0 errors (seen in verification) | ✓ PASS |
-| PaymentProvider seam swappable | `grep -r getProvider apps/api/src/payments` | `service.ts`, `reconciliation.ts` both call `getProvider` without branching beyond factory | ✓ PASS |
-| HMAC helpers timingSafeEqual | `grep timingSafeEqual apps/api/src/payments/webhooks/verify.ts` | 3 occurrences, hex Buffer compare in try/catch | ✓ PASS |
-| Idempotency plugin covers POST /payments | `grep idempotency apps/api/src/app.ts` | `idempotencyPlugin` registered before routes, `idempotency.ts` handles POST/PUT/PATCH Idempotency-Key 24h Redis+memory | ✓ PASS |
-| Export streams CSV | `grep sendExport apps/api/src/payments/routes.ts` | Called in 2 export routes with `SEARCH_MAX_LIMIT` + `attachment; filename="export-payments` via `lib/export.ts` | ✓ PASS |
-| Worker wiring dynamic import | `grep paymentWebhookReceived apps/worker/src/index.ts` | Found `EVENT_TOPICS.paymentWebhookReceived` handler + `setInterval reconcileStalePayments` hourly | ✓ PASS |
+| Workspace compiles | `pnpm -r typecheck` (run once) | All 10 projects Done, 0 errors | ✓ PASS |
+| Prisma schema valid | `pnpm --filter @camermove/db exec prisma validate` | "schema is valid" | ✓ PASS |
+| Payments test suite exercises transitions | enumerate `*.test.ts` under apps/api/src/payments | 0 files (repo tests: auth, bookings, env, seats, topics, media, observability) | ✗ FAIL (no behavioral evidence exists) — routed as behavior_unverified items, not code gaps |
+| Live endpoint probes | port 3000 listener check | False — server not running; starting servers prohibited | ? SKIP → human verification |
+| Commit evidence | `git log` | All 8 claimed feat commits present (2c98941…ad0f576) + docs commits; no payments changes after 7c57a93 | ✓ PASS |
+
+### Probe Execution
+
+| Probe | Command | Result | Status |
+|-------|---------|--------|--------|
+| scripts/*/tests/probe-*.sh | discovery | No probe scripts exist; none declared in plans/SUMMARYs | SKIPPED (none exist). Smoke suites (`pnpm smoke*`) require running docker compose — infra down at verify time |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|-------------|-------------|--------|----------|
-| PAY-01 | 03-01, 03-02 | User can initiate payment via NotchPay (Mobile Money) and receive authorization_url | ✓ SATISFIED | `routes.ts:8` POST /payments 201 `{authorizationUrl,paymentUrl}`; `service.ts` calls `getProvider(notchpay\|cinetpay).createPayment` with `booking.totalAmount`; `notchpay.adapter.ts` POST `/payments` returns `authorization_url`; `cinetpay.adapter.ts` POST `/v2/payment` returns `payment_url` |
-| PAY-02 | 03-03 | Payment webhook is verified (X-Notch-Signature) and updates Payment.status idempotently | ✓ SATISFIED | `webhooks/notchpay.ts` + `cinetpay.ts` verify HMAC on `rawBody` via `timingSafeEqual`, `SET NX 7d` dedup duplicate→200, enqueue Kafka `payment.webhook.received` p99 <100ms; `reconciliation.ts:234` `processPaymentWebhook` verifies via `provider.verifyPayment` before tx, guards `status===success` idempotent + `Commission @unique` |
-| PAY-03 | 03-02, 03-03 | On payment success, booking is confirmed, seats become booked, ticket and commission are created | ✓ SATISFIED | `reconciliation.ts:63` `confirmPaymentSuccess` tx `Booking confirmed` + `seatsHeld→seatsBooked` + `Commission` via `computeCommission` override + `AuditLog` + `paymentCompleted`/`notificationShouldSend` Kafka; ticket creation deferred to Phase 4 but `paymentCompleted` event ready for consumer |
-| PAY-04 | 03-03 | On payment failure/expiry, held seats are released | ✓ SATISFIED | `reconciliation.ts:164` `failPayment` tx `payment failed/expired` + booking `expired` if pending_payment + `seatsHeld decrement` + `seatsAvailable increment` clamped; `refund.ts:30` `refundPayment` tx `refunded` releases `seatsBooked→seatsAvailable` + voids tickets; `reconcileStalePayments:291` recovers >5m pending via verifyPayment failure→release |
+| PAY-01 | 03-01, 03-02 | Initiate payment via NotchPay (Mobile Money) and receive authorization_url | ✓ SATISFIED (static) | POST /payments 201 returns authorizationUrl+paymentUrl; both adapters return real provider URLs; guards verified in code |
+| PAY-02 | 03-03 | Webhook verified (X-Notch-Signature) and updates Payment.status idempotently | ✓ SATISFIED statically / ⚠️ behavior unverified | HMAC-on-rawBody + SET NX + enqueue verified by inspection; the *idempotent update* property has no test → human item #3 |
+| PAY-03 | 03-02, 03-03 | On success booking confirmed, seats booked, ticket and commission created | ✓ SATISFIED except ticket | confirmed/seats/commission implemented transactionally; **ticket deferred to Phase 4** (TICK-01 mapped there) → Deferred Items |
+| PAY-04 | 03-03 | On failure/expiry held seats released | ✓ SATISFIED (static) | failPayment releases seatsHeld→seatsAvailable under lock; reconcile drives stale to terminal |
+
+No orphaned requirements: REQUIREMENTS.md maps exactly PAY-01..04 to Phase 3; all four claimed across plans.
+
+### Prohibition Review (judgment-tier — LLM-judged, NON-AUTHORITATIVE; human review recommended)
+
+| Prohibition | Verdict (judged) | Basis |
+|-------------|------------------|-------|
+| No raw card data stored | PASS (judged) | Schema/body carry only `method` enum; no PAN fields anywhere; hosted-flow only |
+| No inline HMAC / JSON.stringify(parsed) verification | PASS (judged) | verify.ts isolated + timingSafeEqual; both routes verify req.rawBody pre-parse. Note: `cinetpay.ts:49-57` repeats the Object.values fallback inline — plan-mandated docs-ambiguity fallback, still HMAC over form values, not a re-serialization bypass (ℹ️ info) |
+| No business logic in webhook receipt (enqueue only) | PASS (judged) | Both handlers: verify → dedup → enqueue → 200; zero DB writes |
+| No client-supplied amount trusted | PASS (judged) | amount = booking.totalAmount; Zod body has no amount field |
+| No duplicate pending payment per booking | PASS (judged) | Pre-check + in-tx SELECT FOR UPDATE re-check |
+| Never trust CinetPay notify payload alone | PASS (judged) | Worker mustVerifyProvider mandatory; adapter gates on code 00+ACCEPTED; reconcile amount/currency guard |
+| No duplicate commission or negative seatsHeld on retry | PASS (judged) | Commission @unique catch; Math.min clamp; terminal-state guards |
+
+None of these judgments has wired enforcement tests (all judgment-tier); they are flagged for human review, never silently absorbed.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| `apps/api/src/payments/jobs/reconciliation.ts` | 94,327 | `console.warn` / `console.log` | ℹ️ Info | Legitimate warn for `seatsHeld < seatCount` clamp and `reconcileStalePayments processed N` log — not stub, intentional telemetry, not a blocker |
-| `apps/api/src/payments/jobs/refund.ts` | — | no TODO/FIXME/placeholder | ✓ Clean | `grep TODO FIXME XXX` finds 0 hits in payments files |
-| All payments files | — | `return {ok:true}`, empty handlers, hardcoded empty arrays | ✓ Clean | No stub handlers; no `return Response.json([])` or `return null` in routes/services |
-| `apps/api/src/payments/**` | — | `process.env` usage | ✓ Clean | All env via `loadEnv()` in `providers/index.ts` + `webhooks/*` + `service.ts`, no raw `process.env` in business logic |
+| apps/api/src/payments/jobs/reconciliation.ts | 95, 327 | console.warn/console.log | ℹ️ Info | Intentional telemetry (clamp warn + reconcile summary); not stubs |
+| apps/api/src/payments/jobs/reconciliation.ts | — | 329 lines (>300 AGENTS §4 guideline) | ℹ️ Info | Split candidate (refund.ts already extracted); no functional impact |
+| apps/api/src/payments/webhooks/cinetpay.ts | 49-57 | duplicated fallback HMAC (helper already covers it) | ℹ️ Info | Redundant but plan-mandated; consistent result |
+| apps/worker/src/notifications/channels/email.ts | 4-9 | process.env fallbacks | ℹ️ Info | Phase-1 file outside phase scope; has typed-env primary |
+| apps/api/src/payments/** | — | TODO/FIXME/XXX/HACK/placeholder/stub-return scan | ✓ Clean | rg exit 1 — zero debt markers, zero empty handlers, zero `{ok:true}` stubs |
 
 ### Human Verification Required
 
-None — automated checks passed. Optional manual smoke (not blocking) for provider credentials:
+See frontmatter `human_verification`. Priority order:
 
-- `POST /api/v1/payments` with real NotchPay sandbox `NOTCHPAY_PUBLIC_KEY/HASH_KEY` and `bookingId` in `pending_payment` should return 201 with live `authorization_url` (NotchPay dashboard shows 1 transaction); replay same `Idempotency-Key` returns identical body without second provider transaction.
-- `POST /api/v1/webhooks/notchpay` with `curl -H "X-Notch-Signature: $(echo -n "$raw" | openssl dgst -sha256 -hmac "$HASH_KEY")"` should 200 `received`; second POST same `id` returns `duplicate`.
-- Stuck pending: insert `payment status pending createdAt 10m ago` then `reconcileStalePayments()` (or wait hourly worker interval) should drive to `success` with `commission.percentApplied` respecting `featureFlags.transporterCommissions` override.
-
-*Why optional:* All code paths verified statically; manual tests require live NotchPay/CinetPay sandbox keys and Kafka/Redis stack (`docker compose up`), not runnable in typecheck-only verifier.
+1. **MVP-format escalation decision** — validate or reformat goal via `/gsd mvp-phase 3`.
+2. **Live initiation + idempotent replay** with sandbox creds (behavior_unverified #1).
+3. **Webhook end-to-end exactly-once transition** incl. duplicate delivery (behavior_unverified #2).
+4. **CinetPay spoofed-notify rejection** via check-API amount mismatch.
+5. **Expiry-race concurrency** between expireHolds and confirmPaymentSuccess.
+6. **Reconciliation recovery + refund release** (behavior_unverified #3).
 
 ### Gaps Summary
 
-No gaps. All 3 ROADMAP success criteria and PAY-01..04 satisfied with enterprise-grade dual-provider seam, HMAC on raw bytes, Redis SET NX 7d + Kafka enqueue → transactional worker with SELECT FOR UPDATE serialize + Commission @unique idempotency, reconciliation >5m, refund, RBAC + date-filtered export with SEARCH_MAX_LIMIT, shared integer XAF commission with per-transporter override, AppSettings 30s cache, idempotent POST via global Idempotency-Key plugin + one-pending tx guard, XAF multiple-of-5 for CinetPay, typed env via loadEnv, pnpm -r typecheck 0 errors across 10 workspaces, git log shows 9 feature commits (2c98941→4c2550d) on master.
+No code gaps. Every artifact exists, is substantive, and is wired; all key links connect; typecheck (0 errors) and prisma validate pass; commit trail intact; no debt markers; requirements PAY-01..04 satisfied at the code level (ticket creation explicitly deferred to Phase 4 per roadmap phasing).
+
+What keeps this phase at **human_needed** rather than passed: the three roadmap Success Criteria assert runtime behaviors (live provider sessions, idempotent webhook-driven state transitions, transactional seat/commission/reconciliation flows) and the repository contains **zero tests** under `apps/api/src/payments/**` — the missing-tests pattern (25% of calibration gaps). Presence and wiring were proven; behavior was not. The prior 10/10 pass rested on static evidence alone; this fresh run reclassifies the three behavior-dependent SCs honestly rather than counting symbol presence as proof. Code is unchanged since the prior verification (`git log 7c57a93..HEAD` touches only bookings/web/planning files), so nothing regressed — the bar moved. Closing either requires a human UAT pass against a running stack, or (better) adding a small vitest suite for verify.ts vectors + confirm/fail idempotency + reconciliation with a mocked provider, after which all three truths upgrade to VERIFIED.
 
 ---
-_Verified: 2026-08-25T18:00:00Z_
-_Verifier: gsd-verifier_
+
+_Verified: 2026-08-25T10:34:37Z_
+_Verifier: ox-alpha (gsd-verifier)_
