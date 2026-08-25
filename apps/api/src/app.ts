@@ -9,6 +9,7 @@ import { paymentRoutes } from "./payments/routes"
 import { notchpayWebhookRoutes } from "./payments/webhooks/notchpay"
 import { cinetpayWebhookRoutes } from "./payments/webhooks/cinetpay"
 import { adminSettingsRoutes } from "./admin/settings"
+import { ticketLookupRoutes } from "./routes/tickets/lookup"
 import { swaggerPlugin } from "./plugins/swagger"
 import { metricsPlugin } from "./plugins/metrics"
 import { rawBodyPlugin } from "./plugins/rawBody"
@@ -48,6 +49,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(notchpayWebhookRoutes, { prefix: "/api/v1" })
   await app.register(cinetpayWebhookRoutes, { prefix: "/api/v1" })
   await app.register(adminSettingsRoutes, { prefix: "/api/v1" })
+  await app.register(ticketLookupRoutes, { prefix: "/api/v1" })
   app.get("/health", async () => ({ status: "ok" }))
   return app
 }
