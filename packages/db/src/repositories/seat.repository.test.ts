@@ -5,6 +5,9 @@ import { atomicHoldSeats, atomicReleaseHeldSeats, atomicConfirmBookedSeats } fro
 let tripId: string
 let routeId: string
 let transporterId: string
+// Dedicated race-fixture trip, created inside the test so it cannot interfere
+// with the shared sequential fixtures; deleted in afterAll
+let raceTripId: string | null = null
 
 beforeAll(async () => {
   const transporter = await prisma.transporter.create({
@@ -29,6 +32,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  if (raceTripId) await prisma.trip.deleteMany({ where: { id: raceTripId } })
   await prisma.trip.deleteMany({ where: { id: tripId } })
   await prisma.route.deleteMany({ where: { id: routeId } })
   await prisma.transporter.deleteMany({ where: { id: transporterId } })
@@ -65,4 +69,30 @@ describe("atomicHoldSeats", () => {
     expect(sa.seatsBooked).toBe(1)
     expect(sa.seatsHeld).toBe(0)
   })
+})
+
+describe("concurrent last-seat race", () => {
+  it("allows exactly one winner when two holds race for the final seat", async () => {
+    const raceTrip = await prisma.trip.create({
+      data: {
+        routeId,
+        transportId: transporterId,
+        departureAt: new Date(Date.now() + 86400000),
+        price: 3000,
+        totalSeats: 1,
+        seatAvailability: { create: { seatsAvailable: 1, seatsHeld: 0, seatsBooked: 0 } },
+      },
+    })
+    raceTripId = raceTrip.id
+
+    const results = await Promise.allSettled([atomicHoldSeats(raceTrip.id, 1), atomicHoldSeats(raceTrip.id, 1)])
+    const fulfilled = results.filter((r) => r.status === "fulfilled")
+    const rejected = results.filter((r) => r.status === "rejected")
+    expect(fulfilled).toHaveLength(1)
+    expect(rejected).toHaveLength(1)
+
+    const sa = await prisma.seatAvailability.findUniqueOrThrow({ where: { tripId: raceTrip.id } })
+    expect(sa.seatsAvailable).toBe(0)
+    expect(sa.seatsHeld).toBe(1)
+  }, 30000)
 })

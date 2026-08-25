@@ -2,6 +2,7 @@ import { prisma } from "@camermove/db"
 import { atomicHoldSeats, atomicReleaseHeldSeats, atomicConfirmBookedSeats } from "@camermove/db"
 import { ConflictError, NotFoundError, loadEnv } from "@camermove/config"
 import { randomUUID } from "node:crypto"
+import { findExpiredHolds } from "./repository"
 
 export function generateReference(): string {
   return `CM-${randomUUID().slice(0, 8).toUpperCase()}`
@@ -77,17 +78,25 @@ export async function createBooking(input: { tripId: string; userId: string; sea
 }
 
 export async function expireHolds(): Promise<number> {
-  const expired = await prisma.booking.findMany({ where: { status: "pending_payment", holdExpiresAt: { lt: new Date() } } })
+  // findExpiredHolds excludes bookings with an active pending/processing Payment —
+  // a paid-but-unconfirmed hold must survive so the late success webhook can confirm it
+  const expired = await findExpiredHolds()
   let count = 0
    for (const b of expired) {
-    await prisma.$transaction(async (tx: any) => {
+    const didExpire = await prisma.$transaction(async (tx: any): Promise<boolean> => {
+      // Lock the row and re-check status inside the tx: a concurrent payment confirmation
+      // (SELECT FOR UPDATE in the payment worker) may have flipped status moments ago
+      await tx.$queryRaw`SELECT "id","status","tripId","seatCount" FROM "Booking" WHERE "id"=${b.id} FOR UPDATE`
+      const fresh = await tx.booking.findUnique({ where: { id: b.id } })
+      if (!fresh || fresh.status !== "pending_payment") return false
       await tx.booking.update({ where: { id: b.id }, data: { status: "expired" } })
       const sa = await tx.seatAvailability.findUnique({ where: { tripId: b.tripId } })
       if (sa && sa.seatsHeld >= b.seatCount) {
         await tx.seatAvailability.update({ where: { tripId: b.tripId }, data: { seatsAvailable: { increment: b.seatCount }, seatsHeld: { decrement: b.seatCount } } })
       }
+      return true
     })
-    count++
+    if (didExpire) count++
   }
   return count
 }

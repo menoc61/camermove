@@ -34,8 +34,20 @@ async function main() {
       .catch((e) => console.error("reconcileStalePayments failed", e))
   }, 60 * 60 * 1000)
 
-  // Keep reference to clear on SIGTERM
+  // Hold expiry every minute (BOOK-02/SC2): abandoned pre-payment holds release their seats.
+  // BullMQ repeatable-job upgrade path: replace this interval with a queue-scheduled repeatable job.
+  const expireInterval = setInterval(() => {
+    import("../../api/src/bookings/service.js")
+      .then((m) => m.expireHolds())
+      .then((n) => {
+        if (n > 0) console.log(`expireHolds released ${n} booking(s)`)
+      })
+      .catch((e) => console.error("expireHolds failed", e))
+  }, 60 * 1000)
+
+  // Keep references to clear on SIGTERM
   ;(globalThis as unknown as { __reconcileInterval?: NodeJS.Timeout }).__reconcileInterval = interval
+  ;(globalThis as unknown as { __expireHoldsInterval?: NodeJS.Timeout }).__expireHoldsInterval = expireInterval
 }
 
 main().catch((err) => {
@@ -44,8 +56,9 @@ main().catch((err) => {
 })
 
 process.on("SIGTERM", async () => {
-  const interval = (globalThis as unknown as { __reconcileInterval?: NodeJS.Timeout }).__reconcileInterval
-  if (interval) clearInterval(interval)
+  const handles = globalThis as unknown as { __reconcileInterval?: NodeJS.Timeout; __expireHoldsInterval?: NodeJS.Timeout }
+  if (handles.__reconcileInterval) clearInterval(handles.__reconcileInterval)
+  if (handles.__expireHoldsInterval) clearInterval(handles.__expireHoldsInterval)
   await telemetry.shutdown()
   await consumer.disconnect()
   process.exit(0)

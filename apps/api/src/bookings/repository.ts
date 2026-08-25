@@ -5,7 +5,15 @@ export async function findBookingById(id: string) {
 }
 
 export async function findExpiredHolds() {
-  return prisma.booking.findMany({ where: { status: "pending_payment", holdExpiresAt: { lt: new Date() } } })
+  // Exclude bookings with an active pending/processing Payment: a late payment success
+  // must still be able to confirm them (never auto-expire a paid-but-unconfirmed hold)
+  return prisma.booking.findMany({
+    where: {
+      status: "pending_payment",
+      holdExpiresAt: { lt: new Date() },
+      payments: { none: { status: { in: ["pending", "processing"] } } },
+    },
+  })
 }
 
 export async function createBookingRecord(data: {
