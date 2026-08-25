@@ -33,6 +33,9 @@ importers:
       '@camermove/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@camermove/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@fastify/cors':
         specifier: ^11.3.0
         version: 11.3.0
