@@ -29,6 +29,19 @@ export function createEventConsumer(
 
   return {
     async connect() {
+      const admin = kafka.admin()
+      try {
+        await admin.connect()
+        await admin.createTopics({
+          waitForLeaders: true,
+          topics: Object.keys(handlers).map((topic) => ({ topic })),
+        })
+      } catch (err) {
+        log.error({ err }, "topic provisioning failed")
+        throw err
+      } finally {
+        await admin.disconnect()
+      }
       await consumer.connect()
       for (const topic of Object.keys(handlers)) {
         await consumer.subscribe({ topic, fromBeginning: true })
