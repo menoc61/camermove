@@ -7,7 +7,7 @@ import { useEffect, useState } from "react"
 
 export default function BookPage() {
   const { tripId } = useParams() as { tripId: string }
-  const { setBooking, seatCount } = useBookingStore()
+  const { setBooking, seatCount, passengers } = useBookingStore()
   const [trip, setTrip] = useState<{ price: number } | null>(null)
 
   useEffect(() => { setBooking({ tripId }) }, [tripId, setBooking])
