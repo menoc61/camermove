@@ -11,6 +11,8 @@ export async function bookingRoutes(app: FastifyInstance) {
   app.post("/bookings", { preHandler: app.requireAuth() }, async (req, reply) => {
     const body = CreateBookingBody.parse(req.body)
     const user = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, tripId: body.tripId, seatCount: body.seatCount, passengerCount: body.passengers.length, userId: user.id }, "booking.create")
     const booking = await createBooking({ tripId: body.tripId, userId: user.id, seatCount: body.seatCount, passengers: body.passengers })
     return reply.code(201).send({ booking, totalAmount: booking.totalAmount, holdExpiresAt: booking.holdExpiresAt })
   })
