@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main, feat/*]
+    branches: [master, main, feat/*]
   pull_request:
 jobs:
   build:
@@ -36,5 +36,6 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @camermove/db generate
       - run: pnpm -r typecheck
       - run: pnpm -r test
