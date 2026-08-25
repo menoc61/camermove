@@ -16,6 +16,7 @@
     "smoke:auth": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts auth",
     "smoke:search": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts search",
     "smoke:tickets": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke-tickets.ts",
+    "smoke:dashboard": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke-dashboard.ts",
     "swagger:export": "pnpm --filter @camermove/api exec tsx ../../scripts/swagger-export.ts"
   },
   "devDependencies": {
