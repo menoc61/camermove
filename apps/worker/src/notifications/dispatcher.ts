@@ -79,7 +79,7 @@ export function createNotificationDispatcher(env: Env) {
             channel: "email",
             type: event.type,
             status: "queued",
-            payload: { to: user.email, subject: rendered.email.subject, text: rendered.email.text } as never,
+            payload: { bookingId: event.payload.bookingId, to: user.email, subject: rendered.email.subject, text: rendered.email.text } as never,
           },
         })
         const task = retryWithBackoff(
@@ -105,7 +105,7 @@ export function createNotificationDispatcher(env: Env) {
             channel: "whatsapp",
             type: event.type,
             status: "queued",
-            payload: { to, body: rendered.whatsapp.body } as never,
+            payload: { bookingId: event.payload.bookingId, to, body: rendered.whatsapp.body } as never,
           },
         })
         const task = retryWithBackoff(
@@ -131,7 +131,7 @@ export function createNotificationDispatcher(env: Env) {
             channel: "push",
             type: event.type,
             status: "queued",
-            payload: { topic, title: rendered.push.title, message: rendered.push.message } as never,
+            payload: { bookingId: event.payload.bookingId, topic, title: rendered.push.title, message: rendered.push.message } as never,
           },
         })
         const task = retryWithBackoff(

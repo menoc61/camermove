@@ -37,12 +37,12 @@ export async function findBookingsToRemind(now: Date = new Date()): Promise<Arra
   const toRemind: Array<{ bookingId: string; userId: string; reference: string; departureAt: Date; origin: string; destination: string }> = []
   for (const b of bookings) {
     // Idempotency: skip if a trip.reminder.24h Notification row already exists for this (user, booking).
-    // Notification has no bookingId column, so we filter by type + userId and inspect payload.bookingId.
+    // Notification has no bookingId column, so match on payload.bookingId (persisted by the dispatcher).
     const existing = await prisma.notification.findFirst({
-      where: { type: REMINDER_TYPE, userId: b.userId },
-      select: { payload: true },
+      where: { type: REMINDER_TYPE, userId: b.userId, payload: { path: ["bookingId"], equals: b.id } },
+      select: { id: true },
     })
-    if (existing && (existing.payload as Record<string, unknown> | null)?.bookingId === b.id) continue
+    if (existing) continue
     toRemind.push({
       bookingId: b.id,
       userId: b.userId,
