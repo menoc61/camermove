@@ -39,6 +39,7 @@ enum PaymentStatus {
   processing
   success
   failed
+  expired
   refunded
 }
 
@@ -50,6 +51,7 @@ enum PaymentMethod {
 
 enum PaymentProvider {
   notchpay
+  cinetpay
 }
 
 enum TicketStatus {
@@ -247,6 +249,12 @@ model Payment {
   webhookPayload Json?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+
+  @@index([status, createdAt])
+  @@index([provider, providerRef])
+  @@index([bookingId, status])
+  @@index([providerRef])
+  // providerRef is nullable until creation; one-pending-per-booking enforced via app guard + partial index migration (not hard unique on nullable)
 }
 
 model Commission {
