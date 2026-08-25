@@ -279,6 +279,7 @@ model Ticket {
   verificationCode String       @unique
   status           TicketStatus @default(valid)
   issuedAt         DateTime     @default(now())
+  qrDataUrl        String?      @db.Text
 }
 
 model Notification {
