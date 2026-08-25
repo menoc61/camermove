@@ -9,8 +9,8 @@
  * Test 4: public lookup SSR — GET /tickets/lookup?ref=X on WEB port renders
  *         server-side HTML with the reference text, and the body does NOT
  *         contain the verificationCode.
- * Test 5: public lookup not-found — GET /tickets/lookup?ref=NOTEXIST renders
- *         "Billet introuvable".
+ * Test 5: public lookup not-found — GET /tickets/lookup?ref=CM-NOTEXIST
+ *         (well-formed but unknown reference) renders "Billet introuvable".
  *
  * Requires: docker compose up -d running, db seeded with at least one user
  * and at least one confirmed booking with a ticket.
@@ -141,10 +141,13 @@ async function test4_publicLookupSSR(): Promise<void> {
 
 async function test5_publicLookupNotFound(): Promise<void> {
   console.log("\n=== Test 5: public lookup not found ===")
-  const res = await fetch(`${WEB}/tickets/lookup?ref=NOTEXIST`, { cache: "no-store" })
+  // Well-formed-but-unknown reference (API rejects malformed refs with 400,
+  // which the web page surfaces as the generic error state — we want the
+  // not-found branch here).
+  const res = await fetch(`${WEB}/tickets/lookup?ref=CM-NOTEXIST`, { cache: "no-store" })
   const body = await res.text()
   const ok = res.status === 404 || body.includes("Billet introuvable")
-  log("GET /tickets/lookup?ref=NOTEXIST → 404 or 'Billet introuvable'", ok, `status=${res.status}`)
+  log("GET /tickets/lookup?ref=CM-NOTEXIST → 404 or 'Billet introuvable'", ok, `status=${res.status}`)
 }
 
 async function main() {
