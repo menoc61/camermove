@@ -10,3 +10,4 @@ coverage/
 .DS_Store
 packages/db/generated/
 packages/db/.env
+.superpowers/
