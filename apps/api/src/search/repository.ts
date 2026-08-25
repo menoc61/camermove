@@ -12,6 +12,10 @@ export function findSearchableTrips(input: {
   take: number
   pax: number
 }) {
+  const priceFilter: Record<string, number> = {}
+  if (input.minPrice !== undefined) priceFilter.gte = input.minPrice
+  if (input.maxPrice !== undefined) priceFilter.lte = input.maxPrice
+
   return prisma.trip.findMany({
     where: {
       status: "active",
@@ -20,7 +24,7 @@ export function findSearchableTrips(input: {
         destinationCity: { equals: input.destination, mode: "insensitive" as const },
       },
       departureAt: { gte: input.dateStart, lte: input.dateEnd },
-      price: { gte: input.minPrice ?? 0, lte: input.maxPrice ?? Number.MAX_SAFE_INTEGER },
+      ...(Object.keys(priceFilter).length > 0 ? { price: priceFilter } : {}),
       seatAvailability: { seatsAvailable: { gte: input.pax } },
     },
     orderBy: input.sort === "departure_asc" ? { departureAt: "asc" } : { price: input.sort === "price_asc" ? "asc" : "desc" },
@@ -39,6 +43,10 @@ export async function countSearchableTrips(input: {
   maxPrice?: number
   pax: number
 }) {
+  const priceFilter2: Record<string, number> = {}
+  if (input.minPrice !== undefined) priceFilter2.gte = input.minPrice
+  if (input.maxPrice !== undefined) priceFilter2.lte = input.maxPrice
+
   return prisma.trip.count({
     where: {
       status: "active",
@@ -47,7 +55,7 @@ export async function countSearchableTrips(input: {
         destinationCity: { equals: input.destination, mode: "insensitive" as const },
       },
       departureAt: { gte: input.dateStart, lte: input.dateEnd },
-      price: { gte: input.minPrice ?? 0, lte: input.maxPrice ?? Number.MAX_SAFE_INTEGER },
+      ...(Object.keys(priceFilter2).length > 0 ? { price: priceFilter2 } : {}),
       seatAvailability: { seatsAvailable: { gte: input.pax } },
     },
   })
