@@ -1,0 +1,108 @@
+{
+  "info": {
+    "name": "CamerMove API",
+    "description": "Collection pour tester l'API CamerMove (Yaoundé ↔ Douala). Variables: baseUrl, token. Importez dans Postman, définissez baseUrl=http://localhost:3000 et lancez les requêtes dans l'ordre.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "token", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/health" }
+    },
+    {
+      "name": "Swagger — OpenAPI JSON",
+      "request": { "method": "GET", "url": "{{baseUrl}}/docs/json" }
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/auth/register",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"test@camermove.cm\",\n  \"password\": \"S3cret!123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) { const j = pm.response.json(); pm.environment.set('token', j.accessToken); pm.collectionVariables.set('token', j.accessToken); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"test@camermove.cm\",\n  \"password\": \"S3cret!123\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["if (pm.response.code === 200) { const j = pm.response.json(); pm.collectionVariables.set('token', j.accessToken); }"] }
+            }
+          ]
+        },
+        {
+          "name": "Me (auth required)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/auth/me"
+          }
+        },
+        {
+          "name": "Google OAuth — redirect",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/auth/google" }
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Search Yaoundé→Douala (tomorrow, pax 1)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search?origin=Yaoundé&destination=Douala&date={{tomorrow}}&pax=1&sortBy=price_asc",
+              "query": [
+                { "key": "origin", "value": "Yaoundé" },
+                { "key": "destination", "value": "Douala" },
+                { "key": "date", "value": "{{tomorrow}}" },
+                { "key": "pax", "value": "1" },
+                { "key": "sortBy", "value": "price_asc" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search — filtered & paginated",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/search?origin=Yaoundé&destination=Douala&date={{tomorrow}}&pax=2&sortBy=departure_asc&page=1&perPage=5"
+          }
+        },
+        {
+          "name": "Trip detail",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/trips/:id", "variable": [{ "key": "id", "value": "REPLACE_WITH_TRIP_ID" }] }
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "request": { "method": "GET", "url": "{{baseUrl}}/metrics" }
+    }
+  ]
+}

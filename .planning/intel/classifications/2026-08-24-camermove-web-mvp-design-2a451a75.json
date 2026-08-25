@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\DTA_WorkStation\\Documents\\camermove\\docs\\superpowers\\specs\\2026-08-24-camermove-web-mvp-design.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "CamerMove Web MVP Design",
+  "summary": "Approved MVP design for CamerMove interurban mobility web app covering architecture, data model, payments, auth, and build sequence.",
+  "scope": ["CamerMove", "web app", "API", "worker", "search", "booking", "NotchPay payment", "e-ticket", "transporter space", "admin back-office", "commission engine", "notifications", "MinIO", "Kafka", "BullMQ", "Redis", "Postgres", "Prisma", "RBAC", "Google OAuth"],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

@@ -1,0 +1,328 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  traveler
+  transporter_staff
+  admin
+  super_admin
+}
+
+enum TransporterStatus {
+  pending
+  reviewing
+  approved
+  rejected
+}
+
+enum VehicleStatus {
+  active
+  inactive
+}
+
+enum BookingStatus {
+  pending_payment
+  confirmed
+  expired
+  cancelled
+  refunded
+}
+
+enum PaymentStatus {
+  pending
+  processing
+  success
+  failed
+  refunded
+}
+
+enum PaymentMethod {
+  card
+  mobile_money
+  bank_transfer
+}
+
+enum PaymentProvider {
+  notchpay
+}
+
+enum TicketStatus {
+  valid
+  used
+  void
+}
+
+enum NotificationChannel {
+  email
+  sms
+  whatsapp
+  push
+}
+
+enum NotificationStatus {
+  queued
+  sent
+  failed
+}
+
+enum PartnerApplicationStatus {
+  received
+  reviewing
+  validated
+  rejected
+}
+
+model User {
+  id             String           @id @default(cuid())
+  role           Role             @default(traveler)
+  firstName      String?
+  lastName       String?
+  email          String           @unique
+  phone          String?
+  passwordHash   String?
+  emailVerified  Boolean          @default(false)
+  status         String           @default("active")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  socialAccounts SocialAccount[]
+  bookings       Booking[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+}
+
+model SocialAccount {
+  id             String   @id @default(cuid())
+  provider       String
+  providerUserId String   @unique
+  email          String
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@unique([provider, providerUserId])
+}
+
+model Transporter {
+  id                String             @id @default(cuid())
+  companyName       String
+  contactName       String?
+  phone             String?
+  email             String             @unique
+  city              String?
+  transportType     String?
+  vehicleCount      Int                @default(0)
+  servedRoutes      String[]
+  status            TransporterStatus  @default(pending)
+  documents         Document[]
+  vehicles          Vehicle[]
+  routes            Route[]
+  trips             Trip[]             @relation("TripTransporter")
+  partnerApplication PartnerApplication?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model Document {
+  id            String      @id @default(cuid())
+  type          String
+  objectKey     String
+  mimetype      String
+  size          Int
+  transporterId        String
+  transporter          Transporter         @relation(fields: [transporterId], references: [id], onDelete: Cascade)
+  partnerApplicationId String?
+  partnerApplication   PartnerApplication? @relation(fields: [partnerApplicationId], references: [id], onDelete: Cascade)
+  createdAt            DateTime            @default(now())
+}
+
+model Vehicle {
+  id            String        @id @default(cuid())
+  type          String
+  capacity      Int
+  plateNumber   String?
+  status        VehicleStatus @default(active)
+  transporterId String
+  transporter   Transporter   @relation(fields: [transporterId], references: [id], onDelete: Cascade)
+  trips         Trip[]
+  createdAt     DateTime      @default(now())
+}
+
+model Route {
+  id              String      @id @default(cuid())
+  originCity      String
+  destinationCity String
+  active          Boolean     @default(true)
+  transporterId   String
+  transporter     Transporter @relation(fields: [transporterId], references: [id], onDelete: Cascade)
+  trips           Trip[]
+  createdAt       DateTime    @default(now())
+
+  @@unique([transporterId, originCity, destinationCity])
+}
+
+model Trip {
+  id                  String           @id @default(cuid())
+  routeId             String
+  route               Route            @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  vehicleId           String?
+  vehicle             Vehicle?         @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  transportId         String
+  transport           Transporter      @relation("TripTransporter", fields: [transportId], references: [id])
+  departureAt         DateTime
+  arrivalEstimateAt   DateTime?
+  durationEstimate    Int?
+  price               Int
+  totalSeats          Int
+  departurePointInfo  String?
+  vehicleTypeInfo     String?
+  conditions          String?
+  cancellationPolicy  String?
+  status              String           @default("active")
+  seatAvailability    SeatAvailability?
+  bookings            Booking[]
+  createdAt           DateTime         @default(now())
+
+  @@index([departureAt])
+  @@index([price])
+  @@index([status])
+  @@index([routeId, departureAt])
+}
+
+model SeatAvailability {
+  id             String @id @default(cuid())
+  tripId         String @unique
+  trip           Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  seatsAvailable Int
+  seatsHeld      Int    @default(0)
+  seatsBooked    Int    @default(0)
+}
+
+model Booking {
+  id            String          @id @default(cuid())
+  reference     String          @unique
+  tripId        String
+  trip          Trip            @relation(fields: [tripId], references: [id], onDelete: Restrict)
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  seatCount     Int
+  totalAmount   Int
+  status        BookingStatus   @default(pending_payment)
+  holdExpiresAt DateTime?
+  passengers    Passenger[]
+  payments      Payment[]
+  commission    Commission?
+  tickets       Ticket[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([userId, status])
+  @@index([tripId])
+  @@index([status, holdExpiresAt])
+}
+
+model Passenger {
+  id        String  @id @default(cuid())
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  fullName  String
+  phone     String?
+}
+
+model Payment {
+  id             String          @id @default(cuid())
+  bookingId      String
+  booking        Booking         @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  provider       PaymentProvider @default(notchpay)
+  providerRef    String?
+  amount         Int
+  method         PaymentMethod?
+  currency       String          @default("XAF")
+  status         PaymentStatus   @default(pending)
+  webhookPayload Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Commission {
+  id               String  @id @default(cuid())
+  bookingId        String  @unique
+  booking          Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  grossAmount      Int
+  commissionAmount Int
+  netAmount        Int
+  percentApplied   Decimal @db.Decimal(5, 2)
+  payoutStatus     String  @default("pending")
+}
+
+model Ticket {
+  id               String       @id @default(cuid())
+  bookingId        String
+  booking          Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  qrCode           String
+  verificationCode String       @unique
+  status           TicketStatus @default(valid)
+  issuedAt         DateTime     @default(now())
+}
+
+model Notification {
+  id            String             @id @default(cuid())
+  userId        String?
+  user          User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  transporterId String?
+  channel       NotificationChannel
+  type          String
+  status        NotificationStatus @default(queued)
+  payload       Json
+  sentAt        DateTime?
+  createdAt     DateTime           @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+}
+
+model PartnerApplication {
+  id             String                  @id @default(cuid())
+  companyName    String
+  contactName    String
+  phone          String
+  email          String
+  city           String?
+  transportType  String?
+  vehicleCount   Int?
+  routesServed   String[]
+  message        String?
+  status         PartnerApplicationStatus @default(received)
+  transporterId  String?                 @unique
+  transporter    Transporter?            @relation(fields: [transporterId], references: [id], onDelete: SetNull)
+  documents      Document[]
+  createdAt      DateTime                @default(now())
+}
+
+model AppSettings {
+  id                String   @id @default("global")
+  commissionPercent Decimal  @default(10) @db.Decimal(5, 2)
+  holdExpiryMinutes Int      @default(15)
+  cancellationPolicy String  @default("Annulation possible jusqu'à 1h avant départ")
+  smtpHost          String?
+  smtpPort          Int?
+  smtpUser          String?
+  smtpFrom          String?
+  featureFlags      Json?    @default("{}")
+  maintenanceMode   Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
+  updatedBy         String?
+}

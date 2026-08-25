@@ -1,0 +1,42 @@
+name: CI
+on:
+  push:
+    branches: [master, main, feat/*]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: camermove
+          POSTGRES_PASSWORD: camermove
+          POSTGRES_DB: camermove
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U camermove"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql://camermove:camermove@localhost:5432/camermove
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      JWT_REFRESH_SECRET: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      NOTCHPAY_PUBLIC_KEY: test
+      NOTCHPAY_PRIVATE_KEY: test
+      NOTCHPAY_HASH_KEY: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @camermove/db generate
+      - run: pnpm --filter @camermove/db exec prisma migrate deploy
+      - run: pnpm -r typecheck
+      - run: pnpm -r test

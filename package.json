@@ -1,0 +1,27 @@
+{
+  "name": "camermove",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "smoke": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts all",
+    "smoke:auth": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts auth",
+    "smoke:search": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts search",
+    "swagger:export": "pnpm --filter @camermove/api exec tsx ../../scripts/swagger-export.ts"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.0",
+    "turbo": "^2.10.11"
+  },
+  "dependencies": {
+    "dotenv": "17.4.2"
+  }
+}

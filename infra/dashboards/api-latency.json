@@ -1,0 +1,8 @@
+{
+  "title": "CamerMove API",
+  "uid": "camermove-api",
+  "panels": [
+    { "title": "Error rate", "type": "timeseries", "targets": [{ "expr": "rate(camermove_error_total[5m])", "refId": "A" }] },
+    { "title": "p95 latency", "type": "timeseries", "targets": [{ "expr": "histogram_quantile(0.95, rate(camermove_operation_duration_ms_bucket[5m]))", "refId": "A" }] }
+  ]
+}
