@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\DTA_WorkStation\\Documents\\camermove\\docs\\superpowers\\plans\\2026-08-24-camermove-lot0-lot1.md",
+  "type": "SPEC",
+  "confidence": "medium",
+  "manifest_override": false,
+  "title": "CamerMove Lot 0 + Lot 1 Implementation Plan",
+  "summary": "Implementation plan for CamerMove Lot 0 monorepo foundations and Lot 1 search-discovery slice for Yaoundé-Douala trips.",
+  "scope": ["monorepo", "Turborepo", "Fastify API", "Next.js web", "Prisma", "PostgreSQL", "Redis", "Kafka", "BullMQ", "MinIO", "search & discovery", "seat availability", "auth/JWT", "observability", "worker/notifications"],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": "No frontmatter type or SPEC filename/path convention (path is docs/superpowers/plans/); classification driven by content signals: Prisma schema, endpoint definitions, Zod schemas, repository interfaces, and step-by-step build tasks. No ADR markers (Status/Decision/Consequences) or PRD markers (user stories/acceptance criteria). Confidence medium because filename heuristic absent."
+}
