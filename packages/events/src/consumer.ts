@@ -40,7 +40,7 @@ export function createEventConsumer(
         log.error({ err }, "topic provisioning failed")
         throw err
       } finally {
-        await admin.disconnect()
+        await admin.disconnect().catch((e) => log.warn({ e }, "admin disconnect failed"))
       }
       await consumer.connect()
       for (const topic of Object.keys(handlers)) {

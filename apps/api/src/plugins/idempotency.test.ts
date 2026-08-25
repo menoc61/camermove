@@ -18,6 +18,16 @@ async function buildApp(): Promise<FastifyInstance> {
   return app
 }
 
+// The plugin persists responses fire-and-forget; wait until the write lands instead of guessing a delay.
+async function waitForIdempotencyCache(cacheKey: string): Promise<void> {
+  for (let i = 0; i < 25; i += 1) {
+    const raw = await getRedis().get(cacheKey)
+    if (raw !== null) return
+    await new Promise((r) => setTimeout(r, 80))
+  }
+  throw new Error("idempotency cache write did not land within 2s")
+}
+
 describe("idempotencyPlugin replay", () => {
   let app: FastifyInstance
 
@@ -34,7 +44,7 @@ describe("idempotencyPlugin replay", () => {
     expect(first.statusCode).toBe(201)
     expect(first.json()).toEqual({ ok: true, execution: 1 })
 
-    await new Promise((r) => setTimeout(r, 250))
+    await waitForIdempotencyCache(`idemp:${url}:gate-key-1`)
 
     const replay = await app.inject({ method: "POST", url, headers })
     expect(replay.statusCode).toBe(201)
