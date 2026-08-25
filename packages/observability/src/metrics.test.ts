@@ -7,4 +7,10 @@ describe("observe", () => {
     const summary = await readMetricsSummary()
     expect(summary).toContain("camermove_operations_total")
   })
+  it("increments error counter on failure", async () => {
+    resetMetrics()
+    await expect(observe("fail.op", {}, async () => { throw new Error("boom") })).rejects.toThrow("boom")
+    const summary = await readMetricsSummary()
+    expect(summary).toContain("camermove_error_total")
+  })
 })

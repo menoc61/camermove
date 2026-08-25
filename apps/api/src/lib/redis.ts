@@ -11,7 +11,7 @@ export function getRedis(): IORedis {
     enableReadyCheck: true,
     lazyConnect: true,
   })
-  client.on("error", (err) => console.warn("redis error", err.message))
+  client.on("error", (err: Error) => console.warn("redis error", err.message))
   return client
 }
 

@@ -10,7 +10,7 @@ const UpdateSettingsBody = z.object({
   smtpPort: z.number().int().optional(),
   smtpUser: z.string().optional(),
   smtpFrom: z.string().optional(),
-  featureFlags: z.record(z.boolean()).optional(),
+  featureFlags: z.record(z.string(), z.boolean()).optional(),
   maintenanceMode: z.boolean().optional(),
 })
 

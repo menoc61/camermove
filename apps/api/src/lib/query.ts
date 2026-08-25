@@ -1,10 +1,10 @@
 import { z } from "zod"
 import { loadEnv } from "@camermove/config"
 
-function envMax(key: keyof ReturnType<typeof loadEnv>, fallback: number): number {
+function envMax(key: string, fallback: number): number {
   try {
     const env = loadEnv() as Record<string, unknown>
-    const v = env[key as string]
+    const v = env[key]
     return typeof v === "number" && v > 0 ? v : fallback
   } catch {
     return fallback
@@ -25,7 +25,7 @@ export const PaginationSchema = z.object({
 })
 
 export const FilterSchema = z.object({
-  filter: z.record(z.string()).optional(),
+  filter: z.record(z.string(), z.string()).optional(),
   q: z.string().optional().describe("Full-text search"),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
