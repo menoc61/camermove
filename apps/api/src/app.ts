@@ -6,9 +6,12 @@ import { authPlugin } from "./auth/plugins"
 import { searchRoutes } from "./search/routes"
 import { bookingRoutes } from "./bookings/routes"
 import { paymentRoutes } from "./payments/routes"
+import { notchpayWebhookRoutes } from "./payments/webhooks/notchpay"
+import { cinetpayWebhookRoutes } from "./payments/webhooks/cinetpay"
 import { adminSettingsRoutes } from "./admin/settings"
 import { swaggerPlugin } from "./plugins/swagger"
 import { metricsPlugin } from "./plugins/metrics"
+import { rawBodyPlugin } from "./plugins/rawBody"
 import { metadataPlugin } from "./plugins/metadata"
 import { rateLimitPlugin } from "./plugins/rateLimit"
 import { idempotencyPlugin } from "./plugins/idempotency"
@@ -21,6 +24,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   if ((env as unknown as { METRICS_ENABLED: boolean }).METRICS_ENABLED) {
     await app.register(metricsPlugin)
   }
+  // rawBody must be before metadata/rateLimit so HMAC can use raw string (T-03-14)
+  await app.register(rawBodyPlugin)
   await app.register(metadataPlugin)
   await app.register(rateLimitPlugin)
   await app.register(idempotencyPlugin)
@@ -39,6 +44,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(searchRoutes, { prefix: "/api/v1" })
   await app.register(bookingRoutes, { prefix: "/api/v1" })
   await app.register(paymentRoutes, { prefix: "/api/v1" })
+  // webhooks use same /api/v1 prefix so notify_url is ${API_URL}/api/v1/webhooks/{provider}
+  await app.register(notchpayWebhookRoutes, { prefix: "/api/v1" })
+  await app.register(cinetpayWebhookRoutes, { prefix: "/api/v1" })
   await app.register(adminSettingsRoutes, { prefix: "/api/v1" })
   app.get("/health", async () => ({ status: "ok" }))
   return app
