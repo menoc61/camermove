@@ -90,12 +90,14 @@ model User {
   passwordHash   String?
   emailVerified  Boolean          @default(false)
   status         String           @default("active")
+  transporterId  String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   socialAccounts SocialAccount[]
   bookings       Booking[]
   notifications  Notification[]
   auditLogs      AuditLog[]
+  transporter    Transporter?     @relation(fields: [transporterId], references: [id], onDelete: SetNull)
 }
 
 model SocialAccount {
@@ -125,6 +127,7 @@ model Transporter {
   vehicles          Vehicle[]
   routes            Route[]
   trips             Trip[]             @relation("TripTransporter")
+  staffUsers        User[]
   partnerApplication PartnerApplication?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
