@@ -8,6 +8,8 @@ import { getProvider } from "../providers/index.js"
 import type { SupportedProvider } from "../providers/types.js"
 import { computeCommission } from "../commission.js"
 import { EVENT_TOPICS } from "@camermove/events"
+import { generateAndIssueTicket } from "../../tickets/ticket.service.js"
+import type { IssuedTicket } from "../../tickets/ticket.service.js"
 
 class UnrecoverableError extends Error {
   constructor(msg: string) {
@@ -64,7 +66,13 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
   // Fetch booking to get tripId for row locks
   const p = await prisma.payment.findUnique({ where: { id: payment.id }, include: { booking: { include: { trip: true } } } })
   if (!p) throw new UnrecoverableError(`payment not found ${payment.id}`)
-  const booking = p.booking as unknown as { id: string; tripId: string; seatCount: number; totalAmount: number; status: string; trip: { transportId: string } }
+  const booking = p.booking as unknown as { id: string; tripId: string; seatCount: number; totalAmount: number; status: string; trip: { transportId: string }; userId: string; reference: string }
+
+  // Issued ticket is captured during the transaction so we can publish the
+  // typed NotificationEvent after commit. Only set when a NEW ticket is
+  // generated (not on idempotent replay).
+  let issuedTicket: IssuedTicket | null = null
+  let ticketCreateSucceeded = false
 
   await prisma.$transaction(async (tx: unknown) => {
     const t = tx as typeof prisma
@@ -144,6 +152,35 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
         },
       })
     } catch {}
+
+    // Generate ticket inside the same transaction (ACID per AGENTS.md §1).
+    // If ticket generation throws, the entire transaction rolls back — no orphan Commission.
+    try {
+      issuedTicket = await generateAndIssueTicket(t as never, p.bookingId)
+      ticketCreateSucceeded = true
+    } catch (e) {
+      console.error(`[reconciliation] ticket generation failed for booking ${p.bookingId}:`, (e as Error).message)
+      throw e
+    }
+
+    // Ticket creation audit (only if newly created)
+    if (issuedTicket.createdNew) {
+      try {
+        await t.auditLog.create({
+          data: {
+            actorId: "system:webhook",
+            action: "ticket.create",
+            entityType: "Ticket",
+            entityId: issuedTicket.id,
+            metadata: {
+              bookingId: p.bookingId,
+              ticketId: issuedTicket.id,
+              userId: (booking as unknown as { userId: string }).userId,
+            } as never,
+          },
+        })
+      } catch {}
+    }
   })
 
   // Publish Kafka events after tx commit (best-effort)
@@ -156,7 +193,120 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
     await producer.connect().catch(() => {})
     const payload = { paymentId: p.id, bookingId: booking.id, amount: booking.totalAmount }
     await producer.send({ topic: EVENT_TOPICS.paymentCompleted, messages: [{ key: booking.id, value: JSON.stringify({ id: p.id, type: "payment.completed", ts: new Date().toISOString(), aggregateId: booking.id, data: payload }) }] }).catch(() => {})
-    await producer.send({ topic: EVENT_TOPICS.notificationShouldSend, messages: [{ key: booking.id, value: JSON.stringify({ id: `notif-${p.id}`, type: "payment.completed", ts: new Date().toISOString(), aggregateId: booking.id, data: { userId: (booking as unknown as { userId: string }).userId, bookingId: booking.id } }) }] }).catch(() => {})
+
+    // Phase 4: publish typed NotificationEvent (not the bare {userId, bookingId} of Phase 3).
+    // When a new ticket was just issued, fire ticket.issued; otherwise fire payment.confirmed.
+    const candidate: IssuedTicket | null = ticketCreateSucceeded ? (issuedTicket as IssuedTicket | null) : null
+    const justIssuedTicket: IssuedTicket | null = candidate && candidate.createdNew ? candidate : null
+    if (justIssuedTicket) {
+      const typedEvent = {
+        type: "ticket.issued",
+        userId: booking.userId,
+        payload: {
+          bookingId: booking.id,
+          reference: booking.reference,
+          ticketId: justIssuedTicket.id,
+          verificationCode: justIssuedTicket.verificationCode,
+          amount: booking.totalAmount,
+          tripId: p.booking.tripId,
+        },
+      }
+      await producer
+        .send({
+          topic: EVENT_TOPICS.ticketIssued,
+          messages: [
+            {
+              key: booking.id,
+              value: JSON.stringify({
+                id: `ticket-${justIssuedTicket.id}`,
+                type: "ticket.issued",
+                ts: new Date().toISOString(),
+                aggregateId: booking.id,
+                data: typedEvent,
+              }),
+            },
+          ],
+        })
+        .catch(() => {})
+
+      // Also fire payment.confirmed (channels still need to send an "amount received" notification)
+      const paymentEvent = {
+        type: "payment.confirmed",
+        userId: booking.userId,
+        payload: { bookingId: booking.id, reference: booking.reference, amount: booking.totalAmount },
+      }
+      await producer
+        .send({
+          topic: EVENT_TOPICS.paymentConfirmed,
+          messages: [
+            {
+              key: booking.id,
+              value: JSON.stringify({
+                id: `payment-confirmed-${p.id}`,
+                type: "payment.confirmed",
+                ts: new Date().toISOString(),
+                aggregateId: booking.id,
+                data: paymentEvent,
+              }),
+            },
+          ],
+        })
+        .catch(() => {})
+
+      // Also fire booking.confirmed (channels can use a different template for the full booking confirmation)
+      const bookingEvent = {
+        type: "booking.confirmed",
+        userId: booking.userId,
+        payload: {
+          bookingId: booking.id,
+          reference: booking.reference,
+          amount: booking.totalAmount,
+          tripId: p.booking.tripId,
+        },
+      }
+      await producer
+        .send({
+          topic: EVENT_TOPICS.bookingConfirmed,
+          messages: [
+            {
+              key: booking.id,
+              value: JSON.stringify({
+                id: `booking-confirmed-${p.id}`,
+                type: "booking.confirmed",
+                ts: new Date().toISOString(),
+                aggregateId: booking.id,
+                data: bookingEvent,
+              }),
+            },
+          ],
+        })
+        .catch(() => {})
+    } else {
+      // Replay (idempotent): no new ticket, but still fire payment.confirmed for the
+      // notification fan-out in case the previous run crashed before publishing.
+      const paymentEvent = {
+        type: "payment.confirmed",
+        userId: booking.userId,
+        payload: { bookingId: booking.id, reference: booking.reference, amount: booking.totalAmount },
+      }
+      await producer
+        .send({
+          topic: EVENT_TOPICS.paymentConfirmed,
+          messages: [
+            {
+              key: booking.id,
+              value: JSON.stringify({
+                id: `payment-confirmed-${p.id}`,
+                type: "payment.confirmed",
+                ts: new Date().toISOString(),
+                aggregateId: booking.id,
+                data: paymentEvent,
+              }),
+            },
+          ],
+        })
+        .catch(() => {})
+    }
     await producer.disconnect().catch(() => {})
   } catch {}
 }
