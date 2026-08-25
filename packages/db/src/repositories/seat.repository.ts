@@ -6,7 +6,7 @@ export async function getSeatAvailability(tripId: string) {
 }
 
 export async function atomicHoldSeats(tripId: string, count: number): Promise<boolean> {
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     const rows = await tx.$queryRaw<Array<{ seatsAvailable: number; seatsHeld: number }>>`
       SELECT "seatsAvailable", "seatsHeld" FROM "SeatAvailability"
       WHERE "tripId" = ${tripId}
@@ -25,7 +25,7 @@ export async function atomicHoldSeats(tripId: string, count: number): Promise<bo
 }
 
 export async function atomicReleaseHeldSeats(tripId: string, count: number): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.seatAvailability.update({
       where: { tripId },
       data: { seatsAvailable: { increment: count }, seatsHeld: { decrement: count } },
@@ -34,7 +34,7 @@ export async function atomicReleaseHeldSeats(tripId: string, count: number): Pro
 }
 
 export async function atomicConfirmBookedSeats(tripId: string, count: number): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.seatAvailability.update({
       where: { tripId },
       data: { seatsHeld: { decrement: count }, seatsBooked: { increment: count } },
