@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-08-24)
 
 | Phase | Status | Plans | Progress |
 |-------|--------|-------|----------|
-| 1 | ✓ | 2/2 | 100% (verified 2026-08-25, shipped PR #1) |
-| 2 | ○ | 0/2 | 0% |
+| 1 | ✓ | 2/2 | 100% (verified 2026-08-25, merged e64ed8c, default → master) |
+| 2 | ✓ | 2/2 | 100% (verified 2026-08-25, branch gsd/phase-02-booking-core) |
 | 3 | ○ | 0/1 | 0% |
 | 4 | ○ | 0/1 | 0% |
 | 5 | ○ | 0/2 | 0% |
@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-08-24)
 
 ## Context
 
-- Branch: feat/lot0-lot1 → master PR #1 https://github.com/menoc61/camermove/pull/1 (15 commits, b946b3c), verification `01-VERIFICATION.md` passed, search INT4 fix 8fff5ec
-- Infra: docker-compose 8 services Up (postgres healthy) — endpoint sweep all PASS 2026-08-25
-- Next step: review/approve PR #1 → merge when CI passes → /gsd-complete-milestone or /gsd-execute-phase 2
+- Branch: gsd/phase-02-booking-core → master (verification 02-VERIFICATION.md passed, idempotency + metadata), master now at e64ed8c
+- Infra: docker-compose 8 services Up — Phase 2 sweep idempotency PASS
+- Next step: ship Phase 2 PR → merge → Phase 3 Payments
 
 ---
 *Last updated: 2026-08-24 after roadmap creation*
