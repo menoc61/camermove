@@ -1,10 +1,28 @@
 import { prisma } from "@camermove/db"
 import { atomicHoldSeats, atomicReleaseHeldSeats, atomicConfirmBookedSeats } from "@camermove/db"
-import { ConflictError, NotFoundError } from "@camermove/config"
+import { ConflictError, NotFoundError, loadEnv } from "@camermove/config"
 import { randomUUID } from "node:crypto"
 
 export function generateReference(): string {
   return `CM-${randomUUID().slice(0, 8).toUpperCase()}`
+}
+
+async function publishBookingCreated(booking: { id: string; reference: string; tripId: string; userId: string }) {
+  try {
+    const env = loadEnv() as unknown as Record<string, unknown>
+    const { createKafkaClient } = await import("@camermove/events")
+    const { EVENT_TOPICS } = await import("@camermove/events")
+    const kafka = createKafkaClient(env as never)
+    const producer = kafka.producer({ idempotent: true })
+    await producer.connect().catch(() => {})
+    await producer
+      .send({
+        topic: EVENT_TOPICS.bookingCreated,
+        messages: [{ key: booking.id, value: JSON.stringify({ id: booking.id, type: "booking.created", ts: new Date().toISOString(), aggregateId: booking.id, data: booking }) }],
+      })
+      .catch(() => {})
+    await producer.disconnect().catch(() => {})
+  } catch {}
 }
 
 export async function createBooking(input: { tripId: string; userId: string; seatCount: number; passengers: Array<{ fullName: string; phone?: string }> }) {
@@ -18,7 +36,12 @@ export async function createBooking(input: { tripId: string; userId: string; sea
   try {
     const reference = generateReference()
     const totalAmount = trip.price * input.seatCount
-    const holdExpiresAt = new Date(Date.now() + 15 * 60 * 1000)
+    let holdMinutes = 15
+    try {
+      const settings = await prisma.appSettings.findUnique({ where: { id: "global" } })
+      if (settings?.holdExpiryMinutes) holdMinutes = Number(settings.holdExpiryMinutes)
+    } catch {}
+    const holdExpiresAt = new Date(Date.now() + holdMinutes * 60 * 1000)
 
     const booking = await prisma.booking.create({
       data: {
@@ -33,6 +56,19 @@ export async function createBooking(input: { tripId: string; userId: string; sea
       },
       include: { passengers: true, trip: true },
     })
+    // AuditLog + Kafka — best-effort, never block booking success
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: input.userId,
+          action: "booking.create",
+          entityType: "Booking",
+          entityId: booking.id,
+          metadata: { tripId: input.tripId, seatCount: input.seatCount, passengerCount: input.passengers.length, totalAmount, reference } as never,
+        },
+      })
+    } catch {}
+    await publishBookingCreated({ id: booking.id, reference: booking.reference, tripId: booking.tripId, userId: booking.userId })
     return booking
   } catch (e) {
     await atomicReleaseHeldSeats(input.tripId, input.seatCount).catch(() => {})
