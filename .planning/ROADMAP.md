@@ -34,14 +34,16 @@ Phases derived from v1 requirements. Each phase is a vertical MVP slice deliveri
 **Requirements:** BOOK-01..05
 
 ### Phase 3: Payments
-**Goal:** Bookings can be paid and confirmed via NotchPay.
+**Goal:** Bookings can be paid and confirmed via NotchPay + CinetPay (dual provider), enterprise-grade.
 **Mode:** mvp
 **Success Criteria:**
-1. POST /payments creates NotchPay session and returns authorization_url
-2. Webhook verified (X-Notch-Signature) idempotently updates Payment.status
-3. On success, booking→confirmed, seats→booked, commission persisted; on failure/expiry seats released
-**Plans:**
-- 3.1 NotchPay adapter + PaymentProvider interface + webhook handler + commission calc
+1. POST /payments creates NotchPay/CinetPay session and returns authorization_url/payment_url (Idempotency-Key + one-pending guard, XAF multiple-of-5 for CinetPay)
+2. Webhook verified (X-Notch-Signature / x-token HMAC) + SET NX dedup + Kafka enqueue → 200 fast, idempotently updates Payment.status (never trusts notify payload alone — CinetPay double-verifies via /v2/payment/check)
+3. On success, booking→confirmed, seats→booked, commission persisted (global + per-transporter override); on failure/expiry seats released; reconciliation recovers stuck pending; refund releases seats; exportable payments
+**Plans:** 3 plans
+- [ ] 03-01-PLAN.md — Foundation: schema (cinetpay enum + indexes + expired), env, shared money, topics, PaymentProvider seam + both adapters (raw fetch) + HMAC verify helpers
+- [ ] 03-02-PLAN.md — Payment initiation: idempotent POST /payments + RBAC list/detail/export + commission plumbing + hold extension
+- [ ] 03-03-PLAN.md — Webhooks + async processing: HMAC-verified webhooks → enqueue → worker transactional confirm/fail (commission + seats) + reconciliation cron + refund + worker wiring
 
 **Requirements:** PAY-01..04
 
