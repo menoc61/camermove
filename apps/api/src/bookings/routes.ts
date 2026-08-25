@@ -64,15 +64,9 @@ export async function bookingRoutes(app: FastifyInstance) {
       const affected = results.filter((r) => r.status === "fulfilled").length
       return { affected }
     }
-    const { prisma } = await import("@camermove/db")
     // For traveler, delegate to cancelBooking loop to honor policy + seat release instead of raw updateMany
     const results = await Promise.allSettled(ids.map((bid) => cancelBooking(bid, user.id, user.role)))
     const affected = results.filter((r) => r.status === "fulfilled").length
-    if (affected === 0 && ids.length > 0) {
-      // fallback: ensure at least owner filter path still works when booking is pending_payment hold-cancel
-      const { prisma: p } = await import("@camermove/db")
-      void p
-    }
     // Audit bulk (best-effort)
     try {
       const { prisma: pa } = await import("@camermove/db")
