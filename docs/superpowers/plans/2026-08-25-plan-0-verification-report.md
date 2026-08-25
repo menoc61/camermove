@@ -65,12 +65,20 @@ Services during gate: API healthy on :3000 (`{"status":"ok"}`), worker subscribe
 - **ntfy push rows fail in dev:** push channel Notification rows show `failed` because ntfy.sh is unreachable from this network. Rows are still persisted and fan-out/persistence contracts hold; email + whatsapp pass.
 - **Port 3001 squatted by Docker Desktop:** web dev server runs on **3002** (`-p 3002`; web package's dev script embeds `-p 3001`, trailing flag wins). Dashboard suite must run with `WEB_URL=http://localhost:3002`. Consider aligning ports in compose/dev docs.
 - **NOTCHPAY_BASE_URL points at the live provider** (`https://api.notchpay.co`) and adapters have no stub mode, so the HTTP webhook path was covered by Phase 3 verification; within Plan 0 the confirm step uses the sanctioned in-process `confirmPaymentSuccess()` pattern (same as smoke-tickets TICK-01) to avoid real provider calls.
+- **Deploy note for `cc9a2b9`:** pre-existing Notification rows lack `payload.bookingId`, so confirmed bookings inside the 24h reminder window whose reminder was already sent will receive exactly one duplicate reminder after upgrade; mixed-version rolling deploys widen this window.
 - **Minor review findings from Tasks 1–7 (deferred, none gate-blocking):**
   - T1 (smoke-tickets triage): Test-5 seed leak on failure paths and silent-catch notification cleanup — both subsequently addressed by `dad1ee9` (cleanup in `finally`, typed deleteMany); remaining: unused `Seeded.route`/`transportId` carried fields, duplicated SQL param in cleanup, docs header omits minio.
   - T3 (tests): fixed 250ms sleep in idempotency test; near-tautological gross-conservation invariant; no out-of-domain refund cases; order-dependent idempotency tests.
   - T5 (boot): double-fault masking in admin `finally` of topic provisioning; no explicit numPartitions/replicationFactor; success-path `admin.disconnect` placement aborts boot if it throws; benign kafkajs `CreateTopics … TOPIC_ALREADY_EXISTS` log line for existing topics (C1 topic provisioning itself resolved by `c4581aa`).
   - T6 (smoke): residual Test-5 count race window; silent `.catch(() => {})` swallows remain on some cleanup lines (scripts/smoke-tickets.ts:249-252); notification dedupe lacks a supporting index — deferred; theoretical concurrent-scan dedup race — deferred.
   - T7 (web): accent-insensitive search UX (above); `TimeoutNegativeWarning` (negative value passed where BullMQ/kafkajs expects a delay, clamped to 1ms) appears in any process importing events/config during Kafka publish — pre-existing, non-fatal, hardening-pass candidate.
+
+## Tracked follow-ups
+
+- **FOLLOWUP-1:** Notification table has zero indexes — add `@@index([type, userId])` migration + concurrency-safe dedupe (unique constraint or SET NX) for trip reminders. Why: today every runTripReminder `findFirst` is a full scan (violates AGENTS.md §1 indexing contract) and multi-replica workers race check-then-act.
+- **FOLLOWUP-2:** idempotencyPlugin GET→execute→SET is non-atomic without lock — concurrent identical requests can both execute; the contract test covers sequential replay only. Why: booking/payment idempotency per AGENTS.md §1 needs SET NX or a transactional claim.
+- **FOLLOWUP-3:** provision ALL 13 `EVENT_TOPICS` at worker boot (`c4581aa` covers only the 8 handler topics; producer-only topics rely on broker auto-create which production brokers typically disable), with explicit numPartitions sizing.
+- **FOLLOWUP-4:** extract `confirmPaymentSuccess` out of apps/api internals so scripts/smoke-tickets.ts stops importing across the app boundary.
 
 ## Dead-code sweep (AGENTS.md §3)
 
