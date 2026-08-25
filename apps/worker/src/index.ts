@@ -1,44 +1,28 @@
 import { loadEnv } from "@camermove/config"
 import { createKafkaClient, createEventConsumer, EVENT_TOPICS } from "@camermove/events"
-import { createNotificationDispatcher } from "./notifications/dispatcher"
+import { createNotificationHandlers } from "./handlers/notifications"
 import { initTelemetry } from "@camermove/observability"
-import type { NotificationEvent } from "@camermove/shared"
 
 const env = loadEnv()
 const telemetry = initTelemetry(env)
 const kafka = createKafkaClient(env)
-const dispatcher = createNotificationDispatcher(env)
+const notificationHandlers = createNotificationHandlers(env)
 
 const consumer = createEventConsumer(kafka, env, {
   [EVENT_TOPICS.notificationShouldSend]: async (event) => {
-    // Legacy event from Phase 3 — payload was bare {userId, bookingId}.
-    // We can't enrich here without DB lookup, so we attempt a best-effort dispatch
-    // by inferring event type from `event.type` if present.
-    const fallbackType: NotificationEvent["type"] = "booking.confirmed"
+    // Legacy Phase 3 events: payload was bare {userId, bookingId}. We can't enrich
+    // here without a DB lookup, so we route through a minimal best-effort path.
+    // Phase 4 publishers (reconciliation.ts) emit typed events on the new topics
+    // (booking.confirmed, payment.confirmed, ticket.issued) — those are the
+    // canonical path going forward. This handler remains for back-compat.
     const data = (event.data ?? {}) as { userId?: string; bookingId?: string }
     if (!data.userId) return
-    await dispatcher.dispatch({ type: fallbackType, userId: data.userId, payload: { bookingId: data.bookingId } })
+    await notificationHandlers.onBookingConfirmed({ data: { type: "booking.confirmed", userId: data.userId, payload: { bookingId: data.bookingId } } })
   },
-  [EVENT_TOPICS.bookingConfirmed]: async (event) => {
-    const data = event.data as NotificationEvent
-    if (!data?.userId) return
-    await dispatcher.dispatch(data)
-  },
-  [EVENT_TOPICS.paymentConfirmed]: async (event) => {
-    const data = event.data as NotificationEvent
-    if (!data?.userId) return
-    await dispatcher.dispatch(data)
-  },
-  [EVENT_TOPICS.ticketIssued]: async (event) => {
-    const data = event.data as NotificationEvent
-    if (!data?.userId) return
-    await dispatcher.dispatch(data)
-  },
-  [EVENT_TOPICS.tripReminder24h]: async (event) => {
-    const data = event.data as NotificationEvent
-    if (!data?.userId) return
-    await dispatcher.dispatch(data)
-  },
+  [EVENT_TOPICS.bookingConfirmed]: notificationHandlers.onBookingConfirmed,
+  [EVENT_TOPICS.paymentConfirmed]: notificationHandlers.onPaymentConfirmed,
+  [EVENT_TOPICS.ticketIssued]: notificationHandlers.onTicketIssued,
+  [EVENT_TOPICS.tripReminder24h]: notificationHandlers.onTripReminder,
   [EVENT_TOPICS.bookingCreated]: async () => {},
   [EVENT_TOPICS.paymentCompleted]: async () => {},
   [EVENT_TOPICS.paymentWebhookReceived]: async (event) => {
