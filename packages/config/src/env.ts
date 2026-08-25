@@ -49,6 +49,7 @@ const EnvSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_WHATSAPP_FROM: z.string().optional(),
+  NTFY_BASE_URL: z.string().default('http://localhost:8090'),
   NTFY_HOST: z.string().default('https://ntfy.sh'),
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().int().default(1025),
