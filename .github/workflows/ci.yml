@@ -37,5 +37,6 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @camermove/db generate
+      - run: pnpm --filter @camermove/db exec prisma migrate deploy
       - run: pnpm -r typecheck
       - run: pnpm -r test
