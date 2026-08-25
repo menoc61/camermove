@@ -11,7 +11,7 @@ See: .planning/PROJECT.md (updated 2026-08-24)
 
 | Phase | Status | Plans | Progress |
 |-------|--------|-------|----------|
-| 1 | ◆ | 2/2 | 100% (built, pending verification) |
+| 1 | ✓ | 2/2 | 100% (verified 2026-08-25, PR pending remote) |
 | 2 | ○ | 0/2 | 0% |
 | 3 | ○ | 0/1 | 0% |
 | 4 | ○ | 0/1 | 0% |
@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-08-24)
 
 ## Context
 
-- Branch: feat/lot0-lot1, last commits eac339d + 65b00ef (Lot 0+1 + architecture bulk)
-- Infra: docker-compose with postgres/redis/minio/kafka/mailhog/kafka-ui/prometheus/grafana
-- Next step: /gsd-plan-phase 1 (if re-planning) or /gsd-progress
+- Branch: feat/lot0-lot1, 14 commits ahead of master (065e473), verification `01-VERIFICATION.md` passed, search INT4 fix 8fff5ec, PR body draft `.tmp-pr-body.md`
+- Infra: docker-compose 8 services Up (postgres healthy) — endpoint sweep all PASS 2026-08-25
+- Next step: `git remote add origin <url> && git push -u origin feat/lot0-lot1 && gh pr create --title "Phase 1: Foundations & Search" --body-file .tmp-pr-body.md --base master`
 
 ---
 *Last updated: 2026-08-24 after roadmap creation*
