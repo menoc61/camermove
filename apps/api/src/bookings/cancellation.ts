@@ -69,7 +69,7 @@ export async function evaluateCancellation(input: {
 
   // Ticket already used/void
   const tickets = await prisma.ticket.findMany({ where: { bookingId: input.booking.id } })
-  if (tickets.some((t) => t.status === "used")) {
+  if (tickets.some((t: any) => t.status === "used")) {
     return { allowed: false, reason: "Billet déjà utilisé", refundPercent: 0, refundAmount: 0, feeAmount: 0, feePercent: 0, tier: "used", policy: "Billet utilisé — non remboursable" }
   }
 

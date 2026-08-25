@@ -104,7 +104,7 @@ export async function advancedSearch(query: AdvancedSearchQuery) {
     prisma.trip.count({ where: where as never }),
   ])
 
-  const mapped = items.map((t) => ({
+  const mapped = items.map((t: any) => ({
     id: t.id,
     departureAt: t.departureAt,
     price: t.price,

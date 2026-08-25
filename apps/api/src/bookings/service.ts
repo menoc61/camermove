@@ -43,8 +43,8 @@ export async function createBooking(input: { tripId: string; userId: string; sea
 export async function expireHolds(): Promise<number> {
   const expired = await prisma.booking.findMany({ where: { status: "pending_payment", holdExpiresAt: { lt: new Date() } } })
   let count = 0
-  for (const b of expired) {
-    await prisma.$transaction(async (tx) => {
+   for (const b of expired) {
+    await prisma.$transaction(async (tx: any) => {
       await tx.booking.update({ where: { id: b.id }, data: { status: "expired" } })
       const sa = await tx.seatAvailability.findUnique({ where: { tripId: b.tripId } })
       if (sa && sa.seatsHeld >= b.seatCount) {
@@ -88,7 +88,7 @@ export async function cancelBooking(
     await atomicReleaseHeldSeats(booking.tripId, booking.seatCount)
   } else if (booking.status === "confirmed") {
     // Return held/booked seats to available
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       const sa = await tx.seatAvailability.findUnique({ where: { tripId: booking.tripId } })
       if (sa) {
         await tx.seatAvailability.update({ where: { tripId: booking.tripId }, data: { seatsAvailable: { increment: booking.seatCount }, seatsBooked: { decrement: booking.seatCount } } })

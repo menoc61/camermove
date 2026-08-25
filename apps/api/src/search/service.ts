@@ -36,7 +36,7 @@ export async function searchTrips(query: SearchQuery) {
     }),
   ])
   return {
-    items: items.map((t) => ({
+    items: items.map((t: any) => ({
       id: t.id,
       departureAt: t.departureAt,
       price: t.price,
