@@ -24,12 +24,15 @@ export default function BookPage() {
       <div className="flex items-center gap-2">
         <span className="text-sm">Places:</span>
         <input type="number" min={1} max={10} value={seatCount} onChange={(e) => {
-          const n = Number(e.target.value)
-          setBooking({ seatCount: n, passengers: Array.from({ length: n }, (_, i) => ({ fullName: "" })) })
-        }} className="w-20 rounded border px-3 py-2 text-sm" />
+          let n = Number(e.target.value)
+          if (!Number.isFinite(n) || n < 1) n = 1
+          if (n > 10) n = 10
+          setBooking({ seatCount: n, passengers: Array.from({ length: n }, (_, i) => passengers[i] ?? { fullName: "" }) })
+        }} className="w-20 rounded border px-3 py-2 text-sm" aria-label="Nombre de places" />
+        <span className="text-xs text-slate-500">max 10 par réservation</span>
       </div>
       <PassengerForm />
-      {trip && <Recap price={trip.price} />}
+      {trip ? <Recap price={trip.price} /> : <p className="text-xs text-slate-400">Chargement du trajet…</p>}
     </main>
   )
 }
