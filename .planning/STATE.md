@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-08-24)
 
 **Core value:** A traveler can search Yaoundé ↔ Douala, select an offer, pay, and receive a valid e-ticket — with no double-booking, and the transporter and admin see the booking.
-**Current focus:** Phase 1 — Foundations & Search (Lots 0–1 built, bulk committed as eac339d + 65b00ef; remaining Lots 2–5 planned)
+**Current focus:** Phase 3 — Payments (Phase 1+2 verified on master, next is NotchPay integration)
 
 ## Progress
 
@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (updated 2026-08-24)
 
 ## Context
 
-- Branch: gsd/phase-02-booking-core → master (verification 02-VERIFICATION.md passed, idempotency + metadata), master now at e64ed8c
-- Infra: docker-compose 8 services Up — Phase 2 sweep idempotency PASS
-- Next step: ship Phase 2 PR → merge → Phase 3 Payments
+- Branch: master @ e64ed8c (Phase 1 merged PR #1), verification 01 + 02 passed on master (booking tests 7 passed, idempotency + metadata), default → master on GitHub
+- Infra: docker-compose 8 services Up — Phase 2 endpoint hold+cancel+Idempotency PASS 2026-08-25
+- Next step: Phase 3 Payments (NotchPay) — plan then execute
 
 ---
 *Last updated: 2026-08-24 after roadmap creation*
