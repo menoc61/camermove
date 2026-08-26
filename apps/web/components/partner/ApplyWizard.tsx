@@ -6,7 +6,7 @@
  * puis carte de statut via GET /partner-applications/me.
  */
 import { useState } from "react"
-import { Check, ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import {
   getMyApplication,
   presignDocument,
@@ -16,6 +16,7 @@ import {
   type MyApplication,
 } from "../../lib/api/partner"
 import { DocumentsStep } from "./DocumentsStep"
+import { StatusCard } from "./StatusCard"
 import {
   DOC_TYPES,
   EMPTY_DOCS,
@@ -23,7 +24,6 @@ import {
   Field,
   MAX_DOC_BYTES,
   MIME_OK,
-  STATUS_LABELS,
   validateCompany,
   type FormState,
 } from "./form-core"
@@ -109,22 +109,7 @@ export function ApplyWizard({ token }: { token: string }) {
   }
 
   if (sent) {
-    const routes = form.routesServed.split(",").map((r) => r.trim()).filter(Boolean)
-    return (
-      <div className="space-y-4 rounded-xl border p-4">
-        <div className="flex items-center gap-2">
-          <Check className="h-5 w-5 text-green-600" />
-          <p className="font-medium">Votre demande a bien été envoyée</p>
-        </div>
-        <div className="space-y-1 text-sm text-slate-600">
-          <p>Statut : <span className="font-semibold text-[#0e9f8f]">{STATUS_LABELS[details?.status ?? "received"] ?? details?.status ?? "Reçue"}</span></p>
-          <p>Entreprise : {details?.companyName ?? form.companyName}</p>
-          {details?.createdAt && <p>Déposée le {new Date(details.createdAt).toLocaleDateString("fr-FR")}</p>}
-          {routes.length > 0 && <p>Routes desservies : {routes.join(", ")}</p>}
-          {details?.documents && <p>{details.documents.length} document(s) transmis.</p>}
-        </div>
-      </div>
-    )
+    return <StatusCard details={details} fallbackCompanyName={form.companyName} routesServed={form.routesServed} />
   }
 
   return (
