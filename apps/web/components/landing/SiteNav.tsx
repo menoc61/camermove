@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 export function SiteNav() {
   return (
@@ -21,12 +22,9 @@ export function SiteNav() {
           </Link>
         </div>
 
-        <Link
-          href="/login"
-          className="rounded-full border border-primary-dark px-4 py-1.5 text-sm font-semibold text-primary-dark transition-transform hover:-translate-y-px active:translate-y-0 active:scale-[0.98]"
-        >
-          Se connecter
-        </Link>
+        <Button asChild variant="outline" size="sm" className="rounded-full border-primary-dark text-primary-dark">
+          <Link href="/login">Se connecter</Link>
+        </Button>
       </nav>
     </header>
   )

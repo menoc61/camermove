@@ -1,6 +1,10 @@
 import type { Metadata } from "next"
 import "./globals.css"
 import { QueryProvider } from "../components/providers"
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002"
 
@@ -36,7 +40,7 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <body>
         <script
           type="application/ld+json"

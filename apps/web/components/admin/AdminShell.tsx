@@ -1,19 +1,28 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState } from "react"
 import { useAuthStore } from "@camermove/frontend"
 import { apiFetch } from "../../lib/api/client"
 import type { AuthUser } from "../../lib/api/auth"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 
 const NAV = [
   "Tableau de bord",
   "Utilisateurs",
   "Transporteurs",
   "Trajets",
-  "Réservations",
+  "RÃ©servations",
   "Paiements",
   "Commissions",
-  "Paramètres",
+  "ParamÃ¨tres",
   "Journal d'audit",
 ] as const
 
@@ -25,7 +34,7 @@ export function AdminShell() {
 
   useEffect(() => {
     if (!accessToken) {
-      setError("Session expirée — reconnectez-vous.")
+      setError("Session expirÃ©e â€” reconnectez-vous.")
       return
     }
     apiFetch<{ id: string; email: string; role: string; status: string }>("/api/v1/me/profile", {
@@ -47,7 +56,7 @@ export function AdminShell() {
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            {profile ? `${profile.email} · ${profile.role}` : "…"}
+            {profile ? `${profile.email} Â· ${profile.role}` : "â€¦"}
           </p>
         </div>
       </header>
@@ -58,33 +67,34 @@ export function AdminShell() {
             {error}
           </p>
         )}
-        {!error && !profile && <p className="text-sm text-slate-500">Chargement…</p>}
+        {!error && !profile && <p className="text-sm text-slate-500">Chargementâ€¦</p>}
 
         {profile && (
           <>
             <nav aria-label="Sections admin" className="mb-8 flex flex-wrap gap-2">
               {NAV.map((item) => (
-                <button
+                <Button
                   key={item}
+                  variant={active === item ? "default" : "outline"}
+                  size="sm"
+                  className={cn("rounded-full", active !== item && "border-border bg-card")}
                   onClick={() => setActive(item)}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                    active === item
-                      ? "bg-primary text-white"
-                      : "border border-slate-300 bg-white text-slate-700 hover:border-primary/50"
-                  }`}
                 >
                   {item}
-                </button>
+                </Button>
               ))}
             </nav>
 
-            <section className="rounded-card border border-slate-200 bg-white p-8">
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">{active}</h1>
-              <p className="mt-2 max-w-[60ch] text-sm text-slate-500">
-                Ce module arrive avec la prochaine itération de la console (gestion des{" "}
-                {active.toLowerCase()}).
-              </p>
-            </section>
+            <Card>
+              <CardHeader>
+                <CardTitle>{active}</CardTitle>
+                <CardDescription>
+                  Ce module arrive avec la prochaine itération de la console (gestion des{" "}
+                  {active.toLowerCase()}).
+                </CardDescription>
+              </CardHeader>
+              <CardContent />
+            </Card>
           </>
         )}
       </main>

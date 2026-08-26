@@ -6,6 +6,9 @@ import { useState } from "react"
 import { useAuthStore } from "@camermove/frontend"
 import { ApiError } from "../../lib/api/client"
 import { login } from "../../lib/api/auth"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -50,55 +53,52 @@ export function AdminLoginForm({ next }: { next?: string }) {
     }
   }
 
-  const inputCls =
-    "w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-
   return (
     <form onSubmit={submit} className="grid grid-cols-1 gap-4" noValidate>
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium text-slate-300">E-mail administrateur</span>
-        <input
-          type="email"
-          required
-          className={inputCls}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-        />
-      </label>
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium text-slate-300">Mot de passe</span>
-        <input
-          type="password"
-          required
-          minLength={8}
-          className={inputCls}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-        />
-      </label>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="admin-email">E-mail administrateur</FieldLabel>
+          <Input
+            id="admin-email"
+            type="email"
+            required
+            className="bg-slate-900 text-slate-100"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="admin-password">Mot de passe</FieldLabel>
+          <Input
+            id="admin-password"
+            type="password"
+            required
+            minLength={8}
+            className="bg-slate-900 text-slate-100"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        </Field>
 
-      {error && (
-        <p role="alert" className="rounded-lg bg-red-950/60 px-3 py-2 text-sm text-red-300">
-          {error}
+        {error && (
+          <p role="alert" className="rounded-lg bg-red-950/60 px-3 py-2 text-sm text-red-300">
+            {error}
+          </p>
+        )}
+
+        <Button type="submit" className="rounded-full" disabled={submitting}>
+          {submitting ? "Un instant…" : "Accéder à la console"}
+        </Button>
+
+        <p className="text-center text-xs text-muted-foreground">
+          Espace réservé à l'équipe CamerMove —{" "}
+          <Link href="/" className="underline-offset-4 hover:underline">
+            retour au site
+          </Link>
         </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white transition-transform hover:-translate-y-px hover:bg-primary-dark active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-      >
-        {submitting ? "Un instant…" : "Accéder à la console"}
-      </button>
-
-      <p className="text-center text-xs text-slate-500">
-        Espace réservé à l'équipe CamerMove —{" "}
-        <Link href="/" className="underline-offset-4 hover:text-slate-300 hover:underline">
-          retour au site
-        </Link>
-      </p>
+      </FieldGroup>
     </form>
   )
 }

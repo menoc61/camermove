@@ -1,27 +1,28 @@
-import Image from "next/image"
+﻿import Image from "next/image"
 import { QrCode, ShieldCheck, Wallet } from "lucide-react"
 import { SearchBar } from "../search/search-bar"
+import { Badge } from "@/components/ui/badge"
 
 const trust = [
-  { icon: ShieldCheck, label: "Paiement Mobile Money sécurisé" },
-  { icon: QrCode, label: "E-billet QR immédiat" },
+  { icon: ShieldCheck, label: "Paiement Mobile Money sÃ©curisÃ©" },
+  { icon: QrCode, label: "E-billet QR immÃ©diat" },
   { icon: Wallet, label: "Meilleurs prix du jour" },
 ]
 
 export function Hero({ minPrice }: { minPrice?: number }) {
   return (
-    <section className="relative overflow-hidden bg-bg">
+    <section className="relative overflow-hidden bg-background">
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-4 pb-20 pt-10 sm:px-6 md:pt-16 lg:grid-cols-12">
         <div className="lg:col-span-6">
           <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-dark">
-            Yaoundé ⇄ Douala · quotidien
+            YaoundÃ© â‡„ Douala Â· quotidien
           </p>
           <h1 className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tighter text-slate-900 md:text-6xl">
-            Le bus Yaoundé–Douala, réservé en deux minutes.
+            Le bus YaoundÃ©â€“Douala, rÃ©servÃ© en deux minutes.
           </h1>
           <p className="mt-5 max-w-[65ch] text-base leading-relaxed text-slate-600 md:text-lg">
-            Comparez les départs du jour, payez par Mobile Money et recevez votre e-billet
-            QR immédiatement.
+            Comparez les dÃ©parts du jour, payez par Mobile Money et recevez votre e-billet
+            QR immÃ©diatement.
           </p>
 
           <div className="relative z-10 mt-8 max-w-xl rounded-2xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-900/5 sm:p-5">
@@ -49,15 +50,15 @@ export function Hero({ minPrice }: { minPrice?: number }) {
               className="object-cover"
             />
             {minPrice != null && (
-              <span className="absolute left-4 top-4 rounded-full bg-accent px-3 py-1 text-xs font-bold text-slate-900">
+              <Badge className="absolute left-4 top-4 bg-secondary font-bold text-secondary-foreground">
                 À partir de {new Intl.NumberFormat("fr-CM").format(minPrice)} XAF
-              </span>
+              </Badge>
             )}
           </div>
           <div className="absolute -bottom-6 left-0 aspect-[16/10] w-[46%] rotate-[-4deg] overflow-hidden rounded-2xl border-4 border-white shadow-lg shadow-slate-900/15">
             <Image
               src="https://picsum.photos/seed/camermove-douala/720/450"
-              alt="Départ de bus à Douala"
+              alt="DÃ©part de bus Ã  Douala"
               fill
               sizes="(min-width: 1024px) 24vw, 0vw"
               className="object-cover"

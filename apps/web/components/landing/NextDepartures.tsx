@@ -1,4 +1,4 @@
-import Link from "next/link"
+﻿import Link from "next/link"
 import type { SearchResultItem } from "../../lib/api/search"
 
 function timeFr(iso: string): string {
@@ -13,23 +13,23 @@ function priceXaf(n: number): string {
 
 export function NextDepartures({ trips }: { trips: SearchResultItem[] }) {
   return (
-    <section id="departures" className="bg-bg">
+    <section id="departures" className="bg-background">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
         <div className="flex flex-wrap items-baseline justify-between gap-4">
           <h2 className="text-3xl font-bold tracking-tighter text-slate-900 md:text-4xl">
-            Prochains départs Yaoundé → Douala
+            Prochains dÃ©parts YaoundÃ© â†’ Douala
           </h2>
           <Link
             href="/results?origin=Yaound%C3%A9&destination=Douala&pax=1"
             className="text-sm font-semibold text-primary-dark underline-offset-4 hover:underline"
           >
-            Voir tous les trajets →
+            Voir tous les trajets â†’
           </Link>
         </div>
 
         {trips.length === 0 ? (
           <p className="mt-8 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-            Aucun départ disponible pour le moment — revenez bientôt.
+            Aucun dÃ©part disponible pour le moment â€” revenez bientÃ´t.
           </p>
         ) : (
           <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -37,7 +37,7 @@ export function NextDepartures({ trips }: { trips: SearchResultItem[] }) {
               <Link
                 key={t.id}
                 href={`/trips/${t.id}`}
-                className="group rounded-card border border-slate-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-slate-900/5 active:translate-y-0 active:scale-[0.99]"
+                className="group rounded-lg border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-slate-900/5 active:translate-y-0 active:scale-[0.99]"
               >
                 <div className="flex items-baseline justify-between">
                   <span className="text-2xl font-bold tracking-tight text-slate-900">
@@ -51,10 +51,10 @@ export function NextDepartures({ trips }: { trips: SearchResultItem[] }) {
                 <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-sm">
                   <span className="truncate text-slate-700">
                     {t.companyName}
-                    {t.vehicleTypeInfo ? ` · ${t.vehicleTypeInfo}` : ""}
+                    {t.vehicleTypeInfo ? ` Â· ${t.vehicleTypeInfo}` : ""}
                   </span>
                   <span className="ml-2 shrink-0 font-medium text-primary-dark group-hover:underline">
-                    Réserver
+                    RÃ©server
                   </span>
                 </div>
               </Link>

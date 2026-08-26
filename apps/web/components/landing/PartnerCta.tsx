@@ -1,5 +1,6 @@
-import Link from "next/link"
+﻿import Link from "next/link"
 import { ArrowRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 export function PartnerCta() {
   return (
@@ -10,17 +11,20 @@ export function PartnerCta() {
             Vous exploitez des bus au Cameroun&nbsp;?
           </h2>
           <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-white/85">
-            Publiez vos trajets, remplissez vos sièges et encaissez en toute confiance.
+            Publiez vos trajets, remplissez vos siÃ¨ges et encaissez en toute confiance.
             L'inscription partenaire prend moins de dix minutes.
           </p>
         </div>
-        <Link
-          href="/transporter/apply"
-          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-bold text-slate-900 transition-transform hover:-translate-y-px active:translate-y-0 active:scale-[0.98]"
+        <Button
+          asChild
+          size="lg"
+          className="shrink-0 rounded-full bg-secondary font-bold text-secondary-foreground hover:bg-secondary/90"
         >
-          Devenir partenaire
-          <ArrowRight className="h-4 w-4" strokeWidth={2} aria-hidden />
-        </Link>
+          <Link href="/transporter/apply">
+            Devenir partenaire
+            <ArrowRight data-icon="inline-end" aria-hidden />
+          </Link>
+        </Button>
       </div>
     </section>
   )
