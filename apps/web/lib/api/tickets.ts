@@ -4,8 +4,6 @@
  * apps/api/src/routes/me/tickets.ts. Defined locally to avoid pulling
  * the API workspace types into the web bundle.
  */
-import { apiFetch } from "./client"
-
 export interface TicketDetailResponse {
   id: string
   reference: string
@@ -23,6 +21,3 @@ export interface TicketDetailResponse {
   passengers: Array<{ firstName: string; lastName: string; seatNumber: number }>
 }
 
-export function getTicket(id: string, token: string): Promise<TicketDetailResponse> {
-  return apiFetch<TicketDetailResponse>(`/api/v1/me/tickets/${id}`, { method: "GET", token })
-}

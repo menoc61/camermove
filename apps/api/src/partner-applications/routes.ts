@@ -41,8 +41,9 @@ export async function partnerApplicationRoutes(app: FastifyInstance) {
           metadata: { docCount: input.documents.length, companyName: input.companyName } as never,
         },
       })
-    } catch {
+    } catch (err) {
       // audit best-effort; submission must not fail because of audit write
+      req.log.warn({ err }, "audit.write.failed")
     }
     return reply.code(201).send(out)
   })
