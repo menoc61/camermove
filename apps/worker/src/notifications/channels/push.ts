@@ -2,6 +2,8 @@ import type { Env } from "@camermove/config"
 
 /**
  * Push channel adapter — Phase 4 typed signature, ntfy topic fix.
+ * Rejects with channel_not_configured:push when no ntfy base URL is set
+ * outside stub/test.
  *
  * Topic format: `user-${last12OfCuid(userId)}` (e.g. `user-clw5x8r30001`).
  * ntfy topic rules per docs.ntfy.sh: [a-zA-Z0-9_-]{1,64}, no leading underscore,
@@ -25,8 +27,7 @@ export async function sendPush(env: Env, msg: PushMessage): Promise<void> {
   }
   const baseUrl = env.NTFY_BASE_URL || env.NTFY_HOST
   if (!baseUrl) {
-    console.warn("[push] NTFY_BASE_URL and NTFY_HOST both missing — skipping")
-    return
+    throw new Error("channel_not_configured:push")
   }
   const headers: Record<string, string> = { Title: msg.title, Priority: String(msg.priority ?? 3) }
   if (msg.tags && msg.tags.length > 0) headers.Tags = msg.tags.join(",")
