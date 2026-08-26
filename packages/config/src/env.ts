@@ -91,15 +91,22 @@ export class ConfigError extends Error {
 let cachedEnv: Env | undefined
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  if (source !== process.env) {
+    return parseAndValidate(source)
+  }
   if (!cachedEnv) {
-    const parsed = EnvSchema.safeParse(source)
-    if (!parsed.success) {
-      const missing = parsed.error.issues.map((i) => i.path.join('.')).join(', ')
-      throw new ConfigError(`Invalid environment: ${missing}`)
-    }
-    cachedEnv = Object.freeze(parsed.data)
+    cachedEnv = parseAndValidate(process.env)
   }
   return cachedEnv
+}
+
+function parseAndValidate(source: NodeJS.ProcessEnv): Env {
+  const parsed = EnvSchema.safeParse(source)
+  if (!parsed.success) {
+    const missing = parsed.error.issues.map((i) => i.path.join('.')).join(', ')
+    throw new ConfigError(`Invalid environment: ${missing}`)
+  }
+  return Object.freeze(parsed.data)
 }
 
 export function __resetEnvCacheForTests(): void {
