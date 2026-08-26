@@ -1,11 +1,11 @@
-/**
- * TicketDetail — full ticket view: QR PNG (data URL), verification code,
- * trip info, passenger list. QR scales on small viewports via max-w-[240px].
- * All copy in French per UI-SPEC.
- */
 import Link from "next/link"
 import type { TicketDetailResponse } from "../../lib/api/tickets"
 import { StatusPill, mapTicketStatus } from "../dashboard/StatusPill"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—"
@@ -21,77 +21,73 @@ function fmtDate(iso: string | null): string {
 
 export function TicketDetail({ data }: { data: TicketDetailResponse }) {
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <header className="flex items-center justify-between">
-        <div>
-          <p className="font-mono text-xs text-slate-500">Réf. {data.reference}</p>
-          <h1 className="mt-1 text-xl font-semibold text-slate-900">Votre billet</h1>
+        <div className="flex flex-col gap-1">
+          <span className="font-mono text-xs text-muted-foreground">Réf. {data.reference}</span>
+          <h1 className="text-xl font-semibold tracking-tight">Votre billet</h1>
         </div>
         <StatusPill kind={mapTicketStatus(data.status)} />
       </header>
 
-      {/* QR card — data URL, scales to viewport via max-w-[240px] */}
-      <section className="rounded-2xl bg-white p-6 text-center shadow-sm">
-        {data.qrDataUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={data.qrDataUrl}
-            alt="QR code du billet"
-            className="mx-auto h-auto max-w-[240px]"
-          />
-        ) : (
-          <div className="mx-auto flex h-[240px] w-[240px] items-center justify-center rounded bg-slate-100 text-xs text-slate-500">
-            QR indisponible
-          </div>
-        )}
-        <p className="mt-4 font-mono text-center text-lg text-slate-900">
-          {data.verificationCode}
-        </p>
-        <p className="mt-1 text-xs text-slate-500">Code de vérification</p>
-      </section>
+      <Card>
+        <CardContent className="flex flex-col items-center p-6 text-center">
+          {data.qrDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={data.qrDataUrl} alt="QR code du billet" className="mx-auto h-auto max-w-[240px]" />
+          ) : (
+            <div className="mx-auto flex h-[240px] w-[240px] items-center justify-center rounded-lg border border-dashed bg-muted text-xs text-muted-foreground">
+              QR indisponible
+            </div>
+          )}
+          <p className="mt-4 font-mono text-lg font-semibold">{data.verificationCode}</p>
+          <p className="text-xs text-muted-foreground">Code de vérification</p>
+        </CardContent>
+      </Card>
 
-      {/* Trip info */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="mb-2 text-sm font-semibold text-slate-900">Trajet</h2>
-        <p className="text-base font-semibold text-slate-900">
-          {data.trip.origin} → {data.trip.destination}
-        </p>
-        <dl className="mt-3 grid grid-cols-2 gap-y-2 text-xs text-slate-500">
-          <dt>Départ</dt>
-          <dd className="text-right text-slate-900">{fmtDate(data.trip.departureAt)}</dd>
-          <dt>Arrivée estimée</dt>
-          <dd className="text-right text-slate-900">{fmtDate(data.trip.arrivalAt)}</dd>
-          <dt>Véhicule</dt>
-          <dd className="text-right text-slate-900">{data.trip.vehiclePlate ?? "—"}</dd>
-          <dt>Sièges</dt>
-          <dd className="text-right text-slate-900">{data.trip.seatCount}</dd>
-        </dl>
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Trajet</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <p className="text-base font-semibold">
+            {data.trip.origin} → {data.trip.destination}
+          </p>
+          <Separator />
+          <dl className="grid grid-cols-2 gap-y-2 text-xs">
+            <dt className="text-muted-foreground">Départ</dt>
+            <dd className="text-right font-medium">{fmtDate(data.trip.departureAt)}</dd>
+            <dt className="text-muted-foreground">Arrivée estimée</dt>
+            <dd className="text-right font-medium">{fmtDate(data.trip.arrivalAt)}</dd>
+            <dt className="text-muted-foreground">Véhicule</dt>
+            <dd className="text-right font-medium">{data.trip.vehiclePlate ?? "—"}</dd>
+            <dt className="text-muted-foreground">Sièges</dt>
+            <dd className="text-right font-medium">{data.trip.seatCount}</dd>
+          </dl>
+        </CardContent>
+      </Card>
 
-      {/* Passengers */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">Passagers</h2>
-        <ul className="space-y-2">
-          {data.passengers.map((p, i) => (
-            <li
-              key={`${p.seatNumber}-${i}`}
-              className="flex items-center justify-between text-sm"
-            >
-              <span className="text-slate-900">
-                {p.firstName} {p.lastName}
-              </span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700">
-                Siège {p.seatNumber}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Passagers</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="flex flex-col gap-2">
+            {data.passengers.map((p, i) => (
+              <li key={`${p.seatNumber}-${i}`} className="flex items-center justify-between text-sm">
+                <span>
+                  {p.firstName} {p.lastName}
+                </span>
+                <Badge variant="secondary" className="font-mono text-xs">
+                  Siège {p.seatNumber}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
 
-      <Link
-        href="/dashboard"
-        className="block w-full rounded-lg bg-[#0e9f8f] py-2 text-center text-sm font-medium text-white"
-      >
+      <Link href="/dashboard" className={cn(buttonVariants(), "w-full rounded-full")}>
         Voir mes voyages
       </Link>
     </div>

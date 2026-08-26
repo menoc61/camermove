@@ -3,6 +3,10 @@ import { useBookingStore, useAuthStore } from "@camermove/frontend"
 import { createBooking } from "../../lib/api/bookings"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "expiré"
@@ -40,28 +44,47 @@ export function Recap({ price }: { price: number }) {
       router.push(`/book/confirmation?ref=${res.booking.reference}`)
     } catch (e: unknown) {
       const err = e as Error & { status?: number; message: string }
-      if (err.status === 409) setError("Plus de places disponibles pour ce trajet (409). Veuillez choisir un autre horaire.")
-      else if (err.status === 429) setError("Trop de requêtes (429). Patientez quelques secondes puis réessayez.")
+      if (err.status === 409) setError("Plus de places disponibles pour ce trajet. Veuillez choisir un autre horaire.")
+      else if (err.status === 429) setError("Trop de requêtes. Patientez quelques secondes puis réessayez.")
       else setError(err.message || String(e))
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }
 
   const countdown = holdExpiresAt ? holdExpiresAt.getTime() - now : 15 * 60 * 1000
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm">
-      <div className="text-sm">Total: <span className="font-semibold">{total} XAF</span> ({seatCount} × {price} XAF)</div>
-      <div className="mt-1 text-xs text-slate-500">Détail: {seatCount} × {price} XAF = {total} XAF — Hold 15 min</div>
-      <div className="mt-2 flex items-center gap-2 text-xs">
-        <span className="rounded-full bg-amber-50 px-2 py-1 font-mono text-amber-700">Hold {formatCountdown(countdown)}</span>
-        <span className="text-slate-500">expire libère les places</span>
-      </div>
-      {holdExpiresAt && <p className="mt-1 text-xs text-slate-400">Expire: {holdExpiresAt.toLocaleTimeString()}</p>}
-      {error && <p className="mt-2 rounded bg-red-50 p-2 text-xs text-red-700">{error}</p>}
-      {(invalidPassengers || phoneInvalid) && <p className="mt-2 text-xs text-amber-600">Vérifiez les informations passagers (nom requis, téléphone E.164)</p>}
-      <button onClick={submit} disabled={loading || !token || invalidPassengers || phoneInvalid} className="mt-3 w-full rounded-lg bg-[#0e9f8f] py-2 text-sm font-medium text-white disabled:opacity-50">
-        {loading ? "Réservation…" : "Confirmer la réservation"}
-      </button>
-      {!token && <p className="mt-2 text-xs text-amber-600">Connectez-vous pour réserver</p>}
-    </div>
+    <Card>
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex items-baseline justify-between text-sm">
+          <span className="text-muted-foreground">Total</span>
+          <span className="text-lg font-bold">
+            {new Intl.NumberFormat("fr-CM").format(total)} XAF
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {seatCount} × {new Intl.NumberFormat("fr-CM").format(price)} XAF — Hold 15 min
+        </p>
+        <div className="flex items-center gap-2 text-xs">
+          <Badge variant="secondary" className="font-mono">
+            Hold {formatCountdown(countdown)}
+          </Badge>
+          <span className="text-muted-foreground">expire libère les places</span>
+        </div>
+        {holdExpiresAt && <p className="text-xs text-muted-foreground">Expire: {holdExpiresAt.toLocaleTimeString()}</p>}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {(invalidPassengers || phoneInvalid) && (
+          <p className="text-xs text-amber-600">Vérifiez les informations passagers (nom requis, téléphone E.164)</p>
+        )}
+        <Button onClick={submit} disabled={loading || !token || invalidPassengers || phoneInvalid} className="w-full rounded-full">
+          {loading ? "Réservation…" : "Confirmer la réservation"}
+        </Button>
+        {!token && <p className="text-center text-xs text-amber-600">Connectez-vous pour réserver</p>}
+      </CardContent>
+    </Card>
   )
 }

@@ -1,10 +1,9 @@
 "use client"
-/**
- * TicketCard — compact preview card for a ticket (QR scan). Links to the
- * full ticket detail page.
- */
 import Link from "next/link"
 import type { DashboardTicketItem } from "../../lib/api/dashboard"
+import { Card, CardContent } from "@/components/ui/card"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { StatusPill, mapTicketStatus } from "./StatusPill"
 
 function fmtDate(iso: string): string {
@@ -19,25 +18,24 @@ function fmtDate(iso: string): string {
 
 export function TicketCard({ item }: { item: DashboardTicketItem }) {
   return (
-    <article className="rounded-2xl bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-mono text-xs text-slate-500">{item.verificationCode}</p>
-          <p className="mt-1 text-base font-semibold text-slate-900">
-            {item.origin} → {item.destination}
-          </p>
-          <p className="mt-1 text-sm text-slate-500">{fmtDate(item.departureAt)}</p>
+    <Card>
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-col gap-1">
+            <span className="font-mono text-xs text-muted-foreground">{item.verificationCode}</span>
+            <span className="text-base font-semibold">
+              {item.origin} → {item.destination}
+            </span>
+            <span className="text-sm text-muted-foreground">{fmtDate(item.departureAt)}</span>
+          </div>
+          <StatusPill kind={mapTicketStatus(item.status)} />
         </div>
-        <StatusPill kind={mapTicketStatus(item.status)} />
-      </div>
-      <div className="mt-3 flex justify-end">
-        <Link
-          href={`/tickets/${item.id}`}
-          className="rounded-lg bg-[#0e9f8f] px-3 py-1.5 text-xs font-medium text-white"
-        >
-          Voir QR
-        </Link>
-      </div>
-    </article>
+        <div className="flex justify-end border-t pt-3">
+          <Link href={`/tickets/${item.id}`} className={cn(buttonVariants({ size: "sm" }), "rounded-full")}>
+            Voir QR
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

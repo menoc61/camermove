@@ -1,8 +1,8 @@
-"use client"
+﻿"use client"
 /**
- * ApplyWizard — formulaire en 3 étapes « Devenir partenaire transporteur ».
- * Étape 1 : infos entreprise · Étape 2 : documents (présignature puis PUT
- * direct vers MinIO via DocumentsStep) · Étape 3 : récapitulatif + envoi,
+ * ApplyWizard â€” formulaire en 3 Ã©tapes Â« Devenir partenaire transporteur Â».
+ * Ã‰tape 1 : infos entreprise Â· Ã‰tape 2 : documents (prÃ©signature puis PUT
+ * direct vers MinIO via DocumentsStep) Â· Ã‰tape 3 : rÃ©capitulatif + envoi,
  * puis carte de statut via GET /partner-applications/me.
  */
 import { useState } from "react"
@@ -47,7 +47,7 @@ export function ApplyWizard({ token }: { token: string }) {
     setFeedback(null)
   }
 
-  /** Sélection → présignature → PUT direct MinIO ; état ✓/✗ par fichier. */
+  /** SÃ©lection â†’ prÃ©signature â†’ PUT direct MinIO ; Ã©tat âœ“/âœ— par fichier. */
   async function handleFile(type: DocumentType, file: File | null) {
     setFeedback(null)
     if (!file) return
@@ -98,11 +98,11 @@ export function ApplyWizard({ token }: { token: string }) {
       try {
         setDetails(await getMyApplication(token))
       } catch {
-        // Statut détaillé indisponible : la carte générique reste affichée.
+        // Statut dÃ©taillÃ© indisponible : la carte gÃ©nÃ©rique reste affichÃ©e.
       }
       setSent(true)
     } catch (err) {
-      setFeedback(err instanceof Error ? err.message : "Échec de l'envoi de la demande.")
+      setFeedback(err instanceof Error ? err.message : "Ã‰chec de l'envoi de la demande.")
     } finally {
       setSubmitting(false)
     }
@@ -115,8 +115,8 @@ export function ApplyWizard({ token }: { token: string }) {
   return (
     <div className="space-y-4">
       <ol className="flex items-center gap-4 text-xs text-slate-500">
-        {["Entreprise", "Documents", "Récapitulatif"].map((label, i) => (
-          <li key={label} className={step === i + 1 ? "font-semibold text-[#0e9f8f]" : ""}>
+        {["Entreprise", "Documents", "RÃ©capitulatif"].map((label, i) => (
+          <li key={label} className={step === i + 1 ? "font-semibold text-primary" : ""}>
             {i + 1}. {label}
           </li>
         ))}
@@ -132,23 +132,23 @@ export function ApplyWizard({ token }: { token: string }) {
           <Field label="Nom du contact *" error={errors.contactName}>
             <input className={inputCls(errors.contactName)} placeholder="ex: Jean Mbarga" value={form.contactName} onChange={(e) => update("contactName", e.target.value)} aria-invalid={!!errors.contactName} />
           </Field>
-          <Field label="Téléphone *" error={errors.phone}>
+          <Field label="TÃ©lÃ©phone *" error={errors.phone}>
             <input className={inputCls(errors.phone)} placeholder="+2376XXXXXXXX" value={form.phone} onChange={(e) => update("phone", e.target.value)} aria-invalid={!!errors.phone} />
           </Field>
           <Field label="Ville" error={errors.city}>
             <input className={inputCls(errors.city)} placeholder="ex: Douala" value={form.city} onChange={(e) => update("city", e.target.value)} aria-invalid={!!errors.city} />
           </Field>
           <Field label="Type de transport" error={errors.transportType}>
-            <input className={inputCls(errors.transportType)} placeholder="ex: interurbain, frêt, tourisme" value={form.transportType} onChange={(e) => update("transportType", e.target.value)} aria-invalid={!!errors.transportType} />
+            <input className={inputCls(errors.transportType)} placeholder="ex: interurbain, frÃªt, tourisme" value={form.transportType} onChange={(e) => update("transportType", e.target.value)} aria-invalid={!!errors.transportType} />
           </Field>
-          <Field label="Nombre de véhicules" error={errors.vehicleCount}>
+          <Field label="Nombre de vÃ©hicules" error={errors.vehicleCount}>
             <input className={inputCls(errors.vehicleCount)} inputMode="numeric" placeholder="ex: 12" value={form.vehicleCount} onChange={(e) => update("vehicleCount", e.target.value)} aria-invalid={!!errors.vehicleCount} />
           </Field>
-          <Field label="Routes desservies (séparées par des virgules)" error={errors.routesServed}>
-            <input className={inputCls(errors.routesServed)} placeholder="ex: Douala-Yaoundé, Bafoussam-Dschang" value={form.routesServed} onChange={(e) => update("routesServed", e.target.value)} aria-invalid={!!errors.routesServed} />
+          <Field label="Routes desservies (sÃ©parÃ©es par des virgules)" error={errors.routesServed}>
+            <input className={inputCls(errors.routesServed)} placeholder="ex: Douala-YaoundÃ©, Bafoussam-Dschang" value={form.routesServed} onChange={(e) => update("routesServed", e.target.value)} aria-invalid={!!errors.routesServed} />
           </Field>
           <Field label="Message (optionnel)" error={errors.message}>
-            <textarea rows={3} className={inputCls(errors.message)} placeholder="Présentez votre activité…" value={form.message} onChange={(e) => update("message", e.target.value)} aria-invalid={!!errors.message} />
+            <textarea rows={3} className={inputCls(errors.message)} placeholder="PrÃ©sentez votre activitÃ©â€¦" value={form.message} onChange={(e) => update("message", e.target.value)} aria-invalid={!!errors.message} />
           </Field>
         </div>
       )}
@@ -158,19 +158,19 @@ export function ApplyWizard({ token }: { token: string }) {
       {step === 3 && (
         <div className="space-y-2 rounded-xl border p-3 text-sm">
           <p><span className="text-slate-500">Entreprise :</span> {form.companyName}</p>
-          <p><span className="text-slate-500">Contact :</span> {form.contactName} · {form.phone}</p>
+          <p><span className="text-slate-500">Contact :</span> {form.contactName} Â· {form.phone}</p>
           {form.city && <p><span className="text-slate-500">Ville :</span> {form.city}</p>}
           {form.transportType && <p><span className="text-slate-500">Type de transport :</span> {form.transportType}</p>}
-          {form.vehicleCount && <p><span className="text-slate-500">Véhicules :</span> {form.vehicleCount}</p>}
+          {form.vehicleCount && <p><span className="text-slate-500">VÃ©hicules :</span> {form.vehicleCount}</p>}
           {form.routesServed && (
-            <p><span className="text-slate-500">Routes desservies :</span> {form.routesServed.split(",").map((r) => r.trim()).filter(Boolean).join(", ") || "—"}</p>
+            <p><span className="text-slate-500">Routes desservies :</span> {form.routesServed.split(",").map((r) => r.trim()).filter(Boolean).join(", ") || "â€”"}</p>
           )}
           {form.message && <p><span className="text-slate-500">Message :</span> {form.message}</p>}
           <div>
             <p className="text-slate-500">Documents :</p>
             <ul className="list-disc pl-5">
               {uploaded.map(({ type, label }) => (
-                <li key={type}>{label} — {docs[type].name} ({Math.round((docs[type].size ?? 0) / 1024)} Ko)</li>
+                <li key={type}>{label} â€” {docs[type].name} ({Math.round((docs[type].size ?? 0) / 1024)} Ko)</li>
               ))}
             </ul>
           </div>
@@ -182,12 +182,12 @@ export function ApplyWizard({ token }: { token: string }) {
           <ChevronLeft className="mr-1 inline h-4 w-4" />Retour
         </button>
         {step < 3 ? (
-          <button type="button" onClick={next} className="rounded-lg bg-[#0e9f8f] px-3 py-1.5 text-sm font-medium text-white">
+          <button type="button" onClick={next} className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white">
             Continuer<ChevronRight className="ml-1 inline h-4 w-4" />
           </button>
         ) : (
-          <button type="button" onClick={() => void submit()} disabled={submitting} className="rounded-lg bg-[#0e9f8f] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-            {submitting ? "Envoi…" : "Envoyer la demande"}
+          <button type="button" onClick={() => void submit()} disabled={submitting} className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+            {submitting ? "Envoiâ€¦" : "Envoyer la demande"}
           </button>
         )}
       </div>
