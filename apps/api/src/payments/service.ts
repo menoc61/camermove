@@ -41,17 +41,10 @@ export async function createPayment(input: {
     throw new BadRequestError("Montant doit être multiple de 5 (XAF)")
   }
 
-  const env = (() => {
-    try {
-      return loadEnv()
-    } catch {
-      return { API_URL: "https://camermove.cm" } as unknown as ReturnType<typeof loadEnv>
-    }
-  })() as ReturnType<typeof loadEnv> & { FRONTEND_URL?: string }
+  const env = loadEnv()
 
-  const trip = booking.trip as unknown as { transportId: string } | null
   const reference = booking.reference
-  const description = trip ? `CamerMove ${reference} Yaounde-Douala` : `CamerMove ${reference}`
+  const description = `CamerMove ${reference}`
   const baseUrl = (env as Record<string, unknown>).API_URL as string | undefined
   const frontendUrl = (env as Record<string, unknown>).FRONTEND_URL as string | undefined
   const callbackBase = frontendUrl ?? baseUrl ?? "https://camermove.cm"

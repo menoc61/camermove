@@ -133,18 +133,12 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
       } else throw e
     }
 
-    // Audit log — ensure system user exists to satisfy FK
-    try {
-      await (t as unknown as { user: { upsert: (a: unknown) => Promise<unknown> } }).user.upsert({
-        where: { id: "system:webhook" },
-        create: { id: "system:webhook", email: "system@camermove.cm", role: "admin" },
-        update: {},
-      })
-    } catch {}
+    // Audit log — actorId "system" references the migrated service principal
+    // (User id='system', created by migration 20260826114221_system_principal).
     try {
       await t.auditLog.create({
         data: {
-          actorId: "system:webhook",
+          actorId: "system",
           action: "payment.success",
           entityType: "Payment",
           entityId: p.id,
@@ -168,7 +162,7 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
       try {
         await t.auditLog.create({
           data: {
-            actorId: "system:webhook",
+            actorId: "system",
             action: "ticket.create",
             entityType: "Ticket",
             entityId: issuedTicket.id,
@@ -344,16 +338,9 @@ export async function failPayment(payment: { id: string; bookingId: string }, ev
     }
 
     try {
-      await (t as unknown as { user: { upsert: (a: unknown) => Promise<unknown> } }).user.upsert({
-        where: { id: "system:webhook" },
-        create: { id: "system:webhook", email: "system@camermove.cm", role: "admin" },
-        update: {},
-      })
-    } catch {}
-    try {
       await t.auditLog.create({
         data: {
-          actorId: "system:webhook",
+          actorId: "system",
           action: `payment.${targetStatus}`,
           entityType: "Payment",
           entityId: p.id,

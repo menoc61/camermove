@@ -75,14 +75,16 @@ export async function ticketLookupRoutes(app: FastifyInstance) {
     try {
       await prisma.auditLog.create({
         data: {
-          actorId: "system:public",
+          actorId: "system",
           action: "ticket.public_lookup",
           entityType: "Ticket",
           entityId: booking.tickets[0]?.id ?? booking.id,
           metadata: { ref, ip: (meta as Record<string, unknown>).ip, ua: (meta as Record<string, unknown>).userAgent } as never,
         },
       })
-    } catch {}
+    } catch (err) {
+      req.log.warn({ err }, "audit.write.failed")
+    }
 
     return {
       reference: booking.reference,

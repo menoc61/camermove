@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 import { useRouter } from "next/navigation"
 import { useSearchStore, t } from "@camermove/frontend"
 import { useState, useEffect, useMemo } from "react"
@@ -13,7 +13,7 @@ function useDebounce<T>(value: T, delay = 300): T {
   return debounced
 }
 
-const CITIES = ["Yaoundé", "Douala", "Bamenda", "Bafoussam", "Garoua", "Maroua", "Ngaoundéré", "Bertoua", "Ebolowa", "Kribi"]
+const CITIES = ["YaoundÃ©", "Douala", "Bamenda", "Bafoussam", "Garoua", "Maroua", "NgaoundÃ©rÃ©", "Bertoua", "Ebolowa", "Kribi"]
 
 export function PowerfulSearchBar() {
   const router = useRouter()
@@ -82,9 +82,9 @@ export function PowerfulSearchBar() {
       <input type="date" className="rounded-lg border px-3 py-2 text-sm" value={date} onChange={(e) => setSearch({ date: e.target.value })} required />
       <div className="flex gap-2">
         <input type="number" min={1} max={10} className="flex-1 rounded-lg border px-3 py-2 text-sm" value={pax} onChange={(e) => setSearch({ pax: Number(e.target.value) })} />
-        <button type="submit" className="flex-1 rounded-lg bg-[#0e9f8f] px-3 py-2 text-sm font-medium text-white">{t("search.trip")}</button>
+        <button type="submit" className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white">{t("search.trip")}</button>
       </div>
-      <p className="text-xs text-slate-400">Recherche optimisée — cache, debounce 300ms, gère des milliers de requêtes (pagination + Redis).</p>
+      <p className="text-xs text-slate-400">Recherche optimisÃ©e â€” cache, debounce 300ms, gÃ¨re des milliers de requÃªtes (pagination + Redis).</p>
     </form>
   )
 }

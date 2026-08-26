@@ -1,0 +1,32 @@
+﻿import Link from "next/link"
+import { ArrowRight } from "lucide-react"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+export function PartnerCta() {
+  return (
+    <section className="bg-primary-dark">
+      <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 px-4 py-14 sm:px-6 md:flex-row md:items-center">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
+            Vous exploitez des bus au Cameroun&nbsp;?
+          </h2>
+          <p className="mt-2 max-w-[60ch] text-sm leading-relaxed text-white/85">
+            Publiez vos trajets, remplissez vos sièges et encaissez en toute confiance.
+            L'inscription partenaire prend moins de dix minutes.
+          </p>
+        </div>
+        <Link
+          href="/transporter/apply"
+          className={cn(
+            buttonVariants({ size: "lg" }),
+            "shrink-0 rounded-full bg-secondary font-bold text-secondary-foreground hover:bg-secondary/90"
+          )}
+        >
+          Devenir partenaire
+          <ArrowRight data-icon="inline-end" aria-hidden />
+        </Link>
+      </div>
+    </section>
+  )
+}

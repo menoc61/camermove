@@ -1,13 +1,13 @@
-"use client"
+﻿"use client"
 /**
- * Dashboard — client view of the traveler dashboard. Receives the data
+ * Dashboard â€” client view of the traveler dashboard. Receives the data
  * fetched by the RSC wrapper and renders 3 sections: Upcoming, Tickets,
  * History (collapsible). React Query drives refetch + retry.
  *
  * Per UI-SPEC: max 3 cards per section + "Voir tous" link when >3.
  * History section hidden when empty (no EmptyState).
- * Empty Upcoming shows "Aucun voyage à venir" + CTA "Rechercher" → /.
- * Empty Tickets shows "Vos billets apparaîtront ici après paiement." (no CTA).
+ * Empty Upcoming shows "Aucun voyage Ã  venir" + CTA "Rechercher" â†’ /.
+ * Empty Tickets shows "Vos billets apparaÃ®tront ici aprÃ¨s paiement." (no CTA).
  */
 import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
@@ -18,6 +18,8 @@ import { HistoryToggle } from "./HistoryToggle"
 import { SkeletonCard } from "./SkeletonCard"
 import { TicketCard } from "./TicketCard"
 import { UpcomingTripCard } from "./UpcomingTripCard"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 
 const VISIBLE_LIMIT = 3
 
@@ -51,31 +53,30 @@ export function Dashboard({
   return (
     <div className="space-y-6">
       {error ? (
-        <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">
-          <p>Impossible de charger vos voyages. Réessayez.</p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white"
-          >
-            Réessayer
-          </button>
-        </div>
+        <Alert variant="destructive">
+          <AlertTitle>Erreur</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2">
+            Impossible de charger vos voyages. RÃ©essayez.
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="w-fit">
+              RÃ©essayer
+            </Button>
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       {/* Upcoming trips */}
       <section>
         <header className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">Voyages à venir</h2>
+          <h2 className="text-base font-semibold text-slate-900">Voyages Ã  venir</h2>
           {upcoming.length > VISIBLE_LIMIT ? (
-            <Link href="/dashboard?section=upcoming" className="text-xs font-medium text-[#0e9f8f]">
+            <Link href="/dashboard?section=upcoming" className="text-xs font-medium text-primary">
               Voir tous
             </Link>
           ) : null}
         </header>
         {upcoming.length === 0 ? (
           <EmptyState
-            title="Aucun voyage à venir. Trouvez un trajet."
+            title="Aucun voyage Ã  venir. Trouvez un trajet."
             cta={{ href: "/", label: "Rechercher" }}
           />
         ) : (
@@ -92,13 +93,13 @@ export function Dashboard({
         <header className="mb-3 flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-900">Billets</h2>
           {tickets.length > VISIBLE_LIMIT ? (
-            <Link href="/dashboard?section=tickets" className="text-xs font-medium text-[#0e9f8f]">
+            <Link href="/dashboard?section=tickets" className="text-xs font-medium text-primary">
               Voir tous
             </Link>
           ) : null}
         </header>
         {tickets.length === 0 ? (
-          <EmptyState title="Vos billets apparaîtront ici après paiement." />
+          <EmptyState title="Vos billets apparaÃ®tront ici aprÃ¨s paiement." />
         ) : (
           <div className="space-y-3">
             {tickets.slice(0, VISIBLE_LIMIT).map((item) => (
@@ -108,7 +109,7 @@ export function Dashboard({
         )}
       </section>
 
-      {/* History — collapsed, hidden entirely when empty */}
+      {/* History â€” collapsed, hidden entirely when empty */}
       {history.length > 0 ? (
         <HistoryToggle count={history.length}>
           {history.map((item) => (
@@ -117,7 +118,7 @@ export function Dashboard({
         </HistoryToggle>
       ) : null}
 
-      {isFetching ? <p className="text-xs text-slate-400">Mise à jour…</p> : null}
+      {isFetching ? <p className="text-xs text-slate-400">Mise Ã  jourâ€¦</p> : null}
     </div>
   )
 }

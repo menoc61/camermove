@@ -13,13 +13,14 @@
  *
  * Public routes that bypass this gate (no redirect, no header injection):
  *   /, /results, /trips/:path*, /book/:path*, /tickets/lookup, /login,
- *   /register, /auth/:path*, /api/:path*
+ *   /register, /admin/login, /auth/:path*, /api/:path*
  * (/transporter* is NOT public — it is gated like /dashboard.)
  */
 import { NextResponse, type NextRequest } from "next/server"
 
-const PROTECTED_PREFIXES = ["/dashboard", "/tickets", "/transporter"]
+const PROTECTED_PREFIXES = ["/dashboard", "/tickets", "/transporter", "/admin"]
 const PUBLIC_TICKETS_PATH = "/tickets/lookup"
+const PUBLIC_ADMIN_LOGIN = "/admin/login"
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -27,6 +28,12 @@ export function middleware(request: NextRequest) {
   // Belt-and-braces: explicit early return for the public lookup path even
   // though the matcher below includes /tickets/*.
   if (pathname === PUBLIC_TICKETS_PATH || pathname.startsWith(`${PUBLIC_TICKETS_PATH}/`)) {
+    return NextResponse.next()
+  }
+
+  // Admin login lives OUTSIDE the traveler auth flow: unauthenticated hits on
+  // /admin/* go to /admin/login (never /login). The login page itself is open.
+  if (pathname === PUBLIC_ADMIN_LOGIN) {
     return NextResponse.next()
   }
 
@@ -39,8 +46,9 @@ export function middleware(request: NextRequest) {
 
   const cookie = request.cookies.get("cm_access")
   if (!cookie || !cookie.value) {
+    const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/")
     const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = "/login"
+    loginUrl.pathname = isAdminArea ? "/admin/login" : "/login"
     loginUrl.search = `?next=${encodeURIComponent(pathname)}`
     return NextResponse.redirect(loginUrl)
   }
@@ -53,5 +61,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/tickets/:path*", "/transporter/:path*"],
+  matcher: ["/dashboard/:path*", "/tickets/:path*", "/transporter/:path*", "/admin/:path*"],
 }
