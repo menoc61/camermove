@@ -15,6 +15,7 @@
     "@camermove/config": "workspace:*",
     "@camermove/db": "workspace:*",
     "@camermove/events": "workspace:*",
+    "@camermove/media": "workspace:*",
     "@camermove/observability": "workspace:*",
     "@camermove/shared": "workspace:*",
     "@fastify/cors": "^11.3.0",
