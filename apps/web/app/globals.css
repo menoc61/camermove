@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-heading);
   --font-sans: var(--font-sans);
   /* Brand extensions (CamerMove) - kept alongside shadcn semantics */
   --color-primary-dark: var(--primary-dark);
@@ -51,8 +51,6 @@
 
 /* CamerMove brand: teal primary, amber secondary CTA, light blue-grey base */
 :root {
-  --background: #f5f8fa;
-  --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
   --popover: #ffffff;
@@ -84,6 +82,8 @@
   --sidebar-accent-foreground: #0b8274;
   --sidebar-border: #e2e8f0;
   --sidebar-ring: #0e9f8f;
+  --background: #f5f8fa;
+  --foreground: #0f172a;
 }
 
 .dark {

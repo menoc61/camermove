@@ -71,7 +71,7 @@ export function PriceSimulator() {
           </Field>
           <Field>
             <FieldLabel htmlFor="sim-pax">Passagers</FieldLabel>
-            <Select value={pax} onValueChange={setPax}>
+            <Select value={pax} onValueChange={(v) => setPax(v ?? "1")}>
               <SelectTrigger id="sim-pax" className="w-full sm:w-32">
                 <SelectValue />
               </SelectTrigger>

@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 export function SiteNav() {
   return (
@@ -22,9 +23,15 @@ export function SiteNav() {
           </Link>
         </div>
 
-        <Button asChild variant="outline" size="sm" className="rounded-full border-primary-dark text-primary-dark">
-          <Link href="/login">Se connecter</Link>
-        </Button>
+        <Link
+          href="/login"
+          className={cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            "rounded-full border-primary-dark text-primary-dark"
+          )}
+        >
+          Se connecter
+        </Link>
       </nav>
     </header>
   )

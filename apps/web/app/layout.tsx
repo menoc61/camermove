@@ -1,10 +1,12 @@
 import type { Metadata } from "next"
 import "./globals.css"
 import { QueryProvider } from "../components/providers"
-import { Geist } from "next/font/google";
+import { Geist, Noto_Sans, Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const interHeading = Inter({subsets:['latin'],variable:'--font-heading'});
+
+const notoSans = Noto_Sans({subsets:['latin'],variable:'--font-sans'});
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002"
 
@@ -40,7 +42,7 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
+    <html lang="fr" suppressHydrationWarning className={cn("font-sans", notoSans.variable, interHeading.variable)}>
       <body>
         <script
           type="application/ld+json"
