@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-08-24)
 | 1 | ✓ | 2/2 | 100% (verified 2026-08-25, merged e64ed8c, default → master) |
 | 2 | ✓ | 2/2 | 100% (verified 2026-08-25, merged da76c73) |
 | 3 | ✓ | 3/3 | 100% (verified 2026-08-25, NotchPay+CinetPay enterprise) |
-| 4 | ○ | 0/1 | 0% |
+| 4 | ✓ | 2/2 | 100% (verified 2026-08-26, typecheck green, no dead code) |
 | 5 | ○ | 0/2 | 0% |
 
 ## Decisions
