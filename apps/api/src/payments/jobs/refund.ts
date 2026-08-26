@@ -52,18 +52,16 @@ export async function refundPayment(paymentId: string, actorId: string, reason?:
     // Void tickets
     await t.ticket.updateMany({ where: { bookingId: booking.id, status: "valid" }, data: { status: "void" } })
 
-    // Audit
-    try {
-      await (t as unknown as { user: { upsert: (a: unknown) => Promise<unknown> } }).user.upsert({
-        where: { id: actorId },
-        create: { id: actorId, email: `${actorId}@camermove.cm`, role: "admin" },
-        update: {},
-      })
-    } catch {}
+    // Audit — resolve a REAL actor; never fabricate User rows.
+    // Falls back to the migrated service principal ("system") only for automated refunds.
+    const actor = await t.user.findUnique({ where: { id: actorId }, select: { id: true } })
+    if (!actor && actorId !== "system") {
+      throw new Error(`refund_actor_not_found:${actorId}`)
+    }
     try {
       await t.auditLog.create({
         data: {
-          actorId,
+          actorId: actor ? actorId : "system",
           action: "payment.refunded",
           entityType: "Payment",
           entityId: paymentId,
