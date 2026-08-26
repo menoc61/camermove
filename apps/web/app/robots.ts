@@ -7,7 +7,9 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: "/",
+        // Partner application page is publicly marketed - allow it explicitly
+        // even though the transporter portal itself stays out of search.
+        allow: ["/", "/transporter/apply"],
         disallow: ["/admin", "/api/", "/dashboard", "/tickets/", "/transporter"],
       },
     ],

@@ -8,7 +8,7 @@ const trust = [
   { icon: Wallet, label: "Meilleurs prix du jour" },
 ]
 
-export function Hero() {
+export function Hero({ minPrice }: { minPrice?: number }) {
   return (
     <section className="relative overflow-hidden bg-bg">
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-4 pb-20 pt-10 sm:px-6 md:pt-16 lg:grid-cols-12">
@@ -48,9 +48,11 @@ export function Hero() {
               sizes="(min-width: 1024px) 42vw, 0vw"
               className="object-cover"
             />
-            <span className="absolute left-4 top-4 rounded-full bg-accent px-3 py-1 text-xs font-bold text-slate-900">
-              À partir de 6 000 XAF
-            </span>
+            {minPrice != null && (
+              <span className="absolute left-4 top-4 rounded-full bg-accent px-3 py-1 text-xs font-bold text-slate-900">
+                À partir de {new Intl.NumberFormat("fr-CM").format(minPrice)} XAF
+              </span>
+            )}
           </div>
           <div className="absolute -bottom-6 left-0 aspect-[16/10] w-[46%] rotate-[-4deg] overflow-hidden rounded-2xl border-4 border-white shadow-lg shadow-slate-900/15">
             <Image
