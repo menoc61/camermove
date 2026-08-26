@@ -11,3 +11,6 @@ coverage/
 packages/db/generated/
 packages/db/.env
 .superpowers/
+
+# graphify knowledge-graph build artifacts
+graphify-out/
