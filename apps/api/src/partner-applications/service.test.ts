@@ -113,3 +113,26 @@ describe("submit", () => {
     ).rejects.toMatchObject({ status: 403 })
   })
 })
+
+describe("getMyApplication", () => {
+  it("returns sanitized shape without objectKeys for the linked applicant", async () => {
+    const u = await testUser(`plan1-me-${Date.now()}@test.cm`)
+    await svc.submit(u.id, {
+      companyName: "Status Test SARL",
+      contactName: "Marie Test",
+      phone: "+237600000002",
+      routesServed: ["Douala-Bafoussam"],
+      documents: [
+        { type: "insurance" as const, objectKey: `partner-applications/${u.id}/ins.pdf`, mimetype: "application/pdf" as const, size: 4096 },
+      ],
+    } as never)
+    const me = await svc.getMyApplication(u.id)
+    expect(me).not.toBeNull()
+    expect(me!.status).toBe("received")
+    expect(JSON.stringify(me)).not.toContain("objectKey")
+    expect(me!.documents[0]!.size).toBe(4096)
+
+    const stranger = await testUser(`plan1-stranger-${Date.now()}@test.cm`)
+    expect(await svc.getMyApplication(stranger.id)).toBeNull()
+  })
+})

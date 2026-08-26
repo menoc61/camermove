@@ -46,4 +46,11 @@ export async function partnerApplicationRoutes(app: FastifyInstance) {
     }
     return reply.code(201).send(out)
   })
+
+  app.get("/partner-applications/me", { preHandler: app.requireAuth() }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, userId: user.id, entityId: user.id }, "partner.application.me")
+    return svc.getMyApplication(user.id)
+  })
 }

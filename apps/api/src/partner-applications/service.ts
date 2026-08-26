@@ -73,5 +73,23 @@ export function createPartnerApplicationsService(deps: { storage: Storage; prism
         return { id: created.id, status: created.status as "received" }
       })
     },
+
+    async getMyApplication(userId: string) {
+      const user = await deps.prisma.user.findUnique({ where: { id: userId } })
+      if (!user?.transporterId) return null
+      const row = await deps.prisma.partnerApplication.findFirst({
+        where: { transporterId: user.transporterId },
+        orderBy: { createdAt: "desc" },
+        include: { documents: { select: { type: true, size: true, mimetype: true, createdAt: true } } },
+      })
+      if (!row) return null
+      return {
+        id: row.id,
+        status: row.status,
+        createdAt: row.createdAt,
+        companyName: row.companyName,
+        documents: row.documents,
+      }
+    },
   }
 }
