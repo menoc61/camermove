@@ -1,5 +1,6 @@
 /**
- * Next.js middleware — cookie-based UX gate for /dashboard and /tickets/*.
+ * Next.js middleware — cookie-based UX gate for /dashboard, /tickets/* and
+ * /transporter*.
  *
  * NOTE on security model (per plan §1 read_first):
  * This is a UX gate, not a security gate. We do NOT verify the JWT signature
@@ -13,10 +14,11 @@
  * Public routes that bypass this gate (no redirect, no header injection):
  *   /, /results, /trips/:path*, /book/:path*, /tickets/lookup, /login,
  *   /register, /auth/:path*, /api/:path*
+ * (/transporter* is NOT public — it is gated like /dashboard.)
  */
 import { NextResponse, type NextRequest } from "next/server"
 
-const PROTECTED_PREFIXES = ["/dashboard", "/tickets"]
+const PROTECTED_PREFIXES = ["/dashboard", "/tickets", "/transporter"]
 const PUBLIC_TICKETS_PATH = "/tickets/lookup"
 
 export function middleware(request: NextRequest) {
@@ -51,5 +53,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/tickets/:path*"],
+  matcher: ["/dashboard/:path*", "/tickets/:path*", "/transporter/:path*"],
 }
