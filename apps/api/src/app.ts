@@ -12,6 +12,7 @@ import { adminSettingsRoutes } from "./admin/settings"
 import { ticketLookupRoutes } from "./routes/tickets/lookup"
 import { dashboardRoutes } from "./routes/me/dashboard"
 import { meTicketRoutes } from "./routes/me/tickets"
+import { partnerApplicationRoutes } from "./partner-applications/routes"
 import { swaggerPlugin } from "./plugins/swagger"
 import { metricsPlugin } from "./plugins/metrics"
 import { rawBodyPlugin } from "./plugins/rawBody"
@@ -54,6 +55,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(ticketLookupRoutes, { prefix: "/api/v1" })
   await app.register(dashboardRoutes, { prefix: "/api/v1" })
   await app.register(meTicketRoutes, { prefix: "/api/v1" })
+  await app.register(partnerApplicationRoutes, { prefix: "/api/v1" })
   app.get("/health", async () => ({ status: "ok" }))
   return app
 }
