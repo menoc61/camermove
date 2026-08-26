@@ -1,14 +1,11 @@
 import type { FastifyInstance } from "fastify"
-import { loadEnv } from "@camermove/config"
 import { prisma } from "@camermove/db"
-import { createStorage } from "@camermove/media"
+import { getStorage } from "@camermove/media"
 import { ApplicationInput, PresignInput } from "./schema"
 import { createPartnerApplicationsService } from "./service"
 
 export async function partnerApplicationRoutes(app: FastifyInstance) {
-  const env = loadEnv()
-  const storage = createStorage(env)
-  const svc = createPartnerApplicationsService({ storage, prisma })
+  const svc = createPartnerApplicationsService({ storage: getStorage(), prisma })
 
   app.post(
     "/partner-applications/presign",

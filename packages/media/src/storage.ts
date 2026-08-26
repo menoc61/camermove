@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { Client } from "minio"
-import type { Env } from "@camermove/config"
+import { loadEnv, type Env } from "@camermove/config"
 
 export function objectKey(prefix: string, extension: string): string {
   const safeExt = extension.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8)
@@ -36,3 +36,12 @@ export function createStorage(env: Env) {
 }
 
 export type Storage = ReturnType<typeof createStorage>
+
+let storageSingleton: Storage | undefined
+
+// Per-process singleton. loadEnv() is memoized in @camermove/config, so this
+// is cheap after the first call.
+export function getStorage(): Storage {
+  if (!storageSingleton) storageSingleton = createStorage(loadEnv())
+  return storageSingleton
+}
