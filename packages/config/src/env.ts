@@ -85,11 +85,23 @@ export class ConfigError extends Error {
   }
 }
 
+// Per-process singleton: parse once, freeze, return the same instance.
+// Tests that mutate process.env and expect fresh parses must call
+// __resetEnvCacheForTests() (documented escape hatch) in their beforeEach.
+let cachedEnv: Env | undefined
+
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const parsed = EnvSchema.safeParse(source)
-  if (!parsed.success) {
-    const missing = parsed.error.issues.map((i) => i.path.join('.')).join(', ')
-    throw new ConfigError(`Invalid environment: ${missing}`)
+  if (!cachedEnv) {
+    const parsed = EnvSchema.safeParse(source)
+    if (!parsed.success) {
+      const missing = parsed.error.issues.map((i) => i.path.join('.')).join(', ')
+      throw new ConfigError(`Invalid environment: ${missing}`)
+    }
+    cachedEnv = Object.freeze(parsed.data)
   }
-  return parsed.data
+  return cachedEnv
+}
+
+export function __resetEnvCacheForTests(): void {
+  cachedEnv = undefined
 }
