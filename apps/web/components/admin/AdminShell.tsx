@@ -5,36 +5,65 @@ import { useAuthStore } from "@camermove/frontend"
 import { apiFetch } from "../../lib/api/client"
 import type { AuthUser } from "../../lib/api/auth"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { AdminDashboard } from "./AdminDashboard"
+import { AdminUsers } from "./AdminUsers"
+import { AdminTransporters } from "./AdminTransporters"
+import { AdminTrips } from "./AdminTrips"
+import { AdminBookings } from "./AdminBookings"
+import { AdminPayments } from "./AdminPayments"
+import { AdminCommissions } from "./AdminCommissions"
+import { AdminAuditLog } from "./AdminAuditLog"
+import { AdminSettings } from "./AdminSettings"
 
 const NAV = [
   "Tableau de bord",
   "Utilisateurs",
   "Transporteurs",
   "Trajets",
-  "RÃ©servations",
+  "Réservations",
   "Paiements",
   "Commissions",
-  "ParamÃ¨tres",
+  "Paramètres",
   "Journal d'audit",
 ] as const
+
+type NavItem = typeof NAV[number]
+
+function renderSection(active: NavItem) {
+  switch (active) {
+    case "Tableau de bord":
+      return <AdminDashboard />
+    case "Utilisateurs":
+      return <AdminUsers />
+    case "Transporteurs":
+      return <AdminTransporters />
+    case "Trajets":
+      return <AdminTrips />
+    case "Réservations":
+      return <AdminBookings />
+    case "Paiements":
+      return <AdminPayments />
+    case "Commissions":
+      return <AdminCommissions />
+    case "Paramètres":
+      return <AdminSettings />
+    case "Journal d'audit":
+      return <AdminAuditLog />
+    default:
+      return null
+  }
+}
 
 export function AdminShell() {
   const accessToken = useAuthStore((s) => s.accessToken)
   const [profile, setProfile] = useState<AuthUser & { status: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [active, setActive] = useState<string>("Tableau de bord")
+  const [active, setActive] = useState<NavItem>("Tableau de bord")
 
   useEffect(() => {
     if (!accessToken) {
-      setError("Session expirÃ©e â€” reconnectez-vous.")
+      setError("Session expirée — reconnectez-vous.")
       return
     }
     apiFetch<{ id: string; email: string; role: string; status: string }>("/api/v1/me/profile", {
@@ -56,7 +85,7 @@ export function AdminShell() {
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            {profile ? `${profile.email} Â· ${profile.role}` : "â€¦"}
+            {profile ? `${profile.email} · ${profile.role}` : "…"}
           </p>
         </div>
       </header>
@@ -67,7 +96,7 @@ export function AdminShell() {
             {error}
           </p>
         )}
-        {!error && !profile && <p className="text-sm text-slate-500">Chargementâ€¦</p>}
+        {!error && !profile && <p className="text-sm text-slate-500">Chargement…</p>}
 
         {profile && (
           <>
@@ -85,16 +114,7 @@ export function AdminShell() {
               ))}
             </nav>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>{active}</CardTitle>
-                <CardDescription>
-                  Ce module arrive avec la prochaine itération de la console (gestion des{" "}
-                  {active.toLowerCase()}).
-                </CardDescription>
-              </CardHeader>
-              <CardContent />
-            </Card>
+            {renderSection(active)}
           </>
         )}
       </main>
