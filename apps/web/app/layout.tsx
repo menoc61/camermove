@@ -1,8 +1,14 @@
 import type { Metadata } from "next"
+import dynamic from "next/dynamic"
 import "./globals.css"
 import { QueryProvider } from "../components/providers"
 import { Geist, Noto_Sans, Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
+
+const SmoothScroll = dynamic(
+  () => import("@/components/smooth-scroll").then((m) => m.SmoothScroll),
+  { ssr: false }
+)
 
 const interHeading = Inter({subsets:['latin'],variable:'--font-heading'});
 
@@ -48,7 +54,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <QueryProvider>{children}</QueryProvider>
+        <SmoothScroll>
+          <QueryProvider>{children}</QueryProvider>
+        </SmoothScroll>
       </body>
     </html>
   )
