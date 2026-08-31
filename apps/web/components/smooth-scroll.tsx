@@ -12,15 +12,16 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
     initialized.current = true
 
     let lenis: any = null
-    let rafId: number | null = null
+    let tickerCallback: ((time: number) => void) | null = null
+    let gsapInstance: any = null
 
     async function init() {
       const gsapModule = await import("gsap")
-      const gsap = gsapModule.default
+      gsapInstance = gsapModule.default
       const { ScrollTrigger } = await import("gsap/ScrollTrigger")
       const Lenis = (await import("@studio-freight/lenis")).default
 
-      gsap.registerPlugin(ScrollTrigger)
+      gsapInstance.registerPlugin(ScrollTrigger)
 
       lenis = new Lenis({
         duration: 1.2,
@@ -30,25 +31,24 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
 
       lenis.on("scroll", ScrollTrigger.update)
 
-      gsap.ticker.add((time: number) => {
+      tickerCallback = (time: number) => {
         lenis.raf(time * 1000)
-      })
-      gsap.ticker.lagSmoothing(0)
+      }
+      gsapInstance.ticker.add(tickerCallback)
+      gsapInstance.ticker.lagSmoothing(0)
 
-      gsap.set("body", { css: { visibility: "visible" } })
+      gsapInstance.set("body", { css: { visibility: "visible" } })
     }
 
     init()
 
     return () => {
+      if (gsapInstance && tickerCallback) {
+        gsapInstance.ticker.remove(tickerCallback)
+      }
       if (lenis) lenis.destroy()
-      if (rafId !== null) cancelAnimationFrame(rafId)
     }
   }, [reducedMotion])
-
-  if (reducedMotion) {
-    return <>{children}</>
-  }
 
   return <>{children}</>
 }
