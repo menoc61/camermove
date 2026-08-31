@@ -14,6 +14,9 @@ import { dashboardRoutes } from "./routes/me/dashboard"
 import { meTicketRoutes } from "./routes/me/tickets"
 import { meProfileRoutes } from "./routes/me/profile"
 import { partnerApplicationRoutes } from "./partner-applications/routes"
+import { placesRoutes } from "./places/routes"
+import { transporterRoutes } from "./transporter/routes"
+import { adminRoutes } from "./admin/routes"
 import { swaggerPlugin } from "./plugins/swagger"
 import { metricsPlugin } from "./plugins/metrics"
 import { rawBodyPlugin } from "./plugins/rawBody"
@@ -52,12 +55,14 @@ export async function buildApp(): Promise<FastifyInstance> {
   // webhooks use same /api/v1 prefix so notify_url is ${API_URL}/api/v1/webhooks/{provider}
   await app.register(notchpayWebhookRoutes, { prefix: "/api/v1" })
   await app.register(cinetpayWebhookRoutes, { prefix: "/api/v1" })
-  await app.register(adminSettingsRoutes, { prefix: "/api/v1" })
+  await app.register(adminRoutes, { prefix: "/api/v1" })
+  await app.register(transporterRoutes, { prefix: "/api/v1" })
   await app.register(ticketLookupRoutes, { prefix: "/api/v1" })
   await app.register(dashboardRoutes, { prefix: "/api/v1" })
   await app.register(meTicketRoutes, { prefix: "/api/v1" })
   await app.register(meProfileRoutes, { prefix: "/api/v1" })
   await app.register(partnerApplicationRoutes, { prefix: "/api/v1" })
+  await app.register(placesRoutes, { prefix: "/api/v1" })
   app.get("/health", async () => ({ status: "ok" }))
   return app
 }
