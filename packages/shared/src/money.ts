@@ -18,3 +18,7 @@ export function calcRefund(
 ): number {
   return Math.round((gross * refundPercent) / 100)
 }
+
+export function priceXaf(n: number): string {
+  return `${new Intl.NumberFormat("fr-CM").format(n).replace(/\u202f/g, " ")} XAF`
+}

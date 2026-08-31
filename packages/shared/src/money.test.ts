@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcCommission, calcRefund } from './money'
+import { calcCommission, calcRefund, priceXaf } from './money'
 
 describe('calcCommission', () => {
   it('splits gross into commission and net for whole percentages', () => {
@@ -47,5 +47,17 @@ describe('calcRefund', () => {
   it('returns 0 for zero percent and full amount at 100 percent', () => {
     expect(calcRefund(2500, 0)).toBe(0)
     expect(calcRefund(2500, 100)).toBe(2500)
+  })
+})
+
+describe('priceXaf', () => {
+  it('formats with thousands separator', () => {
+    expect(priceXaf(5500)).toBe('5 500 XAF')
+  })
+  it('formats large numbers', () => {
+    expect(priceXaf(125000)).toBe('125 000 XAF')
+  })
+  it('formats zero', () => {
+    expect(priceXaf(0)).toBe('0 XAF')
   })
 })
