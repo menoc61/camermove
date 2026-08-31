@@ -50,79 +50,89 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* CamerMove brand: teal primary, amber secondary CTA, light blue-grey base */
-:root {
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #0e9f8f;
-  --primary-foreground: #ffffff;
-  --primary-dark: #0b8274;
-  --secondary: #f4b607;
-  --secondary-foreground: #0f172a;
-  --muted: #eef2f6;
-  --muted-foreground: #64748b;
-  --accent: #e6f4f2;
-  --accent-foreground: #0b8274;
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: #e2e8f0;
-  --input: #cbd5e1;
-  --ring: #0e9f8f;
-  --chart-1: #0e9f8f;
-  --chart-2: #f4b607;
-  --chart-3: #0b8274;
-  --chart-4: #64748b;
-  --chart-5: #0f172a;
-  --radius: 1rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0f172a;
-  --sidebar-primary: #0e9f8f;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e6f4f2;
-  --sidebar-accent-foreground: #0b8274;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #0e9f8f;
-  --background: #f5f8fa;
-  --foreground: #0f172a;
-}
-
-.dark {
-  --background: #0f172a;
-  --foreground: #e2e8f0;
-  --card: #1e293b;
-  --card-foreground: #e2e8f0;
-  --popover: #1e293b;
-  --popover-foreground: #e2e8f0;
-  --primary: #17b3a2;
-  --primary-foreground: #06251f;
-  --primary-dark: #0e9f8f;
-  --secondary: #f4b607;
-  --secondary-foreground: #0f172a;
-  --muted: #263449;
-  --muted-foreground: #94a3b8;
-  --accent: #14343a;
-  --accent-foreground: #5eead4;
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: rgb(255 255 255 / 12%);
-  --input: rgb(255 255 255 / 18%);
-  --ring: #17b3a2;
-  --chart-1: #17b3a2;
-  --chart-2: #f4b607;
-  --chart-3: #5eead4;
-  --chart-4: #94a3b8;
-  --chart-5: #e2e8f0;
-  --sidebar: #1e293b;
-  --sidebar-foreground: #e2e8f0;
-  --sidebar-primary: #17b3a2;
-  --sidebar-primary-foreground: #06251f;
-  --sidebar-accent: #263449;
-  --sidebar-accent-foreground: #e2e8f0;
-  --sidebar-border: rgb(255 255 255 / 12%);
-  --sidebar-ring: #17b3a2;
-}
-
 @layer base {
+  :root {
+    --brand: 168 72% 50%;
+    --brand-light: 170 76% 54%;
+    --brand-dark: 168 65% 43%;
+    --accent: 43 95% 50%;
+    --accent-dark: 43 85% 44%;
+    --surface-0: 210 20% 98%;
+    --surface-1: 0 0% 100%;
+    --surface-2: 210 16% 96%;
+    --surface-3: 210 14% 93%;
+    --ink-0: 210 10% 11%;
+    --ink-1: 216 10% 43%;
+    --ink-2: 215 8% 55%;
+    --border: 214 12% 90%;
+    --border-focus: 168 72% 50%;
+    --radius: 0.75rem;
+
+    --background: 210 20% 98%;
+    --foreground: 210 10% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 10% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 10% 11%;
+    --primary: 168 72% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 43 95% 50%;
+    --secondary-foreground: 210 10% 11%;
+    --muted: 210 16% 96%;
+    --muted-foreground: 216 10% 43%;
+    --accent-foreground: 210 10% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --input: 214 12% 90%;
+    --ring: 168 72% 50%;
+    --chart-1: 168 72% 50%;
+    --chart-2: 43 95% 50%;
+    --chart-3: 215 8% 55%;
+    --chart-4: 210 14% 93%;
+    --chart-5: 168 65% 43%;
+  }
+
+  .dark {
+    --brand: 170 76% 54%;
+    --brand-light: 172 80% 58%;
+    --brand-dark: 168 72% 50%;
+    --accent: 43 95% 50%;
+    --accent-dark: 43 85% 44%;
+    --surface-0: 215 20% 9%;
+    --surface-1: 215 16% 12%;
+    --surface-2: 215 14% 15%;
+    --surface-3: 215 12% 18%;
+    --ink-0: 210 20% 96%;
+    --ink-1: 216 10% 60%;
+    --ink-2: 215 8% 45%;
+    --border: 215 12% 18%;
+    --border-focus: 170 76% 54%;
+    --radius: 0.75rem;
+
+    --background: 215 20% 9%;
+    --foreground: 210 20% 96%;
+    --card: 215 16% 12%;
+    --card-foreground: 210 20% 96%;
+    --popover: 215 16% 12%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 170 76% 54%;
+    --primary-foreground: 215 20% 9%;
+    --secondary: 43 95% 50%;
+    --secondary-foreground: 215 20% 9%;
+    --muted: 215 14% 15%;
+    --muted-foreground: 216 10% 60%;
+    --accent-foreground: 215 20% 9%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --input: 215 12% 18%;
+    --ring: 170 76% 54%;
+    --chart-1: 170 76% 54%;
+    --chart-2: 43 95% 50%;
+    --chart-3: 215 8% 45%;
+    --chart-4: 215 12% 18%;
+    --chart-5: 168 72% 50%;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
@@ -132,6 +142,21 @@
   html {
     @apply font-sans;
   }
+}
+
+@layer utilities {
+  .shadow-xs { box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06); }
+  .shadow-md { box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06); }
+  .shadow-lg { box-shadow: 0 4px 12px rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.08); }
+  .shadow-xl { box-shadow: 0 8px 24px rgba(0,0,0,0.06), 0 16px 48px rgba(0,0,0,0.10); }
+}
+
+@layer utilities {
+  .font-display { font-family: var(--font-heading), system-ui, sans-serif; }
+  .text-balance { text-wrap: balance; }
+  .tracking-tighter { letter-spacing: -0.025em; }
+  .tracking-tightest { letter-spacing: -0.03em; }
 }
 
 /* Body starts hidden — GSAP sets visible after animation */

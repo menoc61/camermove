@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import dynamic from "next/dynamic"
 import "./globals.css"
 import { QueryProvider } from "../components/providers"
-import { Geist, Noto_Sans, Inter } from "next/font/google";
+import { Geist, Noto_Sans, Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { cn } from "@/lib/utils";
 
 const SmoothScroll = dynamic(
@@ -10,9 +10,15 @@ const SmoothScroll = dynamic(
   { ssr: false }
 )
 
-const interHeading = Inter({subsets:['latin'],variable:'--font-heading'});
+const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
 
-const notoSans = Noto_Sans({subsets:['latin'],variable:'--font-sans'});
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-heading",
+  weight: ["400", "500", "600", "700", "800"],
+});
+
+const notoSans = Noto_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002"
 
@@ -48,7 +54,7 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" suppressHydrationWarning className={cn("font-sans", notoSans.variable, interHeading.variable)}>
+    <html lang="fr" suppressHydrationWarning className={cn("font-sans", inter.variable, plusJakarta.variable, notoSans.variable)}>
       <body>
         <script
           type="application/ld+json"
