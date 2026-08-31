@@ -29,7 +29,7 @@ export function PriceSimulator() {
   const [date, setDate] = useState(todayPlus(1))
   const [pax, setPax] = useState("1")
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<{ min: number; max: number; avg: number; total: number } | null>(null)
+  const [result, setResult] = useState<{ min: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   function swap() {
@@ -58,9 +58,7 @@ export function PriceSimulator() {
       } else {
         const prices = res.items.map((t) => t.price)
         const min = prices[0]!
-        const max = prices[prices.length - 1]!
-        const avg = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length)
-        setResult({ min, max, avg, total: res.pagination.total })
+        setResult({ min, total: res.pagination.total })
       }
     } catch {
       setError("Impossible de vérifier les prix — réessayez.")
