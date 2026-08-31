@@ -10,7 +10,7 @@ interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
 function Skeleton({ className, shimmer = true, ...props }: SkeletonProps) {
   return (
     <div
-      className={cn("rounded-xl bg-surface-2 overflow-hidden", className)}
+      className={cn("relative rounded-xl bg-surface-2 overflow-hidden", className)}
       {...props}
     >
       {shimmer && (
