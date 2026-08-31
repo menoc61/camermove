@@ -18,6 +18,7 @@ export interface SearchParams {
   maxPrice?: number
   page?: number
   perPage?: number
+  vehicleType?: string
 }
 export async function fetchSearch(params: SearchParams): Promise<{ items: SearchResultItem[]; pagination: { page: number; perPage: number; total: number; totalPages: number } }> {
   const qs = new URLSearchParams({ origin: params.origin, destination: params.destination, date: params.date, pax: String(params.pax), sortBy: params.sortBy ?? "price_asc", page: String(params.page ?? 1), perPage: String(params.perPage ?? 20) })
