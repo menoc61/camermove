@@ -1,51 +1,119 @@
-import { SiteNav } from "../components/landing/SiteNav"
-import { Hero } from "../components/landing/Hero"
-import { Steps } from "../components/landing/Steps"
-import { PriceSimulator } from "../components/landing/PriceSimulator"
-import { NextDepartures } from "../components/landing/NextDepartures"
-import { PartnerCta } from "../components/landing/PartnerCta"
-import { SiteFooter } from "../components/landing/SiteFooter"
-import { fetchSearch, type SearchResultItem } from "../lib/api/search"
+import { Suspense } from "react"
+import { prisma } from "@camermove/db"
+import { SiteNav } from "@/components/landing/SiteNav"
+import { Hero } from "@/components/landing/Hero"
+import { Steps } from "@/components/landing/Steps"
+import { PriceSimulator } from "@/components/landing/PriceSimulator"
+import { NextDepartures } from "@/components/landing/NextDepartures"
+import { PartnerCta } from "@/components/landing/PartnerCta"
+import { SiteFooter } from "@/components/landing/SiteFooter"
+import { Skeleton } from "@/components/ui/skeleton"
+import type { SearchResultItem } from "@/lib/api/search"
+import type { Agency } from "@/lib/api/agencies"
 
-export default async function Home() {
-  let trips: SearchResultItem[] = []
+export default async function HomePage() {
   let minPrice: number | undefined
+  let trips: SearchResultItem[] = []
+  let agencies: Agency[] = []
+
   try {
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const date = tomorrow.toISOString().slice(0, 10)
-    const res = await fetchSearch({
-      origin: "Yaoundé",
-      destination: "Douala",
-      date,
-      pax: 1,
-      sortBy: "departure_asc",
-    })
-    trips = res.items.slice(0, 3)
-    minPrice = res.items.length > 0 ? Math.min(...res.items.map((t) => t.price)) : undefined
+    const [minTrip, upcomingTrips, agencyRows] = await Promise.all([
+      prisma.trip.findFirst({
+        where: { status: "active", seatAvailability: { seatsAvailable: { gte: 1 } } },
+        orderBy: { price: "asc" },
+        select: { price: true },
+      }),
+      prisma.trip.findMany({
+        where: {
+          status: "active",
+          departureAt: { gte: new Date() },
+          seatAvailability: { seatsAvailable: { gte: 1 } },
+        },
+        orderBy: { departureAt: "asc" },
+        take: 6,
+        include: {
+          transport: { select: { companyName: true } },
+          seatAvailability: true,
+        },
+      }),
+      prisma.transporter.findMany({
+        where: { status: "approved" },
+        select: { id: true, companyName: true, city: true },
+        take: 20,
+      }),
+    ])
+    minPrice = minTrip?.price
+    trips = upcomingTrips.map((t) => ({
+      id: t.id,
+      departureAt: t.departureAt.toISOString(),
+      price: t.price,
+      totalSeats: t.totalSeats,
+      seatsAvailable: t.seatAvailability?.seatsAvailable ?? 0,
+      transporterId: t.transportId,
+      companyName: t.transport.companyName,
+      vehicleTypeInfo: t.vehicleTypeInfo,
+    }))
+    agencies = agencyRows.map((r) => ({
+      id: r.id,
+      companyName: r.companyName,
+      city: r.city,
+      lat: null,
+      lon: null,
+      departurePointInfo: null,
+    }))
   } catch {
-    // API indisponible : la page reste utilisable sans la section départs
+    // DB unavailable — render without data
   }
 
   return (
     <>
       <SiteNav />
       <main>
-        <Hero minPrice={minPrice} />
+        <Hero minPrice={minPrice != null ? minPrice : undefined} />
         <Steps />
 
-        <section id="tarifs" className="border-t border-slate-200 bg-white">
-          <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-2">
-            <div>
-              <h2 className="text-3xl font-bold tracking-tighter text-slate-900 md:text-4xl">
-                Combien coûte votre trajet&nbsp;?
+        <section className="bg-background">
+          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
+            <div className="text-center">
+              <h2 className="text-3xl font-bold tracking-tighter text-foreground md:text-4xl">
+                Vérifiez le prix de votre trajet
               </h2>
-              <p className="mt-3 max-w-[55ch] text-sm leading-relaxed text-slate-600 md:text-base">
-                Choisissez une date et un nombre de passagers : nous interrogeons les prix
-                réels des transporteurs partenaires en direct. Aucune estimation au hasard.
+              <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
+                Entrez votre ville de départ et destination pour voir les prix en temps réel.
               </p>
             </div>
-            <PriceSimulator />
+            <div className="mx-auto mt-10 max-w-2xl">
+              <PriceSimulator />
+            </div>
+          </div>
+        </section>
+
+        <section id="agences" className="bg-background">
+          <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
+            <div className="flex flex-wrap items-baseline justify-between gap-4">
+              <div>
+                <h2 className="text-3xl font-bold tracking-tighter text-foreground md:text-4xl">
+                  Nos agences partenaires
+                </h2>
+                <p className="mt-2 text-muted-foreground">
+                  Retrouvez les points de départ de nos transporteurs partenaires au Cameroun.
+                </p>
+              </div>
+            </div>
+            <div className="mt-10">
+              <Suspense fallback={<Skeleton className="h-[360px] w-full rounded-xl md:h-[420px]" />}>
+                <AgencyMapSection agencies={agencies} />
+              </Suspense>
+            </div>
+            <ul className="sr-only">
+              {agencies.map((a) => (
+                <li key={a.id}>
+                  <a href={`/results?origin=${encodeURIComponent(a.city ?? "")}&pax=1`}>
+                    {a.companyName} — {a.city ?? "Cameroun"}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
@@ -55,4 +123,17 @@ export default async function Home() {
       <SiteFooter />
     </>
   )
+}
+
+import dynamic from "next/dynamic"
+const AgencyMapInner = dynamic(
+  () => import("@/components/landing/AgencyMap").then((m) => m.AgencyMapInner),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-[360px] w-full rounded-xl md:h-[420px]" />,
+  }
+)
+
+function AgencyMapSection({ agencies }: { agencies: Agency[] }) {
+  return <AgencyMapInner agencies={agencies} />
 }

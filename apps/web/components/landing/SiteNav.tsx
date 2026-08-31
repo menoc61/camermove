@@ -15,6 +15,9 @@ export function SiteNav() {
           <a href="#etapes" className="transition-colors hover:text-slate-900">
             Comment ça marche
           </a>
+          <a href="#agences" className="transition-colors hover:text-slate-900">
+            Agences
+          </a>
           <a href="#departures" className="transition-colors hover:text-slate-900">
             Prochains départs
           </a>
