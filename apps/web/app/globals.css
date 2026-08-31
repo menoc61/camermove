@@ -139,6 +139,10 @@ body {
   visibility: hidden;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  body { visibility: visible !important; }
+}
+
 /* Intro overlay panels */
 .intro-overlay {
   position: fixed;

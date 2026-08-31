@@ -1,13 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState, type RefObject } from "react"
+import { useEffect, useRef, useState } from "react"
 
 interface IntroOverlayProps {
   onComplete: () => void
-  containerRef?: RefObject<HTMLDivElement | null>
 }
 
-export function IntroOverlay({ onComplete, containerRef }: IntroOverlayProps) {
+export function IntroOverlay({ onComplete }: IntroOverlayProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const [reducedMotion, setReducedMotion] = useState(false)
 

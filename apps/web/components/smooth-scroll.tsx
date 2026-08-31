@@ -19,7 +19,7 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
       const gsapModule = await import("gsap")
       gsapInstance = gsapModule.default
       const { ScrollTrigger } = await import("gsap/ScrollTrigger")
-      const Lenis = (await import("@studio-freight/lenis")).default
+      const Lenis = (await import("lenis")).default
 
       gsapInstance.registerPlugin(ScrollTrigger)
 

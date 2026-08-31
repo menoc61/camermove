@@ -10,7 +10,6 @@ interface MotionSectionProps {
   className?: string
   direction?: Direction
   delay?: number
-  stagger?: number
 }
 
 const directionVariants = {

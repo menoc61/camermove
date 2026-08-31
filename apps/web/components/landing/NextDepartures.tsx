@@ -1,4 +1,6 @@
-﻿import Link from "next/link"
+﻿"use client"
+
+import Link from "next/link"
 import { motion } from "motion/react"
 import { priceXaf } from "@camermove/shared"
 import type { SearchResultItem } from "../../lib/api/search"

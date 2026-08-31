@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useRef, useCallback } from "react"
+import { useRef } from "react"
 import Image from "next/image"
 import { QrCode, ShieldCheck, Wallet } from "lucide-react"
 import { SearchBar } from "../search/search-bar"
@@ -19,11 +19,6 @@ interface HeroProps {
 
 export function Hero({ minPrice }: HeroProps) {
   const heroRef = useRef<HTMLDivElement>(null)
-  const animationComplete = useRef(false)
-
-  const handleAnimationComplete = useCallback(() => {
-    animationComplete.current = true
-  }, [])
 
   return (
     <section className="relative overflow-hidden bg-background">
@@ -99,10 +94,7 @@ export function Hero({ minPrice }: HeroProps) {
         </div>
       </div>
 
-      <IntroOverlay
-        onComplete={handleAnimationComplete}
-        containerRef={heroRef}
-      />
+      <IntroOverlay onComplete={() => {}} />
     </section>
   )
 }
