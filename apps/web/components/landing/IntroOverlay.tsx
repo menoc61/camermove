@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, type RefObject } from "react"
+import { useEffect, useRef, useState, type RefObject } from "react"
 
 interface IntroOverlayProps {
   onComplete: () => void
@@ -9,14 +9,32 @@ interface IntroOverlayProps {
 
 export function IntroOverlay({ onComplete, containerRef }: IntroOverlayProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
+  const [reducedMotion, setReducedMotion] = useState(false)
 
   useEffect(() => {
-    if (!containerRef?.current) return
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
+    setReducedMotion(mq.matches)
+
+    function handleChange(e: MediaQueryListEvent) {
+      setReducedMotion(e.matches)
+    }
+    mq.addEventListener("change", handleChange)
+    return () => mq.removeEventListener("change", handleChange)
+  }, [])
+
+  useEffect(() => {
+    if (reducedMotion) {
+      onComplete()
+      return
+    }
 
     let tl: any = null
+    let aborted = false
 
     async function animate() {
       const gsapModule = await import("gsap")
+      if (aborted) return
+
       const gsap = gsapModule.default
 
       // Set initial states immediately
@@ -62,9 +80,10 @@ export function IntroOverlay({ onComplete, containerRef }: IntroOverlayProps) {
     animate()
 
     return () => {
+      aborted = true
       if (tl) tl.kill()
     }
-  }, [containerRef, onComplete])
+  }, [reducedMotion, onComplete])
 
   return (
     <div ref={overlayRef} className="intro-overlay">
