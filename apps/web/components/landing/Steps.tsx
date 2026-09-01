@@ -2,7 +2,6 @@
 
 import { motion } from "motion/react"
 import { Search, CreditCard, QrCode } from "lucide-react"
-import { MotionSection } from "./MotionSection"
 import { staggerContainer, staggerItem } from "@/lib/animations"
 
 const steps = [
