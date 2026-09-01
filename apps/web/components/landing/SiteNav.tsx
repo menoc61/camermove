@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence, useMotionValueEvent, useScroll } from "motion/react"
 import { cn } from "@/lib/utils"
-import { staggerContainer, staggerItem, hoverLift } from "@/lib/animations"
+import { hoverLift } from "@/lib/animations"
 import type { Variants } from "motion/react"
 
 const NAV_LINKS: { href: string; label: string; isLink?: boolean }[] = [
