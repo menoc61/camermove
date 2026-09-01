@@ -63,6 +63,27 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/auth/register `
 No `super_admin` is pre-created; promote an existing account manually if needed
 (see Troubleshooting).
 
+## Landing Page Features
+
+The landing page (`http://localhost:3002`) includes:
+
+- **Cinematic intro animation** — 6-panel GSAP overlay reveals the hero
+- **Smooth scrolling** — Lenis-powered buttery scroll experience
+- **Hero section** — Plus Jakarta Sans typography, GSAP text reveal, parallax images
+- **How it works** — 3-step cards with icons and staggered scroll animation
+- **Price simulator** — Real-time price lookup with swap animation
+- **Agency map** — Leaflet + OpenStreetMap with animated markers
+- **Next departures** — Trip cards with hover spring animations
+- **Partner CTA** — Gradient background with noise texture
+- **Responsive design** — Mobile-first with hamburger nav
+
+## Design System
+
+- **Typography:** Plus Jakarta Sans (headings) + Inter (body)
+- **Colors:** Warm-neutral palette — teal primary, amber accent
+- **Animations:** GSAP (intro/text), Framer Motion (scroll/hover), Lenis (smooth scroll)
+- **Components:** Button, Card, Input, Modal, Toast, Skeleton — all with micro-interactions
+
 ## Stop
 
 ```bash
@@ -85,4 +106,4 @@ volumes (`pgdata`, `miniodata`, `grafanadata`) survives.
 - **Port already in use (3000/3002)** — the script kills stale listeners automatically;
   to inspect manually: `Get-NetTCPConnection -LocalPort 3000 -State Listen`.
 - **Promote a superadmin**:
-  `docker compose exec -T postgres psql -U camermove -d camermove -c "UPDATE ""User"" SET role='super_admin' WHERE email='vous@example.cm';"`
+  `docker compose exec -T postgres psql -U camermove -d camermove -c "UPDATE \"User\" SET role='super_admin' WHERE email='vous@example.cm';"`
