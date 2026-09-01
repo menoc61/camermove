@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useRef } from "react"
+import { useEffect, useRef } from "react"
 import Image from "next/image"
 import { motion, useScroll, useTransform } from "motion/react"
 import { QrCode, ShieldCheck, Wallet } from "lucide-react"
@@ -33,6 +33,33 @@ interface HeroProps {
 export function Hero({ minPrice }: HeroProps) {
   const heroRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    let tl: gsap.core.Timeline | null = null
+
+    async function animate() {
+      const gsapModule = await import("gsap")
+      const gsap = gsapModule.default
+
+      gsap.set(".line span", { y: "100%", skewY: 7, opacity: 0 })
+
+      tl = gsap.timeline({ delay: 0.5 })
+      tl.to(".line span", {
+        y: "0%",
+        skewY: 0,
+        opacity: 1,
+        duration: 1.2,
+        ease: "power3.out",
+        stagger: 0.12,
+      })
+    }
+
+    animate()
+
+    return () => {
+      if (tl) tl.kill()
+    }
+  }, [])
+
   const { scrollYProgress } = useScroll({
     target: heroRef,
     offset: ["start end", "end start"],
@@ -59,7 +86,7 @@ export function Hero({ minPrice }: HeroProps) {
               <span>réservé en deux minutes.</span>
             </div>
           </h1>
-          <p className="mt-5 max-w-[52ch] font-body text-base leading-relaxed text-muted-foreground md:text-lg">
+          <p className="mt-5 max-w-[52ch] font-body text-base font-medium leading-relaxed text-muted-foreground md:text-lg">
             Comparez les départs du jour, payez par Mobile Money et recevez votre
             e-billet QR immédiatement.
           </p>
