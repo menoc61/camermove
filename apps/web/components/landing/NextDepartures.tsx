@@ -1,8 +1,9 @@
 ﻿"use client"
 
 import Link from "next/link"
-import { motion } from "motion/react"
+import { motion, type Variants } from "motion/react"
 import { priceXaf } from "@camermove/shared"
+import { staggerContainer, staggerItem, spring } from "@/lib/animations"
 import type { SearchResultItem } from "../../lib/api/search"
 
 function timeFr(iso: string): string {
@@ -10,6 +11,24 @@ function timeFr(iso: string): string {
 }
 function dateFr(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Douala" })
+}
+
+const grid: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
+  },
+}
+
+const card: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] } },
+}
+
+const priceBadge: Variants = {
+  hidden: { opacity: 0, scale: 0.95 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] } },
 }
 
 export function NextDepartures({ trips }: { trips: SearchResultItem[] }) {
@@ -33,41 +52,54 @@ export function NextDepartures({ trips }: { trips: SearchResultItem[] }) {
             Aucun départ disponible pour le moment — revenez bientôt.
           </p>
         ) : (
-          <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <motion.div
+            variants={grid}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+            className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
+          >
             {trips.map((t) => (
-              <motion.div
-                key={t.id}
-                whileHover={{ y: -4, boxShadow: "0 8px 30px rgba(0,0,0,0.12)" }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
+              <motion.div key={t.id} variants={card}>
                 <Link
                   href={`/trips/${t.id}`}
-                  className="group block rounded-lg border bg-card p-5 transition-colors hover:border-primary/40 active:scale-[0.99]"
+                  className="group block rounded-2xl bg-surface-1 p-5 shadow-sm transition-shadow hover:shadow-md active:scale-[0.99]"
                 >
                   <div className="flex items-baseline justify-between">
-                    <span className="text-2xl font-bold tracking-tight text-foreground">
+                    <span className="font-['Plus_Jakarta_Sans'] text-2xl font-bold tracking-tight text-foreground">
                       {timeFr(t.departureAt)}
                     </span>
-                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary-dark">
+                    <motion.span
+                      variants={priceBadge}
+                      className="rounded-full bg-brand/10 px-3 py-1 text-xs font-bold text-brand-dark"
+                    >
                       {priceXaf(t.price)}
-                    </span>
+                    </motion.span>
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {dateFr(t.departureAt)}
                   </p>
                   <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-sm">
-                    <span className="truncate text-muted-foreground">
-                      {t.companyName}
-                      {t.vehicleTypeInfo ? ` · ${t.vehicleTypeInfo}` : ""}
-                    </span>
-                    <span className="ml-2 shrink-0 font-medium text-primary-dark group-hover:underline">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                        {t.companyName.charAt(0)}
+                      </span>
+                      <span className="truncate text-muted-foreground">
+                        {t.companyName}
+                        {t.vehicleTypeInfo ? ` · ${t.vehicleTypeInfo}` : ""}
+                      </span>
+                    </div>
+                    <span className="ml-2 inline-flex shrink-0 items-center gap-1 font-medium text-primary-dark transition-transform group-hover:translate-x-1">
                       Réserver
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                      </svg>
                     </span>
                   </div>
                 </Link>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
     </section>
