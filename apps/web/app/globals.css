@@ -154,6 +154,7 @@
 
 @layer utilities {
   .font-display { font-family: var(--font-heading), system-ui, sans-serif; }
+  .font-body { font-family: var(--font-body), system-ui, sans-serif; }
   .text-balance { text-wrap: balance; }
   .tracking-tighter { letter-spacing: -0.025em; }
   .tracking-tightest { letter-spacing: -0.03em; }

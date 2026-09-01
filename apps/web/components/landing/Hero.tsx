@@ -2,9 +2,9 @@
 
 import { useRef } from "react"
 import Image from "next/image"
+import { motion, useScroll, useTransform } from "motion/react"
 import { QrCode, ShieldCheck, Wallet } from "lucide-react"
 import { SearchBar } from "../search/search-bar"
-import { Badge } from "@/components/ui/badge"
 import { IntroOverlay } from "./IntroOverlay"
 
 const trust = [
@@ -13,12 +13,33 @@ const trust = [
   { icon: Wallet, label: "Meilleurs prix du jour" },
 ]
 
+const trustContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.15, delayChildren: 0.6 },
+  },
+}
+
+const trustItem = {
+  hidden: { opacity: 0, y: 12 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] as const } },
+}
+
 interface HeroProps {
   minPrice?: number
 }
 
 export function Hero({ minPrice }: HeroProps) {
   const heroRef = useRef<HTMLDivElement>(null)
+
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ["start end", "end start"],
+  })
+
+  const imgY1 = useTransform(scrollYProgress, [0, 1], [40, -40])
+  const imgY2 = useTransform(scrollYProgress, [0, 1], [60, -20])
 
   return (
     <section className="relative overflow-hidden bg-background">
@@ -27,10 +48,10 @@ export function Hero({ minPrice }: HeroProps) {
         className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-4 pb-20 pt-10 sm:px-6 md:pt-16 lg:grid-cols-12"
       >
         <div className="lg:col-span-6">
-          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-card px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-dark">
+          <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary">
             Yaoundé ⇄ Douala · quotidien
           </p>
-          <h1 className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tighter text-foreground md:text-6xl">
+          <h1 className="max-w-xl font-display text-5xl font-extrabold leading-[1.05] tracking-[-0.03em] text-foreground md:text-7xl">
             <div className="line">
               <span>Le bus Yaoundé–Douala,</span>
             </div>
@@ -38,7 +59,7 @@ export function Hero({ minPrice }: HeroProps) {
               <span>réservé en deux minutes.</span>
             </div>
           </h1>
-          <p className="mt-5 max-w-[65ch] text-base leading-relaxed text-muted-foreground md:text-lg">
+          <p className="mt-5 max-w-[52ch] font-body text-base leading-relaxed text-muted-foreground md:text-lg">
             Comparez les départs du jour, payez par Mobile Money et recevez votre
             e-billet QR immédiatement.
           </p>
@@ -47,10 +68,16 @@ export function Hero({ minPrice }: HeroProps) {
             <SearchBar />
           </div>
 
-          <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-3">
+          <motion.ul
+            variants={trustContainer}
+            initial="hidden"
+            animate="visible"
+            className="mt-8 flex flex-wrap gap-x-6 gap-y-3"
+          >
             {trust.map(({ icon: Icon, label }) => (
-              <li
+              <motion.li
                 key={label}
+                variants={trustItem}
                 className="flex items-center gap-2 text-sm text-muted-foreground"
               >
                 <Icon
@@ -59,13 +86,16 @@ export function Hero({ minPrice }: HeroProps) {
                   aria-hidden
                 />
                 {label}
-              </li>
+              </motion.li>
             ))}
-          </ul>
+          </motion.ul>
         </div>
 
         <div className="relative hidden lg:col-span-6 lg:block">
-          <div className="hero-image relative ml-auto aspect-[4/5] w-[78%] overflow-hidden rounded-3xl shadow-xl shadow-slate-900/10">
+          <motion.div
+            style={{ y: imgY1 }}
+            className="hero-image relative ml-auto aspect-[4/5] w-[78%] overflow-hidden rounded-2xl shadow-xl shadow-amber-900/15"
+          >
             <Image
               src="https://picsum.photos/seed/camermove-highway/900/1100"
               alt="Route interurbaine au Cameroun"
@@ -75,13 +105,16 @@ export function Hero({ minPrice }: HeroProps) {
               className="object-cover"
             />
             {minPrice != null && (
-              <Badge className="absolute left-4 top-4 bg-secondary font-bold text-secondary-foreground">
+              <span className="absolute left-4 top-4 rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">
                 À partir de{" "}
                 {new Intl.NumberFormat("fr-CM").format(minPrice)} XAF
-              </Badge>
+              </span>
             )}
-          </div>
-          <div className="hero-image absolute -bottom-6 left-0 aspect-[16/10] w-[46%] rotate-[-4deg] overflow-hidden rounded-2xl border-4 border-white shadow-lg shadow-slate-900/15">
+          </motion.div>
+          <motion.div
+            style={{ y: imgY2 }}
+            className="hero-image absolute -bottom-6 left-0 aspect-[16/10] w-[46%] rotate-[-4deg] overflow-hidden rounded-2xl border-4 border-white shadow-lg shadow-amber-900/10"
+          >
             <Image
               src="https://picsum.photos/seed/camermove-douala/720/450"
               alt="Départ de bus à Douala"
@@ -90,7 +123,7 @@ export function Hero({ minPrice }: HeroProps) {
               sizes="(min-width: 1024px) 24vw, 0vw"
               className="object-cover"
             />
-          </div>
+          </motion.div>
         </div>
       </div>
 
