@@ -205,6 +205,13 @@ body {
   background: hsl(var(--foreground));
 }
 
+/* Agency map marker bounce */
+@keyframes marker-bounce {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
 /* Agency map marker pulse */
 @keyframes marker-pulse {
   0%, 100% {

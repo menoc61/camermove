@@ -25,12 +25,6 @@ const markerIcon = new L.DivIcon({
         <circle cx="14" cy="14" r="5" fill="white"/>
       </svg>
     </div>
-    <style>
-      @keyframes marker-bounce {
-        0% { transform: scale(0); opacity: 0; }
-        100% { transform: scale(1); opacity: 1; }
-      }
-    </style>
   `,
   iconSize: [28, 28],
   iconAnchor: [14, 14],
