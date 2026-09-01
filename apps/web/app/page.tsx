@@ -124,9 +124,7 @@ export default async function HomePage() {
 
         <NextDepartures trips={trips} />
 
-        <MotionSection>
-          <PartnerCta />
-        </MotionSection>
+        <PartnerCta />
       </main>
       <SiteFooter />
     </>
