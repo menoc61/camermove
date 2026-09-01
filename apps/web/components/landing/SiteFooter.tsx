@@ -2,7 +2,7 @@ import Link from "next/link"
 
 const groups = [
   {
-    title: "Product",
+    title: "Voyageurs",
     links: [
       { label: "Rechercher un trajet", href: "/results?origin=Yaound%C3%A9&destination=Douala&pax=1" },
       { label: "Mon compte", href: "/dashboard" },
@@ -10,14 +10,14 @@ const groups = [
     ],
   },
   {
-    title: "Company",
+    title: "Entreprise",
     links: [
       { label: "Devenir partenaire", href: "/transporter/apply" },
       { label: "Contact", href: "mailto:contact@camermove.cm" },
     ],
   },
   {
-    title: "Legal",
+    title: "Légal",
     links: [
       { label: "Conditions générales", href: "#" },
       { label: "Confidentialité", href: "#" },

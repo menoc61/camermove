@@ -4,7 +4,7 @@ import { useRef, useCallback } from "react"
 import Link from "next/link"
 import { useState } from "react"
 import { ArrowUpDown, Search } from "lucide-react"
-import gsap from "gsap"
+
 import { motion, AnimatePresence } from "motion/react"
 import { fetchSearch } from "../../lib/api/search"
 import { Button } from "@/components/ui/button"
@@ -39,11 +39,13 @@ export function PriceSimulator() {
 
   const swapIconRef = useRef<HTMLDivElement>(null)
 
-  const swap = useCallback(() => {
+  const swap = useCallback(async () => {
     setOrigin(destination)
     setDestination(origin)
     setSwapKey((k) => k + 1)
     if (swapIconRef.current) {
+      const gsapModule = await import("gsap")
+      const gsap = gsapModule.default
       gsap.to(swapIconRef.current, {
         rotation: "+=180",
         duration: 0.35,

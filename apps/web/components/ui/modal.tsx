@@ -46,6 +46,7 @@ function Modal({ open, onClose, children, className }: ModalProps) {
           >
             <button
               onClick={onClose}
+              aria-label="Fermer"
               className="absolute right-4 top-4 rounded-lg p-1 text-muted-foreground hover:text-foreground transition-colors"
             >
               <X size={18} />

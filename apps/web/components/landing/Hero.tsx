@@ -91,7 +91,7 @@ export function Hero({ minPrice }: HeroProps) {
             e-billet QR immédiatement.
           </p>
 
-          <div className="relative z-10 mt-8 max-w-xl rounded-2xl border bg-card p-4 shadow-lg shadow-slate-900/5 sm:p-5">
+          <div className="relative z-10 mt-8 max-w-xl rounded-2xl border bg-card p-4 shadow-lg shadow-ink-0/5 sm:p-5">
             <SearchBar />
           </div>
 

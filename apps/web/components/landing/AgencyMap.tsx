@@ -21,7 +21,7 @@ const markerIcon = new L.DivIcon({
       animation: marker-bounce .4s cubic-bezier(.34,1.56,.64,1) both;
     ">
       <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="14" cy="14" r="13" fill="#0e9f8f" stroke="white" stroke-width="2"/>
+        <circle cx="14" cy="14" r="13" fill="hsl(var(--brand))" stroke="white" stroke-width="2"/>
         <circle cx="14" cy="14" r="5" fill="white"/>
       </svg>
     </div>
@@ -89,7 +89,7 @@ export function AgencyMapInner({ city, lat, lon, agencies }: AgencyMapProps) {
       {/* Floating legend card */}
       <div className="absolute top-3 right-3 z-[1000] rounded-xl bg-white/90 shadow-lg backdrop-blur-sm px-4 py-2 flex items-center gap-2 text-sm font-medium">
         <svg width="16" height="16" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="14" cy="14" r="13" fill="#0e9f8f" stroke="white" stroke-width="2"/>
+          <circle cx="14" cy="14" r="13" fill="hsl(var(--brand))" stroke="white" stroke-width="2"/>
           <circle cx="14" cy="14" r="5" fill="white"/>
         </svg>
         <span>{agencies.length} agence{agencies.length !== 1 ? "s" : ""}</span>

@@ -23,7 +23,7 @@ const icons = {
 }
 
 const styles = {
-  success: "border-success/20 bg-success/5",
+  success: "border-brand/20 bg-brand/5",
   error: "border-destructive/20 bg-destructive/5",
   warning: "border-accent/20 bg-accent/5",
   info: "border-brand/20 bg-brand/5",
