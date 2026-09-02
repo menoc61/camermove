@@ -13,79 +13,106 @@ export function IntroOverlay({ onComplete }: IntroOverlayProps) {
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)")
     setReducedMotion(mq.matches)
-
-    function handleChange(e: MediaQueryListEvent) {
-      setReducedMotion(e.matches)
-    }
-    mq.addEventListener("change", handleChange)
-    return () => mq.removeEventListener("change", handleChange)
+    const h = (e: MediaQueryListEvent) => setReducedMotion(e.matches)
+    mq.addEventListener("change", h)
+    return () => mq.removeEventListener("change", h)
   }, [])
 
   useEffect(() => {
     if (reducedMotion) {
       onComplete()
+      if (overlayRef.current) overlayRef.current.style.display = "none"
       return
     }
 
-    let tl: any = null
+    let mm: ReturnType<typeof import("gsap").default.matchMedia> | null = null
     let aborted = false
 
     async function animate() {
-      const gsapModule = await import("gsap")
+      const { default: gsap } = await import("gsap")
       if (aborted) return
 
-      const gsap = gsapModule.default
+      // Gate: rare/first-time → delight allowed. Purpose: explanation (reveal).
+      // Tool: GSAP (needs scrub pin later, programmatic control). Props: transform/opacity only.
+      mm = gsap.matchMedia()
+      mm.add(
+        {
+          reduceMotion: "(prefers-reduced-motion: reduce)",
+          isMotion: "(prefers-reduced-motion: no-preference)",
+        },
+        (ctx) => {
+          const reduce = (ctx.conditions as Record<string, boolean>).reduceMotion
+          if (reduce) {
+            gsap.set(document.body, { clearProps: "visibility" })
+            document.body.style.visibility = "visible"
+            if (overlayRef.current) overlayRef.current.style.display = "none"
+            onComplete()
+            return
+          }
 
-      // Set initial states immediately
-      gsap.set(".line span", { y: 100, skewY: 7, opacity: 0 })
-      gsap.set(".hero-image", { scale: 1.4, opacity: 0 })
+          gsap.set(".line span", { yPercent: 100, skewY: 7, autoAlpha: 0 })
+          gsap.set(".hero-image", { scale: 1.06, autoAlpha: 0 })
+          gsap.set(".overlay-top", { scaleY: 1, transformOrigin: "top" })
+          gsap.set(".overlay-bottom", { scaleX: 1, transformOrigin: "left" })
+          gsap.set(document.body, { autoAlpha: 1, visibility: "visible" })
 
-      tl = gsap.timeline()
+          const tl = gsap.timeline({ delay: 0.3 })
 
-      tl.to(".line span", 1.8, {
-        y: 0,
-        skewY: 0,
-        opacity: 1,
-        ease: "power4.out",
-        delay: 0.5,
-        stagger: { amount: 0.3 },
-      })
-        .to(".overlay-top", 1.6, {
-          height: 0,
-          ease: "expo.inOut",
-          stagger: 0.4,
-        })
-        .to(".overlay-bottom", 1.6, {
-          width: 0,
-          ease: "expo.inOut",
-          delay: -0.8,
-          stagger: { amount: 0.4 },
-        })
-        .to(
-          overlayRef.current,
-          { css: { display: "none" }, duration: 0 },
-          "-=0.4"
-        )
-        .to(".hero-image", 1.6, {
-          scale: 1,
-          opacity: 1,
-          ease: "expo.inOut",
-          delay: -2,
-          stagger: { amount: 0.4 },
-          onComplete,
-        })
+          tl.to(".line span", {
+            yPercent: 0,
+            skewY: 0,
+            autoAlpha: 1,
+            duration: 0.7,
+            ease: "power3.out",
+            stagger: 0.08,
+          })
+            .to(
+              ".overlay-top",
+              {
+                scaleY: 0,
+                duration: 0.8,
+                ease: "expo.inOut",
+                stagger: 0.07,
+              },
+              "+=0.15"
+            )
+            .to(
+              ".overlay-bottom",
+              {
+                scaleX: 0,
+                duration: 0.8,
+                ease: "expo.inOut",
+                stagger: 0.06,
+              },
+              "-=0.55"
+            )
+            .set(overlayRef.current, { display: "none" }, "-=0.2")
+            .to(
+              ".hero-image",
+              {
+                scale: 1,
+                autoAlpha: 1,
+                duration: 0.9,
+                ease: "expo.out",
+                stagger: 0.08,
+                onComplete,
+              },
+              "-=0.7"
+            )
+        }
+      )
     }
 
     animate()
 
     return () => {
       aborted = true
-      if (tl) tl.kill()
+      mm?.revert()
     }
   }, [reducedMotion, onComplete])
 
   return (
-    <div ref={overlayRef} className="intro-overlay">
+    <div ref={overlayRef} className="intro-overlay" aria-hidden>
       <div className="overlay-top-container">
         <div className="overlay-top" />
         <div className="overlay-top" />

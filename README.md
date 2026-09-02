@@ -44,6 +44,40 @@ bash scripts/dev-up.sh
 
 See [LAUNCH.md](./LAUNCH.md) for detailed setup instructions.
 
+## Test Credentials
+
+| Role | Email | Password | Access |
+|------|-------|----------|--------|
+| Admin | admin@camermove.cm | Admin123! | Full admin panel, settings, user management |
+| User | user@camermove.cm | User123! | Dashboard, bookings, tickets |
+| Partner | partner@camermove.cm | Partner123! | Transporter dashboard, trip management |
+
+## API Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | /api/v1/auth/register | No | Create account |
+| POST | /api/v1/auth/login | No | Login, returns JWT |
+| POST | /api/v1/auth/refresh | No | Refresh access token |
+| GET | /api/v1/auth/me | Yes | Get current user |
+| GET | /api/v1/search | No | Search trips |
+| POST | /api/v1/bookings | Yes | Create booking |
+| GET | /api/v1/bookings | Yes | List user bookings |
+| POST | /api/v1/bookings/:id/cancel | Yes | Cancel booking |
+| POST | /api/v1/payments | Yes | Initiate payment |
+| GET | /api/v1/trips | No | List trips |
+| GET | /api/v1/trips/:id | No | Trip detail |
+| POST | /api/v1/trips | Admin | Create trip |
+| PUT | /api/v1/trips/:id | Admin | Update trip |
+| DELETE | /api/v1/trips/:id | Admin | Delete trip |
+| GET | /api/v1/tickets/:id | Yes | Get ticket |
+| GET | /api/v1/tickets/lookup?code= | No | Lookup ticket (public) |
+| POST | /api/v1/partner-applications | Yes | Submit partner application |
+| GET | /api/v1/partner-applications/me | Yes | Get own application |
+| GET | /api/v1/admin/settings | Admin | Get app settings |
+| PUT | /api/v1/admin/settings | Admin | Update settings |
+| GET | /api/v1/admin/users | Admin | List users |
+
 ## Dev
 
 ```bash

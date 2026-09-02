@@ -60,34 +60,5 @@ export async function paymentRoutes(app: FastifyInstance) {
     return sendExport(reply, "payments", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
 
-  // Admin aliases per AGENTS.md §2 GET /admin/* metadata
-  app.get("/admin/payments", { preHandler: app.requireAuth("admin") }, async (req) => {
-    const query = PaymentListQuery.parse(req.query)
-    const user = (req as unknown as { user: { id: string; role: string } }).user
-    return listPayments(query as never, user)
-  })
 
-  app.get("/admin/payments/export", { preHandler: app.requireAuth("admin") }, async (req, reply) => {
-    const { dateFrom, dateTo, format } = parseExportQuery(req.query as Record<string, unknown>)
-    const user = (req as unknown as { user: { id: string; role: string } }).user
-    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
-    req.log.info({ ...meta, actorId: user.id, role: user.role, dateFrom, dateTo, format }, "admin.payments.export")
-    const where: Record<string, unknown> = {}
-    if (dateFrom || dateTo) {
-      const createdAt: Record<string, Date> = {}
-      if (dateFrom) createdAt.gte = new Date(dateFrom)
-      if (dateTo) createdAt.lte = new Date(dateTo)
-      where.createdAt = createdAt
-    }
-    const env = loadEnv()
-    const { prisma } = await import("@camermove/db")
-    const rows = await prisma.payment.findMany({
-      where: where as never,
-      take: env.SEARCH_MAX_LIMIT,
-      orderBy: { createdAt: "desc" },
-      include: { booking: true },
-    })
-    const columns = ["id", "bookingId", "provider", "providerRef", "amount", "currency", "method", "status", "createdAt"]
-    return sendExport(reply, "payments", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
-  })
 }

@@ -7,6 +7,8 @@
  */
 import { useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { motion } from "motion/react"
+import { toast } from "sonner"
 import {
   getMyApplication,
   presignDocument,
@@ -101,8 +103,11 @@ export function ApplyWizard({ token }: { token: string }) {
         // Statut dÃ©taillÃ© indisponible : la carte gÃ©nÃ©rique reste affichÃ©e.
       }
       setSent(true)
+      toast.success("Votre demande a été envoyée avec succès !")
     } catch (err) {
-      setFeedback(err instanceof Error ? err.message : "Ã‰chec de l'envoi de la demande.")
+      const msg = err instanceof Error ? err.message : "Échec de l'envoi de la demande."
+      setFeedback(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
@@ -178,17 +183,40 @@ export function ApplyWizard({ token }: { token: string }) {
       )}
 
       <div className="flex items-center justify-between">
-        <button type="button" onClick={() => setStep(step - 1)} disabled={step === 1} className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40">
+        <motion.button
+          type="button"
+          onClick={() => setStep(step - 1)}
+          disabled={step === 1}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+          className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
+        >
           <ChevronLeft className="mr-1 inline h-4 w-4" />Retour
-        </button>
+        </motion.button>
         {step < 3 ? (
-          <button type="button" onClick={next} className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white">
+          <motion.button
+            type="button"
+            onClick={next}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white"
+          >
             Continuer<ChevronRight className="ml-1 inline h-4 w-4" />
-          </button>
+          </motion.button>
         ) : (
-          <button type="button" onClick={() => void submit()} disabled={submitting} className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-            {submitting ? "Envoiâ€¦" : "Envoyer la demande"}
-          </button>
+          <motion.button
+            type="button"
+            onClick={() => void submit()}
+            disabled={submitting}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {submitting ? "Envoi…" : "Envoyer la demande"}
+          </motion.button>
         )}
       </div>
     </div>

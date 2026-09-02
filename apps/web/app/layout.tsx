@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import dynamic from "next/dynamic"
+import { Toaster } from "sonner"
 import "./globals.css"
 import { QueryProvider } from "../components/providers"
 import { Geist, Noto_Sans, Inter, Plus_Jakarta_Sans } from "next/font/google";
@@ -7,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 const SmoothScroll = dynamic(
   () => import("@/components/smooth-scroll").then((m) => m.SmoothScroll),
-  { ssr: false }
+  { ssr: true }
 )
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
@@ -63,6 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SmoothScroll>
           <QueryProvider>{children}</QueryProvider>
         </SmoothScroll>
+        <Toaster theme="dark" position="top-center" />
       </body>
     </html>
   )

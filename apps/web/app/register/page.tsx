@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { AuthForm } from "../../components/auth/AuthForm"
+import { AnimatedAuthWrapper } from "../../components/auth/AnimatedAuthWrapper"
 
 export const metadata: Metadata = {
   title: "Créer un compte",
@@ -14,9 +15,11 @@ interface PageProps {
 export default async function RegisterPage({ searchParams }: PageProps) {
   const { next } = await searchParams
   return (
-    <main className="mx-auto max-w-md px-4 py-16">
-      <h1 className="mb-6 text-3xl font-bold tracking-tighter text-slate-900">Créer un compte</h1>
+    <AnimatedAuthWrapper
+      title="Créer un compte"
+      subtitle="Réservez Yaoundé–Douala en 2 minutes, e-billet QR inclus"
+    >
       <AuthForm mode="register" next={next} />
-    </main>
+    </AnimatedAuthWrapper>
   )
 }

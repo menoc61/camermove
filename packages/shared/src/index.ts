@@ -1,2 +1,2 @@
-export * from "./money.js"
-export * from "./notifications/events.js"
+export * from "./money"
+export * from "./notifications/events"

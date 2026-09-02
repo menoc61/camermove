@@ -22,7 +22,7 @@ const PROTECTED_PREFIXES = ["/dashboard", "/tickets", "/transporter", "/admin"]
 const PUBLIC_TICKETS_PATH = "/tickets/lookup"
 const PUBLIC_ADMIN_LOGIN = "/admin/login"
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Belt-and-braces: explicit early return for the public lookup path even

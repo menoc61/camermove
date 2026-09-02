@@ -1,4 +1,3 @@
-import { Suspense } from "react"
 import { prisma } from "@camermove/db"
 import { SiteNav } from "@/components/landing/SiteNav"
 import { Hero } from "@/components/landing/Hero"
@@ -7,8 +6,9 @@ import { PriceSimulator } from "@/components/landing/PriceSimulator"
 import { NextDepartures } from "@/components/landing/NextDepartures"
 import { PartnerCta } from "@/components/landing/PartnerCta"
 import { SiteFooter } from "@/components/landing/SiteFooter"
-import { Skeleton } from "@/components/ui/skeleton"
 import { MotionSection } from "@/components/landing/MotionSection"
+import { AgencyMapDynamic } from "@/components/landing/AgencyMapDynamic"
+import { GsapBatchReveal } from "@/components/landing/GsapBatchReveal"
 import type { SearchResultItem } from "@/lib/api/search"
 import type { Agency } from "@/lib/api/agencies"
 
@@ -105,9 +105,7 @@ export default async function HomePage() {
                 </div>
               </div>
               <div className="mt-10">
-                <Suspense fallback={<Skeleton className="h-[360px] w-full rounded-xl md:h-[420px]" />}>
-                  <AgencyMapSection agencies={agencies} />
-                </Suspense>
+                <AgencyMapDynamic agencies={agencies} />
               </div>
               <ul className="sr-only">
                 {agencies.map((a) => (
@@ -124,22 +122,16 @@ export default async function HomePage() {
 
         <NextDepartures trips={trips} />
 
-        <PartnerCta />
+        <div className="gsap-reveal">
+          <PartnerCta />
+        </div>
       </main>
-      <SiteFooter />
+      <div className="gsap-reveal">
+        <SiteFooter />
+      </div>
+      <GsapBatchReveal />
     </>
   )
 }
 
-import dynamic from "next/dynamic"
-const AgencyMapInner = dynamic(
-  () => import("@/components/landing/AgencyMap").then((m) => m.AgencyMapInner),
-  {
-    ssr: false,
-    loading: () => <Skeleton className="h-[360px] w-full rounded-xl md:h-[420px]" />,
-  }
-)
 
-function AgencyMapSection({ agencies }: { agencies: Agency[] }) {
-  return <AgencyMapInner agencies={agencies} />
-}

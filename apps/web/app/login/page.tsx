@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { AuthForm } from "../../components/auth/AuthForm"
+import { AnimatedAuthWrapper } from "../../components/auth/AnimatedAuthWrapper"
 
 export const metadata: Metadata = {
   title: "Connexion",
@@ -13,9 +14,11 @@ interface PageProps {
 export default async function LoginPage({ searchParams }: PageProps) {
   const { next } = await searchParams
   return (
-    <main className="mx-auto max-w-md px-4 py-16">
-      <h1 className="mb-6 text-3xl font-bold tracking-tighter text-slate-900">Connexion</h1>
+    <AnimatedAuthWrapper
+      title="Connexion"
+      subtitle="Accédez à vos voyages et e-billets CamerMove"
+    >
       <AuthForm mode="login" next={next} />
-    </main>
+    </AnimatedAuthWrapper>
   )
 }

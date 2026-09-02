@@ -26,7 +26,7 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/api/v1/auth/register",
-            "body": { "mode": "raw", "raw": "{\n  \"email\": \"test@camermove.cm\",\n  \"password\": \"S3cret!123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}" }
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@camermove.cm\",\n  \"password\": \"Admin123!\",\n  \"firstName\": \"Admin\",\n  \"lastName\": \"User\"\n}" }
           },
           "event": [
             {
@@ -45,12 +45,54 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "url": "{{baseUrl}}/api/v1/auth/login",
-            "body": { "mode": "raw", "raw": "{\n  \"email\": \"test@camermove.cm\",\n  \"password\": \"S3cret!123\"\n}" }
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@camermove.cm\",\n  \"password\": \"Admin123!\"\n}" }
           },
           "event": [
             {
               "listen": "test",
-              "script": { "exec": ["if (pm.response.code === 200) { const j = pm.response.json(); pm.collectionVariables.set('token', j.accessToken); }"] }
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) { const j = pm.response.json(); pm.collectionVariables.set('token', j.accessToken); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@camermove.cm\",\n  \"password\": \"User123!\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) { const j = pm.response.json(); pm.collectionVariables.set('token', j.accessToken); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Partner",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"partner@camermove.cm\",\n  \"password\": \"Partner123!\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) { const j = pm.response.json(); pm.collectionVariables.set('token', j.accessToken); }"
+                ]
+              }
             }
           ]
         },
@@ -97,6 +139,212 @@
         {
           "name": "Trip detail",
           "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/trips/:id", "variable": [{ "key": "id", "value": "REPLACE_WITH_TRIP_ID" }] }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "Create Booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/bookings",
+            "body": { "mode": "raw", "raw": "{\n  \"tripId\": \"REPLACE\",\n  \"seatCount\": 2,\n  \"passengerCount\": 2,\n  \"passengers\": [\n    {\"name\": \"Test User\", \"phone\": \"+237699000000\"}\n  ]\n}" }
+          }
+        },
+        {
+          "name": "Get My Bookings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/bookings"
+          }
+        },
+        {
+          "name": "Get Booking by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/bookings/:id",
+            "variable": [{ "key": "id", "value": "REPLACE_WITH_BOOKING_ID" }]
+          }
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/bookings/:id/cancel",
+            "variable": [{ "key": "id", "value": "REPLACE_WITH_BOOKING_ID" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Create Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": { "mode": "raw", "raw": "{\n  \"bookingId\": \"REPLACE\",\n  \"amount\": 15000,\n  \"provider\": \"orange_money\"\n}" }
+          }
+        },
+        {
+          "name": "Get Payment",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/payments/:id",
+            "variable": [{ "key": "id", "value": "REPLACE_WITH_PAYMENT_ID" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trips",
+      "item": [
+        {
+          "name": "List Trips",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/trips" }
+        },
+        {
+          "name": "Get Trip",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/trips/:id",
+            "variable": [{ "key": "id", "value": "REPLACE_WITH_TRIP_ID" }]
+          }
+        },
+        {
+          "name": "Create Trip (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/trips",
+            "body": { "mode": "raw", "raw": "{\n  \"routeId\": \"REPLACE\",\n  \"departureAt\": \"2026-09-15T08:00:00Z\",\n  \"price\": 7500,\n  \"seatsTotal\": 20\n}" }
+          }
+        },
+        {
+          "name": "Update Trip (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/trips/:id",
+            "variable": [{ "key": "id", "value": "REPLACE_WITH_TRIP_ID" }]
+          }
+        },
+        {
+          "name": "Delete Trip (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/trips/:id",
+            "variable": [{ "key": "id", "value": "REPLACE_WITH_TRIP_ID" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tickets",
+      "item": [
+        {
+          "name": "Get Ticket",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/tickets/:id",
+            "variable": [{ "key": "id", "value": "REPLACE_WITH_TICKET_ID" }]
+          }
+        },
+        {
+          "name": "Lookup Ticket (public)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/tickets/lookup?code=REPLACE"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Partner Applications",
+      "item": [
+        {
+          "name": "Submit Application",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/partner-applications",
+            "body": { "mode": "raw", "raw": "{\n  \"businessName\": \"Transport Express\",\n  \"contactName\": \"Paul Njoya\",\n  \"phone\": \"+237699000000\",\n  \"city\": \"Yaoundé\",\n  \"message\": \"We operate 5 vehicles on the Yaoundé-Douala route.\"\n}" }
+          }
+        },
+        {
+          "name": "Get My Application",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/partner-applications/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get Settings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/admin/settings"
+          }
+        },
+        {
+          "name": "Update Settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/settings",
+            "body": { "mode": "raw", "raw": "{\n  \"commissionPercent\": 10,\n  \"holdExpiryMinutes\": 15\n}" }
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/admin/users"
+          }
+        },
+        {
+          "name": "List Transporters",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/v1/admin/transporters"
+          }
         }
       ]
     },
