@@ -167,4 +167,49 @@ export async function rentalRoutes(app: FastifyInstance) {
     ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, rentalBookingId: id, provider: body.provider, userId: user.id }, "rentals.booking.pay")
     return createRentalBookingPayment({ rentalBookingId: id, userId: user.id, provider: body.provider, phone: body.phone, email: body.email, method: body.method, meta: meta as Record<string, unknown> })
   })
+
+  const PresignBody = z.object({ filename: z.string().min(1).max(200), mimetype: z.string().min(1), size: z.number().int().positive().max(10 * 1024 * 1024).optional() })
+  async function handleRentalPresign(req: unknown) {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
+    const body = PresignBody.parse((req as { body: unknown }).body)
+    const { getStorage, objectKey } = await import("@camermove/media")
+    const storage = getStorage()
+    const key = objectKey(`rentals/${user.id}/photos`, body.filename.split(".").pop() ?? "jpg")
+    const uploadUrl = await storage.presignPut(key)
+    return { objectKey: key, uploadUrl }
+  }
+  app.post("/rentals/presign", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => handleRentalPresign(req))
+  app.post("/partner/rentals/presign", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => handleRentalPresign(req))
+
+  const PartnerRentalCreate = z.object({ make: z.string().min(1), model: z.string().min(1), category: z.string().min(1), year: z.number().int().optional(), licensePlate: z.string().optional(), capacity: z.number().int().min(1).max(30), transmission: z.string().optional(), fuelType: z.string().optional(), hasDriver: z.boolean().optional(), pricePerUnit: z.number().int().positive(), durationUnit: z.enum(["hour", "day", "week", "month"]).optional(), pickupCity: z.string().min(1), pickupAddress: z.string().optional(), photos: z.array(z.string()).optional(), amenities: z.array(z.string()).optional(), status: z.string().optional() })
+
+  app.get("/partner/rentals", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
+    const where = user.role === "admin" || user.role === "super_admin" ? {} : { ownerId: user.id }
+    const items = await prisma.rentalVehicle.findMany({ where: where as never, orderBy: { createdAt: "desc" } })
+    return { items }
+  })
+
+  app.post("/partner/rentals", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req, reply) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
+    const body = PartnerRentalCreate.parse(req.body)
+    const created = await prisma.rentalVehicle.create({ data: { make: body.make, model: body.model, category: body.category, year: body.year, licensePlate: body.licensePlate, capacity: body.capacity, transmission: body.transmission, fuelType: body.fuelType, hasDriver: body.hasDriver ?? false, pricePerUnit: body.pricePerUnit, durationUnit: (body.durationUnit as never) ?? "day", pickupCity: body.pickupCity, pickupAddress: body.pickupAddress, photos: body.photos ?? [], amenities: body.amenities ?? [], status: (body.status as never) ?? "available", ownerId: user.id } as never })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.rental.create", entityType: "RentalVehicle", entityId: created.id } }).catch(() => {})
+    return reply.code(201).send(created)
+  })
+
+  app.put("/partner/rentals/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const { id } = req.params as { id: string }
+    const existing = await prisma.rentalVehicle.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundError("Véhicule introuvable")
+    if ((existing as unknown as { ownerId: string | null }).ownerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")
+    const body = PartnerRentalCreate.partial().parse(req.body)
+    const updated = await prisma.rentalVehicle.update({ where: { id }, data: body as never })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.rental.update", entityType: "RentalVehicle", entityId: id } }).catch(() => {})
+    return updated
+  })
 }

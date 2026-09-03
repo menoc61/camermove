@@ -162,4 +162,62 @@ export async function hotelRoutes(app: FastifyInstance) {
     ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, hotelBookingId: id, provider: body.provider, userId: user.id }, "hotels.booking.pay")
     return createHotelBookingPayment({ hotelBookingId: id, userId: user.id, provider: body.provider, phone: body.phone, email: body.email, method: body.method, meta: meta as Record<string, unknown> })
   })
+
+  const PresignBody = z.object({ filename: z.string().min(1).max(200), mimetype: z.string().min(1), size: z.number().int().positive().max(10 * 1024 * 1024).optional() })
+  async function handleHotelPresign(req: unknown) {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
+    const body = PresignBody.parse((req as { body: unknown }).body)
+    const { getStorage, objectKey } = await import("@camermove/media")
+    const storage = getStorage()
+    const key = objectKey(`transporters/${user.id}/hotels`, body.filename.split(".").pop() ?? "jpg")
+    const uploadUrl = await storage.presignPut(key)
+    return { objectKey: key, uploadUrl }
+  }
+  app.post("/hotels/presign", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => handleHotelPresign(req))
+  app.post("/partner/hotels/presign", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => handleHotelPresign(req))
+
+  const PartnerHotelCreate = z.object({ name: z.string().min(2).max(100), city: z.string().min(1), region: z.string().optional(), address: z.string().optional(), description: z.string().optional(), starRating: z.number().int().min(1).max(5).optional(), amenities: z.array(z.string()).optional(), photos: z.array(z.string()).optional(), status: z.string().optional() })
+  const PartnerRoomCreate = z.object({ name: z.string().min(1), capacity: z.number().int().min(1).max(10), bedType: z.string().optional(), amenities: z.array(z.string()).optional(), photos: z.array(z.string()).optional(), pricePerNight: z.number().int().positive(), quantity: z.number().int().min(1).max(100), currency: z.string().optional() })
+
+  app.get("/partner/hotels", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
+    const where = user.role === "admin" || user.role === "super_admin" ? {} : { ownerId: user.id }
+    const hotels = await prisma.hotel.findMany({ where: where as never, include: { rooms: true }, orderBy: { createdAt: "desc" } })
+    return { items: hotels }
+  })
+
+  app.post("/partner/hotels", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req, reply) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
+    const body = PartnerHotelCreate.parse(req.body)
+    const created = await prisma.hotel.create({ data: { name: body.name, city: body.city, region: body.region, address: body.address, description: body.description, starRating: body.starRating, amenities: body.amenities ?? [], photos: body.photos ?? [], status: body.status ?? "active", ownerId: user.id } as never })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.hotel.create", entityType: "Hotel", entityId: created.id } }).catch(() => {})
+    return reply.code(201).send(created)
+  })
+
+  app.put("/partner/hotels/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const { id } = req.params as { id: string }
+    const existing = await prisma.hotel.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundError("Hôtel introuvable")
+    if ((existing as unknown as { ownerId: string | null }).ownerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")
+    const body = PartnerHotelCreate.partial().parse(req.body)
+    const updated = await prisma.hotel.update({ where: { id }, data: body as never })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.hotel.update", entityType: "Hotel", entityId: id } }).catch(() => {})
+    return updated
+  })
+
+  app.post("/partner/hotels/:id/rooms", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req, reply) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const { id } = req.params as { id: string }
+    const hotel = await prisma.hotel.findUnique({ where: { id } })
+    if (!hotel) throw new NotFoundError("Hôtel introuvable")
+    if ((hotel as unknown as { ownerId: string | null }).ownerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")
+    const body = PartnerRoomCreate.parse(req.body)
+    const room = await prisma.hotelRoom.create({ data: { hotelId: id, name: body.name, capacity: body.capacity, bedType: body.bedType, amenities: body.amenities ?? [], photos: body.photos ?? [], pricePerNight: body.pricePerNight, quantity: body.quantity, currency: body.currency ?? "XAF" } as never })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.hotel.room.create", entityType: "HotelRoom", entityId: room.id } }).catch(() => {})
+    return reply.code(201).send(room)
+  })
 }
