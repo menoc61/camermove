@@ -24,6 +24,8 @@ import { rawBodyPlugin } from "./plugins/rawBody"
 import { metadataPlugin } from "./plugins/metadata"
 import { rateLimitPlugin } from "./plugins/rateLimit"
 import { idempotencyPlugin } from "./plugins/idempotency"
+import { hotelRoutes } from "./hotels/routes"
+import { rentalRoutes } from "./rentals/routes"
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true, trustProxy: true })
@@ -65,6 +67,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(partnerApplicationRoutes, { prefix: "/api/v1" })
   await app.register(placesRoutes, { prefix: "/api/v1" })
   await app.register(agenciesRoutes, { prefix: "/api/v1" })
+  await app.register(hotelRoutes, { prefix: "/api/v1" })
+  await app.register(rentalRoutes, { prefix: "/api/v1" })
   app.get("/health", async () => ({ status: "ok" }))
   return app
 }
