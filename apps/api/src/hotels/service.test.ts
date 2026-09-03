@@ -39,7 +39,7 @@ describe("hotels/service ACID", () => {
     const b = new Date("2026-09-11T00:00:00.000Z")
     expect(calcNights(a, b)).toBe(1)
     expect(calcNights(a, new Date("2026-09-13T00:00:00.000Z"))).toBe(3)
-    // adjacent: checkOut == next checkIn should not overlap ÔÇö verified via strict lt/gt in query
+    // adjacent: checkOut == next checkIn should not overlap - verified via strict lt/gt in query
     // This test documents the contract: overlapping uses lt/gt not lte/gte
   })
 
@@ -74,13 +74,13 @@ describe("hotels/service ACID", () => {
         guestCount: 1,
         guestNames: ["Alice"],
       }),
-    ).rejects.toThrow(/Plus de disponibilit├®/)
+    ).rejects.toThrow(/Plus de dispon/)
 
     expect(txQueryRaw).toHaveBeenCalled()
     auditSpy.mockRestore()
   })
 
-  it("concurrent overlap quantity=1 ÔåÆ 1 succ├¿s 1 409", async () => {
+  it("concurrent overlap quantity=1 -> 1 success 1 409", async () => {
     const hotelId = "cmhotel1234567890123456"
     const roomTypeId = "cmroom123456789012345678"
     vi.spyOn(prisma.appSettings, "findUnique").mockResolvedValue({ id: "global", holdExpiryMinutes: 15 } as never)
@@ -121,6 +121,6 @@ describe("hotels/service ACID", () => {
     expect(fulfilled).toHaveLength(1)
     expect(rejected).toHaveLength(1)
     const err = (rejected[0] as PromiseRejectedResult).reason as Error
-    expect(err.message).toMatch(/Plus de disponibilit├®/)
+    expect(err.message).toMatch(/Plus de dispon/)
   })
 })

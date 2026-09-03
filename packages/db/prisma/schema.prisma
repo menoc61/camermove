@@ -95,9 +95,18 @@ model User {
   updatedAt      DateTime         @updatedAt
   socialAccounts SocialAccount[]
   bookings       Booking[]
+  hotelBookings HotelBooking[]
+  rentalBookings RentalBooking[]
+  parcels Parcel[]
+  insurancePolicies InsurancePolicy[]
+  eventBookings EventBooking[]
   notifications  Notification[]
   auditLogs      AuditLog[]
   transporter    Transporter?     @relation(fields: [transporterId], references: [id], onDelete: SetNull)
+  hotels            Hotel[]
+  rentalVehicles    RentalVehicle[]
+  parcelOperators   ParcelOperator[]
+  organizedEvents   Event[]
 }
 
 model SocialAccount {
@@ -123,6 +132,7 @@ model Transporter {
   vehicleCount      Int                @default(0)
   servedRoutes      String[]
   status            TransporterStatus  @default(pending)
+  commissionPercent Decimal?           @db.Decimal(5, 2)
   documents         Document[]
   vehicles          Vehicle[]
   routes            Route[]
@@ -166,9 +176,28 @@ model Route {
   transporterId   String
   transporter     Transporter @relation(fields: [transporterId], references: [id], onDelete: Cascade)
   trips           Trip[]
+  stops           RouteStop[]
   createdAt       DateTime    @default(now())
 
   @@unique([transporterId, originCity, destinationCity])
+}
+
+// Ordered boarding/drop-off points along a route (terminus + en-route dépôts).
+// offsetMinutes = ETA after the trip's departureAt at that stop.
+model RouteStop {
+  id            String   @id @default(cuid())
+  routeId       String
+  route         Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  name          String
+  kind          String // terminus | depo | stop
+  stopOrder     Int
+  offsetMinutes Int
+  boardings     Booking[] @relation("BookingBoardingStop")
+  dropOffs      Booking[] @relation("BookingDropOffStop")
+  createdAt     DateTime @default(now())
+
+  @@unique([routeId, name])
+  @@index([routeId, stopOrder])
 }
 
 model Trip {
@@ -219,6 +248,10 @@ model Booking {
   totalAmount   Int
   status        BookingStatus   @default(pending_payment)
   holdExpiresAt DateTime?
+  boardingStopId String?
+  boardingStop   RouteStop?     @relation("BookingBoardingStop", fields: [boardingStopId], references: [id], onDelete: SetNull)
+  dropOffStopId  String?
+  dropOffStop    RouteStop?     @relation("BookingDropOffStop", fields: [dropOffStopId], references: [id], onDelete: SetNull)
   passengers    Passenger[]
   payments      Payment[]
   commission    Commission?
@@ -241,8 +274,8 @@ model Passenger {
 
 model Payment {
   id             String          @id @default(cuid())
-  bookingId      String
-  booking        Booking         @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  bookingId      String?
+  booking        Booking?        @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   provider       PaymentProvider @default(notchpay)
   providerRef    String?
   amount         Int
@@ -252,12 +285,359 @@ model Payment {
   webhookPayload Json?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  hotelBooking    HotelBooking?
+  rentalBooking   RentalBooking?
+  parcel          Parcel?
+  insurancePolicy InsurancePolicy?
+  eventBooking    EventBooking?
 
   @@index([status, createdAt])
   @@index([provider, providerRef])
   @@index([bookingId, status])
   @@index([providerRef])
   // providerRef is nullable until creation; one-pending-per-booking enforced via app guard + partial index migration (not hard unique on nullable)
+}
+
+enum RentalVehicleStatus {
+  available
+  rented
+  maintenance
+  inactive
+}
+
+enum RentalDurationUnit {
+  hour
+  day
+  week
+  month
+}
+
+enum RentalBookingStatus {
+  pending_payment
+  confirmed
+  active
+  completed
+  cancelled
+}
+
+enum ParcelStatus {
+  registered
+  picked_up
+  in_transit
+  arrived
+  available_for_pickup
+  delivered
+  returned
+}
+
+enum InsuranceCoverageType {
+  basic
+  standard
+  premium
+  family
+}
+
+enum EventType {
+  concert
+  sport
+  conference
+  festival
+  theatre
+  other
+}
+
+enum EventTicketStatus {
+  on_sale
+  limited
+  sold_out
+  cancelled
+}
+
+model Hotel {
+  id              String          @id @default(cuid())
+  ownerId         String?
+  owner           User?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  name            String
+  description     String?         @db.Text
+  address         String?
+  city            String
+  region          String?
+  country         String          @default("Cameroun")
+  latitude        Decimal?        @db.Decimal(9, 6)
+  longitude       Decimal?        @db.Decimal(9, 6)
+  starRating      Int?
+  amenities       String[]
+  photos          String[]
+  status          String          @default("active")
+  partnerStatus   String          @default("pending")
+  rooms           HotelRoom[]
+  bookings        HotelBooking[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([city, status])
+  @@index([partnerStatus])
+}
+
+model HotelRoom {
+  id              String          @id @default(cuid())
+  hotelId         String
+  hotel           Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?         @db.Text
+  capacity        Int             @default(2)
+  bedType         String?
+  amenities       String[]
+  photos          String[]
+  pricePerNight   Int
+  currency        String          @default("XAF")
+  quantity        Int             @default(1)
+  status          String          @default("available")
+  bookings        HotelBooking[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([hotelId, status])
+}
+
+model HotelBooking {
+  id              String              @id @default(cuid())
+  hotelId         String
+  hotel           Hotel               @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  roomTypeId      String
+  roomType        HotelRoom           @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkInDate     DateTime
+  checkOutDate    DateTime
+  guestCount      Int                 @default(1)
+  totalAmount     Int
+  currency        String              @default("XAF")
+  status          BookingStatus       @default(pending_payment)
+  guestNames      String[]
+  specialRequests String?             @db.Text
+  paymentId       String?             @unique
+  payment         Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId, status])
+  @@index([hotelId, status])
+  @@index([checkInDate])
+}
+
+model RentalVehicle {
+  id              String              @id @default(cuid())
+  ownerId         String?
+  owner           User?               @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  category        String
+  make            String
+  model           String
+  year            Int?
+  licensePlate    String?             @unique
+  capacity        Int                 @default(4)
+  transmission    String?
+  fuelType        String?
+  hasDriver       Boolean             @default(false)
+  pricePerUnit    Int
+  durationUnit    RentalDurationUnit  @default(day)
+  currency        String              @default("XAF")
+  pickupCity      String
+  pickupAddress   String?
+  photos          String[]
+  amenities       String[]
+  status          RentalVehicleStatus @default(available)
+  partnerStatus   String              @default("pending")
+  bookings        RentalBooking[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([pickupCity, status])
+  @@index([category, status])
+  @@index([partnerStatus])
+}
+
+model RentalBooking {
+  id              String                @id @default(cuid())
+  rentalVehicleId String
+  vehicle         RentalVehicle         @relation(fields: [rentalVehicleId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate       DateTime
+  endDate         DateTime
+  duration        Int
+  durationUnit    RentalDurationUnit
+  totalAmount     Int
+  currency        String                @default("XAF")
+  status          RentalBookingStatus   @default(pending_payment)
+  pickupCity      String
+  pickupAddress   String?
+  dropoffCity     String?
+  dropoffAddress  String?
+  driverName      String?
+  driverPhone     String?
+  paymentId       String?               @unique
+  payment         Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([userId, status])
+  @@index([rentalVehicleId, status])
+  @@index([startDate])
+}
+
+model ParcelOperator {
+  id              String          @id @default(cuid())
+  ownerId         String?
+  owner           User?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  companyName     String
+  contactName     String?
+  phone           String?
+  email           String?         @unique
+  citiesServed    String[]
+  status          String          @default("active")
+  partnerStatus   String          @default("pending")
+  parcels         Parcel[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([partnerStatus])
+}
+
+model Parcel {
+  id                String          @id @default(cuid())
+  trackingNumber    String          @unique
+  operatorId        String?
+  operator          ParcelOperator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  senderName        String
+  senderPhone       String
+  senderCity        String
+  recipientName     String
+  recipientPhone    String
+  recipientCity     String
+  recipientAddress  String?
+  parcelType        String
+  weightKg          Decimal?        @db.Decimal(8, 2)
+  dimensionsCm      String?
+  description       String?         @db.Text
+  declaredValue     Int?
+  shippingCost      Int
+  currency          String          @default("XAF")
+  status            ParcelStatus    @default(registered)
+  currentLocation   String?
+  paymentId         String?         @unique
+  payment           Payment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  statusHistory     ParcelStatusLog[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([userId, status])
+  @@index([trackingNumber])
+  @@index([recipientCity, status])
+}
+
+model ParcelStatusLog {
+  id        String      @id @default(cuid())
+  parcelId  String
+  parcel    Parcel      @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  status    ParcelStatus
+  location  String?
+  note      String?     @db.Text
+  createdAt DateTime    @default(now())
+
+  @@index([parcelId, createdAt])
+}
+
+model InsurancePolicy {
+  id              String              @id @default(cuid())
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerName    String
+  coverageType    InsuranceCoverageType
+  destination     String
+  startDate       DateTime
+  endDate         DateTime
+  travelers       Int                 @default(1)
+  premium         Int
+  currency        String              @default("XAF")
+  status          BookingStatus       @default(pending_payment)
+  policyNumber    String?             @unique
+  documentUrl     String?
+  paymentId       String?             @unique
+  payment         Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId, status])
+  @@index([startDate])
+}
+
+model Event {
+  id              String              @id @default(cuid())
+  organizerId     String?
+  organizer       User?               @relation(fields: [organizerId], references: [id], onDelete: SetNull)
+  name            String
+  description     String?             @db.Text
+  eventType       EventType
+  posterUrl       String?
+  venue           String
+  city            String
+  startDate       DateTime
+  endDate         DateTime?
+  status          EventTicketStatus   @default(on_sale)
+  partnerStatus   String              @default("pending")
+  ticketCategories TicketCategory[]
+  bookings        EventBooking[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([city, status])
+  @@index([eventType])
+  @@index([startDate])
+}
+
+model TicketCategory {
+  id              String              @id @default(cuid())
+  eventId         String
+  event           Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?             @db.Text
+  price           Int
+  currency        String              @default("XAF")
+  quantity        Int
+  sold            Int                 @default(0)
+  status          EventTicketStatus   @default(on_sale)
+  bookings        EventBooking[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([eventId, status])
+}
+
+model EventBooking {
+  id              String              @id @default(cuid())
+  eventId         String
+  event           Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketCategoryId String
+  ticketCategory  TicketCategory      @relation(fields: [ticketCategoryId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quantity        Int                 @default(1)
+  totalAmount     Int
+  currency        String              @default("XAF")
+  status          BookingStatus       @default(pending_payment)
+  ticketNumber    String?             @unique
+  qrCode          String?
+  paymentId       String?             @unique
+  payment         Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId, status])
+  @@index([eventId, status])
+  @@index([ticketNumber])
 }
 
 model Commission {
@@ -293,6 +673,9 @@ model Notification {
   payload       Json
   sentAt        DateTime?
   createdAt     DateTime           @default(now())
+
+  @@index([userId, status])
+  @@index([createdAt])
 }
 
 model AuditLog {
@@ -304,6 +687,10 @@ model AuditLog {
   entityId   String
   metadata   Json?
   createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([createdAt])
+  @@index([entityType, createdAt])
 }
 
 model PartnerApplication {
@@ -332,6 +719,7 @@ model AppSettings {
   smtpHost          String?
   smtpPort          Int?
   smtpUser          String?
+  smtpPass          String?
   smtpFrom          String?
   featureFlags      Json?    @default("{}")
   maintenanceMode   Boolean  @default(false)

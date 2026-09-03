@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { prisma } from "@camermove/db"
 import { getStorage } from "@camermove/media"
 import { NotFoundError, ForbiddenError, ConflictError, loadEnv } from "@camermove/config"

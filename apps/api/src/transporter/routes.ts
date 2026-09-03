@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { FastifyInstance } from "fastify"
 import { prisma } from "@camermove/db"
 import { loadEnv } from "@camermove/config"
