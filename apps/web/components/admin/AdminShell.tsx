@@ -17,6 +17,8 @@ import { AdminAuditLog } from "./AdminAuditLog"
 import { AdminSettings } from "./AdminSettings"
 import { AdminHotels } from "./AdminHotels"
 import { AdminRentals } from "./AdminRentals"
+import { AdminParcels } from "./AdminParcels"
+import { AdminEvents } from "./AdminEvents"
 
 const NAV = [
   "Tableau de bord",
@@ -28,6 +30,8 @@ const NAV = [
   "Commissions",
   "Hôtels",
   "Véhicules",
+  "Colis",
+  "Événements",
   "Paramètres",
   "Journal d'audit",
 ] as const
@@ -58,6 +62,10 @@ function renderSection(active: NavItem) {
       return <AdminSettings />
     case "Journal d'audit":
       return <AdminAuditLog />
+    case "Colis":
+      return <AdminParcels />
+    case "Événements":
+      return <AdminEvents />
     default:
       return null
   }

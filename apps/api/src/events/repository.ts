@@ -12,7 +12,7 @@ export function buildEventWhere(input: {
 }): EventSearchWhereInput {
   const where: EventSearchWhereInput = {}
 
-  // Only published events: status on_sale/limited and partnerStatus approved (admin seul publie)
+  // Only on_sale/limited + partnerStatus approved (admin-only publish)
   where.status = { in: ["on_sale", "limited"] as never }
   where.partnerStatus = "approved"
 
