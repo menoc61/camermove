@@ -59,28 +59,57 @@ Phases derived from v1 requirements. Each phase is a vertical MVP slice deliveri
 
 **Requirements:** TICK-01..02, NOTIF-01..03
 
-### Phase 5: Transporter & Admin
-**Goal:** Transporters self-serve and CamerMove operates the platform.
+### Phase 5: Transporter & Admin + Interurban Marketplace (Black/White/Grey + GSAP)
+**Goal:** Transporters self-serve + marketplace multi-agency (Finexs/Buca/Touristique 777/Général/Amour Mezam) + monochrome classic + live inventory stepper.
 **Mode:** mvp
 **Success Criteria:**
 1. Transporter manages profile/vehicles/routes/schedules/prices/capacity via presigned MinIO uploads and sees bookings/payments
 2. Admin manages users/transporters/trips/bookings/payments/commissions, reviews partner applications, configures commission, views stats/audit log
-3. Public pages (home, how it works, become partner, FAQ, contact, legal) are live and mobile-first
+3. Public pages + multi-agency search (agency chips, live seats max=min(10,seatsAvailable), stepper, monochrome TripCard, GSAP 60fps transform/opacity)
 **Plans:**
-- 5.1 Transporter self-service + MinIO presigned flows
-- 5.2 Admin back-office + commission reporting + public content
+- 05-01-PLAN.md — Interurban Multi-Agency Marketplace (verified 2026-09-03: globals.css monochrome, GSAP, stepper, liveSeats, agency chips, trip-card) ✓
 
 **Requirements:** TRANS-01..03, ADMIN-01..03
+
+### Phase 6: Vague A — Hébergement & Mobilité (Hôtels + Location) ✓
+**Goal:** Hôtels/apparts et véhicules réservables bout-à-bout, atomiques, payés, sans surréservation.
+**Mode:** mvp
+**Success Criteria:**
+1. Hotels : recherche paginée cache 60s + fiche + création atomique overlap < quantity + nuits*price + idempotent + export + pay polymorphe
+2. Rentals : catalogue multi-villes + fiche + durée selon durationUnit + overlap strict + driver option + idempotent + export + pay
+3. Web : homepage hero 2x + SiteNav 7 entrées + /hotels + /rentals parcours + dashboard onglets + partner CRUD presigned + admin hôtels/véhicules + exports
+**Plans:** 3 plans — all complete 2026-09-03
+- [x] 06-01-PLAN.md — API Hotels : repository+service ACID overlap + routes Zod/cache/meta/idempotency/export/pay
+- [x] 06-02-PLAN.md — API Rentals : repository+service duration+overlap ACID + routes cache/meta/export/pay multi-villes
+- [x] 06-03-PLAN.md — Web+Partner+Admin : homepage/nav hero, /hotels /rentals parcours, dashboard Tabs, partner presigned, admin Hotels/Rentals + exports
+
+### Phase 7: Vague B — Logistique & Loisirs (Colis + Événements) — MASSIF (assurance defer v1.2)
+**Goal:** Colis tarifiable + suivi 6 états + Events QR billetterie, tous payés, admin publié.
+**Mode:** mvp
+**Success Criteria:**
+1. Parcels : grille AppSettings 500+100/kg + création avec trackingNumber + statusHistory registered→delivered + suivi public sanitized + export + pay optionnel
+2. Events : catalogue city/type + fiche + booking atomique quantity-sold FOR UPDATE + ticketNumber QR + pay + verify
+3. Web : /parcels formulaire+s suivi timeline + /events catalogue+fiche+panier QR + admin parcels/events + exports
+**Plans:** 3 plans (à détailler après Vague A)
+- [ ] 07-01-PLAN.md — API Parcels
+- [ ] 07-02-PLAN.md — API Events + QR
+- [ ] 07-03-PLAN.md — Web+Admin Parcels/Events + Dashboard global
 
 ## Traceability
 
 All 38 v1 requirements mapped. No unmapped.
+Vague A maps HOTEL-01..05, RENTAL-01..05, NAV-01, HOME-01, DASH-01, ADMIN-04.
+Vague B maps PARCEL-01..04, EVENT-01..04, ADMIN-05. Assurance defer.
 
 ## Risks
 
 - Seed data + indexes are critical for search perf — verify with `pnpm smoke:search` and explain plan
 - NotchPay sandbox creds are placeholders until validated — keep PaymentProvider swappable
 - SMTP creds are env-gated — MailHog fallback must not mask prod misconfig (alert on failed email)
+- Vague A overlap hotel `checkIn<newCheckOut && checkOut>newStart` stricte, nights timezone UTC — cap 30 nuits
+- Vague B parcel pricing AppSettings hot-reload sans redeploy — cache 30s
+- Payment.bookingId nullable migration 20260903000000 — vérifier prod data existante non-null avant DROP NOT NULL
 
 ---
 *Roadmap created: 2026-08-24*
+*Roadmap updated: 2026-09-03 — Phase 5 marketplace verified + Phase 6 Vague A complete (3/3 plans)*
