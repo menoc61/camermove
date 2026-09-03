@@ -3,15 +3,19 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence, useMotionValueEvent, useScroll } from "motion/react"
+import { useAuthStore } from "@camermove/frontend"
 import { cn } from "@/lib/utils"
 import { hoverLift } from "@/lib/animations"
 import type { Variants } from "motion/react"
 
 const NAV_LINKS: { href: string; label: string; isLink?: boolean }[] = [
-  { href: "#etapes", label: "Comment ça marche" },
-  { href: "#agences", label: "Agences" },
-  { href: "#departures", label: "Prochains départs" },
-  { href: "/transporter/apply", label: "Devenir partenaire", isLink: true },
+  { href: "/", label: "Accueil", isLink: true },
+  { href: "/results", label: "Transport interurbain", isLink: true },
+  { href: "/hotels", label: "Hôtels & apparts", isLink: true },
+  { href: "/rentals", label: "Location véhicules", isLink: true },
+  { href: "/parcels", label: "Transport colis", isLink: true },
+  { href: "/events", label: "Billetterie", isLink: true },
+  { href: "/dashboard", label: "Mes réservations", isLink: true },
 ]
 
 const overlayVariants: Variants = {
@@ -34,6 +38,7 @@ const staggerLinkItem: Variants = {
 }
 
 export function SiteNav() {
+  const accessToken = useAuthStore((s) => s.accessToken)
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const hamburgerRef = useRef<HTMLButtonElement>(null)
@@ -130,14 +135,23 @@ export function SiteNav() {
             )}
           </div>
 
-          {/* Login button */}
-          <motion.div whileHover={hoverLift} className="hidden md:block">
-            <Link
-              href="/login"
-              className="inline-flex h-9 items-center rounded-lg border border-input bg-background px-4 text-sm font-semibold text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-            >
-              Se connecter
-            </Link>
+          {/* Auth button: Compte dropdown si auth sinon Se connecter */}
+          <motion.div whileHover={hoverLift} className="hidden items-center gap-2 md:flex">
+            {accessToken ? (
+              <Link
+                href="/dashboard"
+                className="inline-flex h-9 items-center rounded-lg border border-input bg-background px-4 text-sm font-semibold text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                Compte
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                className="inline-flex h-9 items-center rounded-lg border border-input bg-background px-4 text-sm font-semibold text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                Se connecter
+              </Link>
+            )}
           </motion.div>
 
           {/* Mobile hamburger */}
@@ -203,13 +217,22 @@ export function SiteNav() {
                 </motion.div>
               ))}
 
-              <motion.div variants={staggerLinkItem} className="mt-6">
+              <motion.div variants={staggerLinkItem} className="mt-3">
                 <Link
-                  href="/login"
+                  href="/dashboard"
+                  onClick={toggleMobile}
+                  className="block py-2 text-lg font-medium text-foreground"
+                >
+                  Compte
+                </Link>
+              </motion.div>
+              <motion.div variants={staggerLinkItem} className="mt-2">
+                <Link
+                  href={accessToken ? "/dashboard" : "/login"}
                   onClick={toggleMobile}
                   className="inline-flex h-12 items-center rounded-xl bg-primary px-8 text-base font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                 >
-                  Se connecter
+                  {accessToken ? "Mon compte" : "Se connecter"}
                 </Link>
               </motion.div>
             </motion.nav>

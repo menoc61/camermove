@@ -37,6 +37,9 @@ export function SiteFooter() {
           <p className="mt-3 max-w-[32ch] text-sm leading-relaxed text-surface-3">
             La façon simple de réserver vos trajets interurbains au Cameroun.
           </p>
+          <p className="mt-2 text-xs font-medium text-surface-2">
+            Le transport interurbain est notre service principal
+          </p>
           <div className="mt-5 flex items-center gap-3">
             {[
               {

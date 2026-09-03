@@ -1,3 +1,5 @@
+import Link from "next/link"
+import { Bed, Bus, Car, Package, Ticket } from "lucide-react"
 import { prisma } from "@camermove/db"
 import { SiteNav } from "@/components/landing/SiteNav"
 import { Hero } from "@/components/landing/Hero"
@@ -16,6 +18,8 @@ export default async function HomePage() {
   let minPrice: number | undefined
   let trips: SearchResultItem[] = []
   let agencies: Agency[] = []
+  let hotelsCount = 0
+  let rentalsCount = 0
 
   try {
     const [minTrip, upcomingTrips, agencyRows] = await Promise.all([
@@ -65,12 +69,72 @@ export default async function HomePage() {
   } catch {
     // DB unavailable — render without data
   }
+  try {
+    const [hc, rc] = await Promise.all([
+      prisma.hotel.count({ where: { status: "active" } }),
+      prisma.rentalVehicle.count({ where: { status: "available" } }),
+    ])
+    hotelsCount = hc
+    rentalsCount = rc
+  } catch {
+    // best-effort
+  }
 
   return (
     <>
       <SiteNav />
       <main>
         <Hero minPrice={minPrice != null ? minPrice : undefined} />
+        {/* Services grid — transport dominant 2x secondary */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+          <p className="mb-3 text-center text-sm font-medium text-muted-foreground">
+            Le transport interurbain est notre service principal
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Link
+              href="/results?origin=Yaound%C3%A9&destination=Douala&pax=1"
+              className="col-span-1 md:col-span-2 md:row-span-2 flex flex-col justify-between rounded-2xl bg-primary p-6 text-primary-foreground shadow-lg min-h-[280px]"
+            >
+              <div>
+                <div className="inline-flex rounded-full bg-white/20 p-3">
+                  <Bus className="size-6" />
+                </div>
+                <h2 className="mt-4 text-2xl font-bold tracking-tight">Transport interurbain</h2>
+                <p className="mt-2 text-sm text-primary-foreground/80">
+                  Yaoundé ⇄ Douala — réservez votre bus en 2 minutes, paiement Mobile Money.
+                </p>
+              </div>
+              <span className="mt-6 inline-flex w-fit rounded-full bg-white px-5 py-2 text-sm font-semibold text-primary">
+                Réserver un bus
+              </span>
+            </Link>
+            <Link href="/hotels" className="rounded-2xl border bg-card p-5 shadow-sm hover:border-primary/30 transition-colors">
+              <Bed className="size-5 text-muted-foreground" />
+              <h3 className="mt-3 font-semibold">Hôtels & apparts</h3>
+              <p className="text-sm text-muted-foreground">{hotelsCount} hôtels</p>
+            </Link>
+            <Link href="/rentals" className="rounded-2xl border bg-card p-5 shadow-sm hover:border-primary/30 transition-colors">
+              <Car className="size-5 text-muted-foreground" />
+              <h3 className="mt-3 font-semibold">Location véhicules</h3>
+              <p className="text-sm text-muted-foreground">{rentalsCount} véhicules</p>
+            </Link>
+            <Link href="/parcels" className="rounded-2xl border bg-card p-5 shadow-sm hover:border-primary/30 transition-colors">
+              <Package className="size-5 text-muted-foreground" />
+              <h3 className="mt-3 font-semibold">Transport colis</h3>
+              <p className="text-sm text-muted-foreground">Envoi sécurisé</p>
+            </Link>
+            <Link href="/events" className="rounded-2xl border bg-card p-5 shadow-sm hover:border-primary/30 transition-colors">
+              <Ticket className="size-5 text-muted-foreground" />
+              <h3 className="mt-3 font-semibold">Billetterie</h3>
+              <p className="text-sm text-muted-foreground">Événements</p>
+            </Link>
+            <Link href="/intraurban" className="rounded-2xl border bg-card p-5 shadow-sm hover:border-primary/30 transition-colors">
+              <Bus className="size-5 text-muted-foreground" />
+              <h3 className="mt-3 font-semibold">Intraurbain</h3>
+              <p className="text-sm text-muted-foreground">Déplacements en ville</p>
+            </Link>
+          </div>
+        </section>
         <Steps />
 
         <MotionSection>
