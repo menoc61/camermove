@@ -1,0 +1,1 @@
+export { insuranceRoutes } from "./routes"

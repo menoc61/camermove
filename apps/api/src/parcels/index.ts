@@ -1,0 +1,1 @@
+export { parcelRoutes } from "./routes"
