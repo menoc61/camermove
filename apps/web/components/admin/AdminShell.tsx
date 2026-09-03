@@ -15,6 +15,8 @@ import { AdminPayments } from "./AdminPayments"
 import { AdminCommissions } from "./AdminCommissions"
 import { AdminAuditLog } from "./AdminAuditLog"
 import { AdminSettings } from "./AdminSettings"
+import { AdminHotels } from "./AdminHotels"
+import { AdminRentals } from "./AdminRentals"
 
 const NAV = [
   "Tableau de bord",
@@ -24,6 +26,8 @@ const NAV = [
   "Réservations",
   "Paiements",
   "Commissions",
+  "Hôtels",
+  "Véhicules",
   "Paramètres",
   "Journal d'audit",
 ] as const
@@ -46,6 +50,10 @@ function renderSection(active: NavItem) {
       return <AdminPayments />
     case "Commissions":
       return <AdminCommissions />
+    case "Hôtels":
+      return <AdminHotels />
+    case "Véhicules":
+      return <AdminRentals />
     case "Paramètres":
       return <AdminSettings />
     case "Journal d'audit":

@@ -252,6 +252,124 @@ export async function adminRoutes(app: FastifyInstance) {
     return sendExport(reply, "audit-logs", dateFrom, dateTo, format, result.items as unknown as Record<string, unknown>[], columns)
   })
 
+  // ── Hotels (admin) ────────────────────────────────────────────────────────
+  app.get("/admin/hotels", async (req) => {
+    const q = PaginationQuery.parse(req.query)
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    const { prisma: p } = await import("@camermove/db")
+    const filter = req.query as Record<string, string>
+    const where: Record<string, unknown> = {}
+    if (filter.q) where.OR = [{ name: { contains: filter.q, mode: "insensitive" } }, { city: { contains: filter.q, mode: "insensitive" } }]
+    if (filter.city) where.city = { contains: filter.city, mode: "insensitive" }
+    if (filter.status) where.status = filter.status
+    if (filter.partnerStatus) where.partnerStatus = filter.partnerStatus
+    if (filter.dateFrom || filter.dateTo) {
+      const createdAt: Record<string, Date> = {}
+      if (filter.dateFrom) createdAt.gte = new Date(filter.dateFrom)
+      if (filter.dateTo) createdAt.lte = new Date(filter.dateTo + "T23:59:59Z")
+      where.createdAt = createdAt
+    }
+    req.log.info({ ...meta, actorId: actor.id, ...q }, "admin.hotels.list")
+    const skip = (q.page - 1) * q.limit
+    const [items, total] = await Promise.all([
+      p.hotel.findMany({ where: where as never, skip, take: q.limit, orderBy: { createdAt: "desc" }, include: { rooms: true, owner: { select: { id: true, email: true } } } }),
+      p.hotel.count({ where: where as never }),
+    ])
+    return { items, total, page: q.page, totalPages: Math.ceil(total / q.limit) }
+  })
+
+  app.get("/admin/hotels/export", async (req, reply) => {
+    const { dateFrom, dateTo, format } = parseExportQuery(req.query as Record<string, unknown>)
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, actorId: actor.id, dateFrom, dateTo, format }, "admin.hotels.export")
+    const { prisma: p } = await import("@camermove/db")
+    const q = req.query as Record<string, string>
+    const where: Record<string, unknown> = {}
+    if (q.q) where.OR = [{ name: { contains: q.q, mode: "insensitive" } }]
+    if (dateFrom || dateTo) {
+      const createdAt: Record<string, Date> = {}
+      if (dateFrom) createdAt.gte = new Date(dateFrom)
+      if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59Z")
+      where.createdAt = createdAt
+    }
+    const rows = await p.hotel.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } })
+    const columns = ["id", "name", "city", "starRating", "status", "partnerStatus", "ownerId", "createdAt"]
+    return sendExport(reply, "admin-hotels", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
+  })
+
+  app.put("/admin/hotels/:id", async (req) => {
+    const { id } = req.params as { id: string }
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    const body = req.body as Record<string, unknown>
+    const { prisma: p } = await import("@camermove/db")
+    req.log.info({ ...meta, actorId: actor.id, entityId: id }, "admin.hotel.update")
+    const updated = await p.hotel.update({ where: { id }, data: body as never })
+    await p.auditLog.create({ data: { actorId: actor.id, action: "admin.hotel.update", entityType: "Hotel", entityId: id, metadata: body as never } }).catch(() => {})
+    return updated
+  })
+
+  // ── Rentals (admin) ───────────────────────────────────────────────────────
+  app.get("/admin/rentals", async (req) => {
+    const q = PaginationQuery.parse(req.query)
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    const { prisma: p } = await import("@camermove/db")
+    const filter = req.query as Record<string, string>
+    const where: Record<string, unknown> = {}
+    if (filter.q) where.OR = [{ make: { contains: filter.q, mode: "insensitive" } }, { model: { contains: filter.q, mode: "insensitive" } }, { pickupCity: { contains: filter.q, mode: "insensitive" } }]
+    if (filter.category) where.category = filter.category
+    if (filter.status) where.status = filter.status
+    if (filter.partnerStatus) where.partnerStatus = filter.partnerStatus
+    if (filter.dateFrom || filter.dateTo) {
+      const createdAt: Record<string, Date> = {}
+      if (filter.dateFrom) createdAt.gte = new Date(filter.dateFrom)
+      if (filter.dateTo) createdAt.lte = new Date(filter.dateTo + "T23:59:59Z")
+      where.createdAt = createdAt
+    }
+    req.log.info({ ...meta, actorId: actor.id, ...q }, "admin.rentals.list")
+    const skip = (q.page - 1) * q.limit
+    const [items, total] = await Promise.all([
+      p.rentalVehicle.findMany({ where: where as never, skip, take: q.limit, orderBy: { createdAt: "desc" }, include: { owner: { select: { id: true, email: true } } } }),
+      p.rentalVehicle.count({ where: where as never }),
+    ])
+    return { items, total, page: q.page, totalPages: Math.ceil(total / q.limit) }
+  })
+
+  app.get("/admin/rentals/export", async (req, reply) => {
+    const { dateFrom, dateTo, format } = parseExportQuery(req.query as Record<string, unknown>)
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, actorId: actor.id, dateFrom, dateTo, format }, "admin.rentals.export")
+    const { prisma: p } = await import("@camermove/db")
+    const q = req.query as Record<string, string>
+    const where: Record<string, unknown> = {}
+    if (q.q) where.OR = [{ make: { contains: q.q, mode: "insensitive" } }]
+    if (dateFrom || dateTo) {
+      const createdAt: Record<string, Date> = {}
+      if (dateFrom) createdAt.gte = new Date(dateFrom)
+      if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59Z")
+      where.createdAt = createdAt
+    }
+    const rows = await p.rentalVehicle.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } })
+    const columns = ["id", "make", "model", "category", "pickupCity", "pricePerUnit", "durationUnit", "status", "partnerStatus", "ownerId", "createdAt"]
+    return sendExport(reply, "admin-rentals", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
+  })
+
+  app.put("/admin/rentals/:id", async (req) => {
+    const { id } = req.params as { id: string }
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    const body = req.body as Record<string, unknown>
+    const { prisma: p } = await import("@camermove/db")
+    req.log.info({ ...meta, actorId: actor.id, entityId: id }, "admin.rental.update")
+    const updated = await p.rentalVehicle.update({ where: { id }, data: body as never })
+    await p.auditLog.create({ data: { actorId: actor.id, action: "admin.rental.update", entityType: "RentalVehicle", entityId: id, metadata: body as never } }).catch(() => {})
+    return updated
+  })
+
   // ── Settings ────────────────────────────────────────────────────────────────
   // (settings routes are already in admin/settings.ts — include them here too)
   const { prisma } = await import("@camermove/db")
