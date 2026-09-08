@@ -3,7 +3,7 @@ import { useParams } from "next/navigation"
 import { useBookingStore } from "@camermove/frontend"
 import { PassengerForm } from "../../../components/booking/passenger-form"
 import { Recap } from "../../../components/booking/recap"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -13,16 +13,30 @@ export default function BookPage() {
   const { tripId } = useParams() as { tripId: string }
   const { setBooking, seatCount, passengers } = useBookingStore()
   const [trip, setTrip] = useState<{ price: number } | null>(null)
+  const prevTripId = useRef<string | null>(null)
+
+  const bookingTripId = useBookingStore((s) => s.tripId)
+  useEffect(() => {
+    // Only init if store is empty or points to a different trip — preserve
+    // passenger name prefilled from trips/[id] seat map
+    if (prevTripId.current === tripId) return
+    prevTripId.current = tripId
+    if (bookingTripId !== tripId) {
+      setBooking({ tripId, seatCount: 1, passengers: [{ fullName: "" }] })
+    }
+  }, [tripId, setBooking, bookingTripId])
 
   useEffect(() => {
-    setBooking({ tripId })
-  }, [tripId, setBooking])
-
-  useEffect(() => {
+    let alive = true
     fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"}/api/v1/trips/${tripId}`)
       .then((r) => r.json())
-      .then((data) => setTrip({ price: data.price }))
+      .then((data) => {
+        if (alive) setTrip({ price: data.price })
+      })
       .catch(() => {})
+    return () => {
+      alive = false
+    }
   }, [tripId])
 
   return (

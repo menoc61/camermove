@@ -219,6 +219,7 @@ function ResultsInner() {
     sortBy: (sp.get("sortBy") as SearchParams["sortBy"]) ?? "price_asc",
     minPrice: sp.get("minPrice") ? Number(sp.get("minPrice")) : undefined,
     maxPrice: sp.get("maxPrice") ? Number(sp.get("maxPrice")) : undefined,
+    vehicleType: sp.get("vehicleType") ?? undefined,
     page: Number(sp.get("page") ?? 1),
   }
 
@@ -232,6 +233,7 @@ function ResultsInner() {
       params.sortBy,
       params.minPrice ?? null,
       params.maxPrice ?? null,
+      params.vehicleType ?? null,
       params.page,
     ],
     queryFn: () => fetchSearch(params),

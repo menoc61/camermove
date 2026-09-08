@@ -24,6 +24,7 @@ export async function fetchSearch(params: SearchParams): Promise<{ items: Search
   const qs = new URLSearchParams({ origin: params.origin, destination: params.destination, date: params.date, pax: String(params.pax), sortBy: params.sortBy ?? "price_asc", page: String(params.page ?? 1), perPage: String(params.perPage ?? 20) })
   if (params.minPrice != null) qs.set("minPrice", String(params.minPrice))
   if (params.maxPrice != null) qs.set("maxPrice", String(params.maxPrice))
+  if (params.vehicleType) qs.set("vehicleType", params.vehicleType)
   const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
   const res = await fetch(`${base}/api/v1/search?${qs.toString()}`, { cache: "no-store" })
   if (!res.ok) throw new Error("search failed")

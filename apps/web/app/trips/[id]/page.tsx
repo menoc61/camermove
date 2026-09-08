@@ -110,17 +110,17 @@ export default function TripDetailPage() {
   const statusLabel = trip.status === "active" ? "En vente" : trip.status === "cancelled" ? "Annulé" : trip.status
   const soldOut = seatsAvailable === 0
   const seats = buildSeats(trip.totalSeats, seatsAvailable)
+  const totalRows = Math.ceil(seats.length / 4)
   const rows: typeof seats[] = []
-  for (let r = 0; r < 11; r++) { const slice = seats.slice(r * 4, r * 4 + 4); if (slice.length) rows.push(slice) }
+  for (let r = 0; r < totalRows; r++) { const slice = seats.slice(r * 4, r * 4 + 4); if (slice.length) rows.push(slice) }
   const picked = seats.find((s) => s.id === seatId)
   const seatLabel = picked ? String(picked.label) : "—"
   function pick(id: string) {
-    // mimic reference: only one held at a time
     setSeatId(id)
   }
   const displaySeats = seats.map((s) => s.id === seatId ? { ...s, status: "held" as const } : s)
   const displayRows: typeof displaySeats[] = []
-  for (let r = 0; r < 11; r++) { const slice = displaySeats.slice(r * 4, r * 4 + 4); if (slice.length) displayRows.push(slice) }
+  for (let r = 0; r < totalRows; r++) { const slice = displaySeats.slice(r * 4, r * 4 + 4); if (slice.length) displayRows.push(slice) }
 
   return (
     <main className="mx-auto max-w-md space-y-4 p-4 pb-28" style={{ background: "#F7F5F0", minHeight: "100vh" }}>
