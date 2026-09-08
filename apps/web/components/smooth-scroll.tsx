@@ -35,9 +35,9 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
         lenis.raf(time * 1000)
       }
       gsapInstance.ticker.add(tickerCallback)
-      gsapInstance.ticker.lagSmoothing(0)
 
-      gsapInstance.set("body", { css: { visibility: "visible" } })
+      // Recompute trigger positions now that Lenis owns the scroll.
+      ScrollTrigger.refresh()
     }
 
     init()

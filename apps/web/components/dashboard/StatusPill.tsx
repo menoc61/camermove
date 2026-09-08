@@ -1,13 +1,14 @@
 "use client"
 import { Badge } from "@/components/ui/badge"
 
-export type StatusKind = "confirmed" | "pending" | "cancelled" | "completed"
+export type StatusKind = "confirmed" | "pending" | "cancelled" | "completed" | "expired"
 
 const STATUS_LABELS: Record<StatusKind, string> = {
   confirmed: "Confirmé",
   pending: "En attente",
   cancelled: "Annulé",
   completed: "Terminé",
+  expired: "Expiré",
 }
 
 const STATUS_VARIANT: Record<StatusKind, string> = {
@@ -15,6 +16,7 @@ const STATUS_VARIANT: Record<StatusKind, string> = {
   pending: "bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100",
   cancelled: "bg-red-100 text-red-700 border-red-200 hover:bg-red-100",
   completed: "bg-muted text-muted-foreground border-transparent",
+  expired: "bg-zinc-100 text-zinc-500 border-zinc-200 hover:bg-zinc-100",
 }
 
 export function mapBookingStatus(status: string): StatusKind {
@@ -27,7 +29,7 @@ export function mapBookingStatus(status: string): StatusKind {
     case "refunded":
       return "cancelled"
     case "expired":
-      return "completed"
+      return "expired"
     default:
       return "pending"
   }

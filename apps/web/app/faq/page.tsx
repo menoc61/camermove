@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { SiteNav } from "@/components/landing/SiteNav"
 import { SiteFooter } from "@/components/landing/SiteFooter"
 
 export const metadata: Metadata = {
@@ -21,7 +20,6 @@ const faqs = [
 export default function FaqPage() {
   return (
     <>
-      <SiteNav />
       <main className="mx-auto max-w-3xl px-4 py-24 sm:px-6">
         <h1 className="text-4xl font-bold tracking-tighter">FAQ</h1>
         <p className="mt-2 text-muted-foreground">Tout ce que vous devez savoir.</p>

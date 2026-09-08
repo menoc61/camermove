@@ -9,6 +9,20 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
+
+async function downloadExport(token: string, path: string, format: string) {
+  const res = await fetch(`${API_URL}${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error("Export failed")
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `export-rentals-${new Date().toISOString().slice(0, 10)}.${format}`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function AdminRentals() {
   const token = useAuthStore((s) => s.accessToken)
   const qc = useQueryClient()
@@ -38,9 +52,9 @@ export function AdminRentals() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <Input placeholder="Recherche" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} className="w-48" />
-        <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36" />
-        <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36" />
-        <Button variant="outline" size="sm" onClick={() => { if (!token) return; const qs = new URLSearchParams({ format: "csv", ...(dateFrom ? { dateFrom } : {}), ...(dateTo ? { dateTo } : {}), ...(q ? { q } : {}) }).toString(); window.open(`/api/v1/admin/rentals/export?${qs}`, "_blank") }}>Export CSV</Button>
+        <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-36" />
+        <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-36" />
+        <Button variant="outline" size="sm" onClick={() => { if (!token) return; const qs = new URLSearchParams({ format: "csv", ...(dateFrom ? { dateFrom } : {}), ...(dateTo ? { dateTo } : {}), ...(q ? { q } : {}) }).toString(); downloadExport(token, `/api/v1/admin/rentals/export?${qs}`, "csv").catch(() => toast.error("Erreur lors de l'export")) }}>Export CSV</Button>
       </div>
       <div className="rounded-xl border overflow-hidden">
         <Table>

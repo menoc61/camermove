@@ -91,7 +91,7 @@ export default function ParcelsPage() {
   const myParcels = myParcelsData?.items
 
   return (
-    <main className="mx-auto max-w-6xl p-6 space-y-6">
+    <main className="mx-auto max-w-6xl px-6 pb-6 pt-24 space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Transport de colis</h1>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabName)}>

@@ -1,18 +1,14 @@
 "use client"
 
 import { useEffect } from "react"
-import { useReducedMotion } from "motion/react"
 
-// Demonstrates gsap-scrolltrigger skill: batched enter for any .gsap-reveal
-// Gate: occasional (scroll reveal) → standard. Purpose: preventing jarring change.
-// Tool: GSAP ScrollTrigger.batch (cheapest that needs scrub/batching) → transform/opacity only, ease-out 0.35s, stagger 60ms.
+// Batched enter for any .gsap-reveal, gated by prefers-reduced-motion.
+// Tool: GSAP ScrollTrigger.batch (transform/opacity only, ease-out 0.45s, stagger 60ms).
+// Reduced-motion users never get elements hidden — content stays visible (Tier 3).
 export function GsapBatchReveal() {
-  const shouldReduce = useReducedMotion()
-
   useEffect(() => {
-    if (shouldReduce) return
     let killed = false
-    let ctx: ReturnType<typeof import("gsap").default.context> | null = null
+    let cleanup: (() => void) | null = null
 
     async function init() {
       const { default: gsap } = await import("gsap")
@@ -20,8 +16,11 @@ export function GsapBatchReveal() {
       if (killed) return
       gsap.registerPlugin(ScrollTrigger)
 
-      ctx = gsap.context(() => {
-        // Batch all .gsap-reveal that haven't been handled by Motion
+      const mm = gsap.matchMedia()
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        // Initial state off-thread (no flash), set only when motion is allowed.
+        gsap.set(".gsap-reveal", { autoAlpha: 0, y: 14 })
+
         ScrollTrigger.batch(".gsap-reveal", {
           onEnter: (els) =>
             gsap.to(els as Element[], {
@@ -35,20 +34,18 @@ export function GsapBatchReveal() {
           start: "top 88%",
           once: true,
         })
-
-        // Set initial state off-thread (no flash)
-        gsap.set(".gsap-reveal", { autoAlpha: 0, y: 14 })
         ScrollTrigger.refresh()
       })
+      cleanup = () => mm.revert()
     }
 
     init()
 
     return () => {
       killed = true
-      ctx?.revert()
+      cleanup?.()
     }
-  }, [shouldReduce])
+  }, [])
 
   return null
 }

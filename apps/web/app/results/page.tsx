@@ -241,7 +241,7 @@ function ResultsInner() {
 
   if (isLoading)
     return (
-      <main className="mx-auto max-w-2xl space-y-4 p-6">
+      <main className="mx-auto max-w-2xl space-y-4 px-6 pb-6 pt-24">
         <Skeleton className="h-6 w-48" />
         <FilterBar sortBy="price_asc" />
         <ResultsSkeleton />
@@ -250,7 +250,7 @@ function ResultsInner() {
 
   if (error)
     return (
-      <main className="mx-auto max-w-2xl p-6">
+      <main className="mx-auto max-w-2xl px-6 pb-6 pt-24">
         <Alert variant="destructive">
           <TriangleAlert />
           <AlertTitle>Erreur</AlertTitle>
@@ -276,7 +276,7 @@ function ResultsInner() {
   const totalPages = tripData?.pagination.totalPages ?? 1
 
   return (
-    <main className="mx-auto max-w-2xl space-y-4 p-6">
+    <main className="mx-auto max-w-2xl space-y-4 px-6 pb-6 pt-24">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">
@@ -367,7 +367,7 @@ export default function ResultsPage() {
   return (
     <Suspense
       fallback={
-        <main className="mx-auto max-w-2xl space-y-4 p-6">
+        <main className="mx-auto max-w-2xl space-y-4 px-6 pb-6 pt-24">
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-16 w-full rounded-xl" />
           <ResultsSkeleton />

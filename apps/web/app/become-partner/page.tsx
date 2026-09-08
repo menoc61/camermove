@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { SiteNav } from "@/components/landing/SiteNav"
 import { SiteFooter } from "@/components/landing/SiteFooter"
 
 export const metadata: Metadata = {
@@ -11,7 +10,6 @@ export const metadata: Metadata = {
 export default function BecomePartnerPage() {
   return (
     <>
-      <SiteNav />
       <main className="mx-auto max-w-4xl px-4 py-24 sm:px-6">
         <h1 className="text-4xl font-bold tracking-tighter">Devenir partenaire</h1>
         <p className="mt-3 text-muted-foreground">Développez votre remplissage — gérez votre flotte, vos itinéraires et vos revenus depuis votre espace transporteur.</p>

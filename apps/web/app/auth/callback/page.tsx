@@ -13,7 +13,6 @@ function CallbackInner() {
 
   useEffect(() => {
     const accessToken = search.get("accessToken")
-    const refreshToken = search.get("refreshToken")
     const userRaw = search.get("user")
     const err = search.get("error")
 
@@ -22,9 +21,13 @@ function CallbackInner() {
       return
     }
 
-    if (accessToken && refreshToken) {
+    if (accessToken) {
       try {
-        const user = userRaw ? JSON.parse(decodeURIComponent(userRaw)) : { id: "google", email: "", role: "traveler" }
+        if (!userRaw) {
+          setError("Réponse OAuth incomplète — veuillez réessayer.")
+          return
+        }
+        const user = JSON.parse(decodeURIComponent(userRaw)) as { id: string; email: string; role: string }
         setAuth({ accessToken, user })
         const next = search.get("next")
         router.replace(next && next.startsWith("/") ? next : "/dashboard")

@@ -36,7 +36,7 @@ export default function EventsPage() {
   const totalPages = data?.totalPages ?? 1
 
   return (
-    <main className="mx-auto max-w-6xl p-6 space-y-6">
+    <main className="mx-auto max-w-6xl px-6 pb-6 pt-24 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Billetterie — Événements</h1>
         {data && <Badge variant="outline">{data.total} événements</Badge>}

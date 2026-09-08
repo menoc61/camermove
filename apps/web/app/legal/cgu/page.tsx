@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { SiteNav } from "@/components/landing/SiteNav"
 import { SiteFooter } from "@/components/landing/SiteFooter"
 
 export const metadata: Metadata = {
@@ -10,7 +9,6 @@ export const metadata: Metadata = {
 export default function CguPage() {
   return (
     <>
-      <SiteNav />
       <main className="mx-auto max-w-3xl px-4 py-24 sm:px-6 prose prose-sm dark:prose-invert">
         <h1>Conditions générales d&apos;utilisation</h1>
         <p className="lead">Dernière mise à jour : 2026-09-02</p>

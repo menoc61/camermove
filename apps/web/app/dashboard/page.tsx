@@ -2,16 +2,11 @@ import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
-import { ChartAreaInteractive } from "@/components/chart-area-interactive"
-import { DataTable } from "@/components/data-table"
-import { SectionCards } from "@/components/section-cards"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dashboard } from "../../components/dashboard/Dashboard"
 import type { DashboardResponse } from "../../lib/api/dashboard"
-
-import data from "./data.json"
 
 async function loadDashboard(token: string): Promise<DashboardResponse> {
   const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
@@ -62,16 +57,11 @@ export default function Page() {
                 <h1 className="text-2xl font-bold tracking-tight">Mes voyages</h1>
                 <p className="text-sm text-muted-foreground">Retrouvez vos prochains départs et e-billets.</p>
               </div>
-              <SectionCards />
-              <div className="px-4 lg:px-6">
-                <ChartAreaInteractive />
-              </div>
               <div className="px-4 lg:px-6">
                 <Suspense fallback={<DashboardFallback />}>
                   <DashboardInner />
                 </Suspense>
               </div>
-              <DataTable data={data} />
             </div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 ﻿"use client"
 import { useQuery } from "@tanstack/react-query"
-import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
+import { useState } from "react"
 import type { DashboardResponse } from "../../lib/api/dashboard"
 import { getDashboard } from "../../lib/api/dashboard"
 import { apiFetch } from "../../lib/api/client"
@@ -74,8 +74,11 @@ function RentalBookingCard({ item }: { item: RentalBookingItem }) {
 
 export function Dashboard({ initialData, token }: { initialData: DashboardResponse; token: string }) {
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   const tabParam = searchParams.get("tab")
-  const defaultTab = tabParam === "hotels" || tabParam === "rentals" ? tabParam : "trips"
+  const activeTab = tabParam === "hotels" || tabParam === "rentals" ? tabParam : "trips"
+  const [pendingTab, setPendingTab] = useState<string | null>(null)
 
   const { data, error, isFetching, refetch } = useQuery<DashboardResponse>({
     queryKey: ["dashboard"],
@@ -92,6 +95,13 @@ export function Dashboard({ initialData, token }: { initialData: DashboardRespon
     queryKey: ["dashboard-rentals", token],
     queryFn: () => apiFetch<{ items: RentalBookingItem[] }>("/api/v1/rentals/bookings/me", { method: "GET", token }),
   })
+
+  function switchTab(value: string) {
+    setPendingTab(value)
+    const next = new URLSearchParams(searchParams.toString())
+    next.set("tab", value)
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+  }
 
   if (!data) {
     return (
@@ -121,7 +131,7 @@ export function Dashboard({ initialData, token }: { initialData: DashboardRespon
         </Alert>
       ) : null}
 
-      <Tabs defaultValue={defaultTab} className="w-full">
+      <Tabs value={pendingTab ?? activeTab} onValueChange={switchTab} className="w-full">
         <TabsList className="w-full">
           <TabsTrigger value="trips">Voyages à venir</TabsTrigger>
           <TabsTrigger value="hotels">Hôtels</TabsTrigger>
@@ -131,15 +141,13 @@ export function Dashboard({ initialData, token }: { initialData: DashboardRespon
         <TabsContent value="trips" className="space-y-4 mt-4">
           <section>
             <header className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-900">Voyages à venir</h2>
-              {upcoming.length > VISIBLE_LIMIT ? <Link href="/dashboard?tab=trips" className="text-xs font-medium text-primary">Voir tous</Link> : null}
+              <h2 className="text-base font-semibold text-foreground">Voyages à venir</h2>
             </header>
             {upcoming.length === 0 ? <EmptyState title="Aucun voyage à venir. Trouvez un trajet." cta={{ href: "/", label: "Rechercher" }} /> : <div className="space-y-3">{upcoming.slice(0, VISIBLE_LIMIT).map((item) => <UpcomingTripCard key={item.id} item={item} />)}</div>}
           </section>
           <section>
             <header className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-900">Billets</h2>
-              {tickets.length > VISIBLE_LIMIT ? <Link href="/dashboard?section=tickets" className="text-xs font-medium text-primary">Voir tous</Link> : null}
+              <h2 className="text-base font-semibold text-foreground">Billets</h2>
             </header>
             {tickets.length === 0 ? <EmptyState title="Vos billets apparaîtront ici après paiement." /> : <div className="space-y-3">{tickets.slice(0, VISIBLE_LIMIT).map((item) => <TicketCard key={item.id} item={item} />)}</div>}
           </section>
@@ -148,22 +156,20 @@ export function Dashboard({ initialData, token }: { initialData: DashboardRespon
 
         <TabsContent value="hotels" className="space-y-3 mt-4">
           <header className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Réservations hôtel</h2>
-            {hotelBookings.length > VISIBLE_LIMIT ? <Link href="/dashboard?tab=hotels" className="text-xs font-medium text-primary">Voir tous</Link> : null}
+            <h2 className="text-base font-semibold text-foreground">Réservations hôtel</h2>
           </header>
           {hotelBookings.length === 0 ? <EmptyState title="Aucune réservation hôtel" cta={{ href: "/hotels", label: "Découvrir Hôtels" }} /> : <div className="space-y-3">{hotelBookings.slice(0, VISIBLE_LIMIT).map((b) => <HotelBookingCard key={b.id} item={b} />)}</div>}
         </TabsContent>
 
         <TabsContent value="rentals" className="space-y-3 mt-4">
           <header className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Réservations véhicule</h2>
-            {rentalBookings.length > VISIBLE_LIMIT ? <Link href="/dashboard?tab=rentals" className="text-xs font-medium text-primary">Voir tous</Link> : null}
+            <h2 className="text-base font-semibold text-foreground">Réservations véhicule</h2>
           </header>
           {rentalBookings.length === 0 ? <EmptyState title="Aucune réservation véhicule" cta={{ href: "/rentals", label: "Découvrir Véhicules" }} /> : <div className="space-y-3">{rentalBookings.slice(0, VISIBLE_LIMIT).map((b) => <RentalBookingCard key={b.id} item={b} />)}</div>}
         </TabsContent>
       </Tabs>
 
-      {isFetching ? <p className="text-xs text-slate-400">Mise à jour…</p> : null}
+      {isFetching && !error && <p className="text-xs text-muted-foreground">Mise à jour…</p>}
     </div>
   )
 }

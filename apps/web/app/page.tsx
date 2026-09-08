@@ -1,8 +1,8 @@
 import Link from "next/link"
 import { Bed, Bus, Car, Package, Shield, Ticket } from "lucide-react"
 import { prisma } from "@camermove/db"
-import { SiteNav } from "@/components/landing/SiteNav"
 import { Hero } from "@/components/landing/Hero"
+import { StatsBand } from "@/components/landing/StatsBand"
 import { Steps } from "@/components/landing/Steps"
 import { PriceSimulator } from "@/components/landing/PriceSimulator"
 import { NextDepartures } from "@/components/landing/NextDepartures"
@@ -82,10 +82,10 @@ export default async function HomePage() {
 
   return (
     <>
-      <SiteNav />
       <main>
-        <Hero minPrice={minPrice != null ? minPrice : undefined} />
-        {/* Services grid — transport dominant with warm styling */}
+        <Hero minPrice={minPrice != null ? minPrice : undefined} nextDepartureAt={trips[0]?.departureAt} />
+        <StatsBand minPrice={minPrice} hotelsCount={hotelsCount} rentalsCount={rentalsCount} />
+        {/* Services bento — transport dominant with photo cell */}
         <section className="relative overflow-hidden py-12 sm:py-16">
           <div className="absolute inset-0 bg-gradient-to-b from-background via-[hsl(var(--brand)/0.02)] to-background" />
           <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
@@ -98,19 +98,24 @@ export default async function HomePage() {
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-5">
-              {/* Transport - Hero card (spans 2 cols, 2 rows) */}
+              {/* Transport - Hero card (photo cell, spans 2 cols, 2 rows) */}
               <Link
                 href="/results?origin=Yaound%C3%A9&destination=Douala&pax=1"
-                className="hover-lift group relative col-span-1 row-span-1 flex flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-[hsl(var(--brand))] to-[hsl(var(--brand-dark))] p-6 text-white shadow-warm md:col-span-2 md:row-span-2 md:p-8"
+                className="hover-lift group relative col-span-1 row-span-1 flex min-h-[220px] flex-col justify-between overflow-hidden rounded-2xl p-6 text-white shadow-brand md:col-span-2 md:row-span-2 md:min-h-0 md:p-8"
               >
-                <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
-                <div className="absolute -bottom-12 -left-12 h-40 w-40 rounded-full bg-white/5" />
+                <img
+                  src="https://picsum.photos/seed/camermove-service-bus/800/600"
+                  alt=""
+                  aria-hidden
+                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--brand-dark)/0.9)] via-[hsl(var(--brand-dark)/0.4)] to-[hsl(var(--brand)/0.15)]" />
                 <div className="relative">
-                  <div className="inline-flex rounded-xl bg-white/20 p-2.5">
+                  <div className="inline-flex rounded-xl bg-white/20 p-2.5 backdrop-blur-sm">
                     <Bus className="size-6 text-white" />
                   </div>
                   <h3 className="mt-4 text-2xl font-bold md:text-3xl">Transport interurbain</h3>
-                  <p className="mt-2 max-w-[30ch] text-sm text-white/80 md:text-base">
+                  <p className="mt-2 max-w-[30ch] text-sm text-white/85 md:text-base">
                     Comparez et réservez vos billets de bus entre villes. Départs quotidiens Yaoundé ⇄ Douala.
                   </p>
                 </div>
@@ -216,7 +221,7 @@ export default async function HomePage() {
                 {agencies.map((a) => (
                   <li key={a.id}>
                     <a href={`/results?origin=${encodeURIComponent(a.city ?? "")}&pax=1`}>
-                      {a.companyName} — {a.city ?? "Cameroun"}
+                      {a.companyName}, {a.city ?? "Cameroun"}
                     </a>
                   </li>
                 ))}

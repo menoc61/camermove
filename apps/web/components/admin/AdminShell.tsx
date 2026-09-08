@@ -85,7 +85,14 @@ export function AdminShell() {
     apiFetch<{ id: string; email: string; role: string; status: string }>("/api/v1/me/profile", {
       token: accessToken,
     })
-      .then(setProfile)
+      .then((p) => {
+        if (p.role !== "admin" && p.role !== "super_admin") {
+          setError("Accès réservé aux administrateurs.")
+          setProfile(null)
+          return
+        }
+        setProfile(p)
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Erreur"))
   }, [accessToken])
 

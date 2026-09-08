@@ -70,11 +70,11 @@ export default function RentalDetailPage() {
     } finally { setLoading(false) }
   }
 
-  if (isLoading) return <main className="mx-auto max-w-4xl p-6"><Skeleton className="h-64 w-full" /></main>
-  if (!vehicle) return <main className="mx-auto max-w-4xl p-6"><p>Véhicule introuvable.</p></main>
+  if (isLoading) return <main className="mx-auto max-w-4xl px-6 pb-6 pt-24"><Skeleton className="h-64 w-full" /></main>
+  if (!vehicle) return <main className="mx-auto max-w-4xl px-6 pb-6 pt-24"><p>Véhicule introuvable.</p></main>
 
   return (
-    <main className="mx-auto max-w-4xl p-6 space-y-6">
+    <main className="mx-auto max-w-4xl px-6 pb-6 pt-24 space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><Car className="size-6" /> {vehicle.make} {vehicle.model}</h1>
         <p className="text-sm text-muted-foreground">{vehicle.category} · {vehicle.capacity} places · {vehicle.pickupCity} · {vehicle.durationUnit} {vehicle.hasDriver ? "· avec chauffeur" : ""}</p>

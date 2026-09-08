@@ -316,15 +316,25 @@ export async function listCommissions(params: { page: number; limit: number; tra
     if (params.dateTo) (where.booking as Prisma.BookingWhereInput).createdAt!.lte = new Date(params.dateTo + "T23:59:59Z")
   }
 
-  const [items, total, sumResult] = await Promise.all([
+  const [items, total, sumResult, statusCounts] = await Promise.all([
     prisma.commission.findMany({
       where, skip, take, orderBy: { id: "desc" },
       include: { booking: { include: { trip: { include: { transport: { select: { id: true, companyName: true } } } } } } },
     }),
     prisma.commission.count({ where }),
     prisma.commission.aggregate({ where, _sum: { commissionAmount: true, netAmount: true } }),
+    prisma.commission.groupBy({ by: ["payoutStatus"], where, _count: { _all: true } }),
   ])
-  return { items, total, page: params.page, totalPages: Math.ceil(total / take), totals: { commission: sumResult._sum.commissionAmount ?? 0, net: sumResult._sum.netAmount ?? 0 } }
+  const byStatus = Object.fromEntries(statusCounts.map((s) => [s.payoutStatus, s._count._all]))
+  return {
+    items, total, page: params.page, totalPages: Math.ceil(total / take),
+    totals: {
+      commission: sumResult._sum.commissionAmount ?? 0,
+      net: sumResult._sum.netAmount ?? 0,
+      paid: byStatus.paid ?? 0,
+      pending: byStatus.pending ?? 0,
+    },
+  }
 }
 
 // ─── Audit Logs ──────────────────────────────────────────────────────────────

@@ -61,9 +61,9 @@ export default function EventDetailPage() {
     },
   })
 
-  if (isLoading || !event) {
+  if (isLoading) {
     return (
-      <main className="mx-auto max-w-6xl p-6">
+      <main className="mx-auto max-w-6xl px-6 pb-6 pt-24">
         <h1 className="text-2xl font-bold tracking-tight">Événement</h1>
         <p className="text-muted-foreground">Chargement de l&apos;événement...</p>
         <Skeleton className="h-32" />
@@ -71,16 +71,16 @@ export default function EventDetailPage() {
     )
   }
 
-  if (error) {
+  if (error || !event) {
     return (
-      <main className="mx-auto max-w-6xl p-6">
+      <main className="mx-auto max-w-6xl px-6 pb-6 pt-24">
         <Alert variant="destructive"><TriangleAlert /><AlertTitle>Erreur</AlertTitle><AlertDescription>Impossible de charger l&apos;événement.</AlertDescription></Alert>
       </main>
     )
   }
 
   return (
-    <main className="mx-auto max-w-6xl p-6 space-y-6">
+    <main className="mx-auto max-w-6xl px-6 pb-6 pt-24 space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">{event.name}</h1>
 
       <Separator />
@@ -139,8 +139,18 @@ export default function EventDetailPage() {
             return (
               <Card
                 key={c.id}
-                className={`p-4 space-y-3 cursor-pointer transition-colors ${isActive ? "border-primary" : "hover:border-primary/40"}`}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isActive}
+                className={`p-4 space-y-3 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${isActive ? "border-primary" : "hover:border-primary/40"}`}
                 onClick={() => { setSelectedCategoryId(c.id); setQuantity(1) }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    setSelectedCategoryId(c.id)
+                    setQuantity(1)
+                  }
+                }}
               >
                 <h3 className="font-semibold">{c.name}</h3>
                 <p className="text-sm text-muted-foreground">{c.description || ""}</p>

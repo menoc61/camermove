@@ -48,7 +48,7 @@ export default function HotelsPage() {
   }, [])
 
   return (
-    <main className="mx-auto max-w-6xl p-6 space-y-4">
+    <main className="mx-auto max-w-6xl px-6 pb-6 pt-24 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Hôtels & apparts</h1>
         {data && <Badge variant="outline">{data.total} résultats</Badge>}

@@ -23,7 +23,7 @@ export default function IntraurbanPage() {
   })
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto max-w-3xl space-y-6 px-6 pb-6 pt-24">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Bus intraurbain — Yaoundé</h1>
         <p className="text-sm text-muted-foreground">Lignes urbaines · départ toutes les 30 min · 05:30–22:00 · ticket valable 2h · 400–500 XAF</p>
@@ -49,7 +49,20 @@ export default function IntraurbanPage() {
       {lines && lines.length > 0 && (
         <div className="grid gap-2 sm:grid-cols-2">
           {lines.map((l) => (
-            <Card key={`${l.origin}-${l.dest}`} className="cursor-pointer hover:border-primary/50" onClick={() => { setOrigin(l.origin); setDest(l.dest) }}>
+            <Card
+              key={`${l.origin}-${l.dest}`}
+              role="button"
+              tabIndex={0}
+              className="cursor-pointer hover:border-primary/50 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => { setOrigin(l.origin); setDest(l.dest) }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  setOrigin(l.origin)
+                  setDest(l.dest)
+                }
+              }}
+            >
               <CardContent className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-2">
                   <Bus className="size-4 text-primary" />

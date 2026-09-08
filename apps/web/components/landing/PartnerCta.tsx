@@ -15,8 +15,8 @@ export function PartnerCta() {
 
   return (
     <section className="relative overflow-hidden">
-      {/* Warm gradient background */}
-      <div className="absolute inset-0 bg-gradient-warm" />
+      {/* Brand gradient background */}
+      <div className="absolute inset-0 bg-gradient-brand" />
       {/* Decorative circles */}
       <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10" />
       <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-white/5" />
@@ -83,38 +83,26 @@ export function PartnerCta() {
             </motion.div>
           </div>
 
-          {/* Visual element */}
+          {/* Visual — real depot photo */}
           <motion.div
-            initial={shouldReduce ? false : { opacity: 0, scale: 0.9 }}
+            initial={shouldReduce ? false : { opacity: 0, scale: 0.94 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className="hidden md:flex md:justify-center"
           >
             <div className="relative">
-              {/* Decorative card */}
-              <div className="w-72 rounded-2xl bg-white/15 p-6 backdrop-blur-sm">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-white/20" />
-                  <div>
-                    <div className="h-3 w-24 rounded bg-white/40" />
-                    <div className="mt-1.5 h-2 w-16 rounded bg-white/25" />
-                  </div>
-                </div>
-                <div className="mt-4 space-y-2">
-                  <div className="h-2 w-full rounded bg-white/20" />
-                  <div className="h-2 w-3/4 rounded bg-white/20" />
-                  <div className="h-2 w-1/2 rounded bg-white/20" />
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <div className="h-8 flex-1 rounded-lg bg-white/25" />
-                  <div className="h-8 flex-1 rounded-lg bg-white/15" />
-                </div>
+              <div className="w-80 overflow-hidden rounded-2xl border border-white/20 shadow-2xl">
+                <img
+                  src="https://picsum.photos/seed/camermove-partner-depot/900/700"
+                  alt="Dépôt de bus partenaires CamerMove"
+                  loading="lazy"
+                  className="aspect-[9/7] w-full object-cover"
+                />
               </div>
-              {/* Floating badge */}
-              <div className="absolute -bottom-3 -right-3 rounded-xl bg-white px-3 py-2 shadow-lg">
-                <p className="text-xs font-medium text-muted-foreground">Nouveau</p>
-                <p className="text-sm font-bold text-[hsl(var(--brand))]">+12 transporteurs</p>
+              <div className="absolute -bottom-3 -right-3 rounded-xl bg-white px-4 py-2.5 shadow-lg">
+                <p className="text-xs font-medium text-muted-foreground">Déjà au réseau</p>
+                <p className="text-sm font-bold text-primary">+12 transporteurs</p>
               </div>
             </div>
           </motion.div>

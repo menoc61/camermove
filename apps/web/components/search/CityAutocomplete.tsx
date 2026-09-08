@@ -25,14 +25,20 @@ export function CityAutocomplete({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [places, setPlaces] = useState<Place[]>([])
+  const [activeIndex, setActiveIndex] = useState(-1)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listboxId = id ? `${id}-listbox` : undefined
 
+  const close = useCallback(() => {
+    setOpen(false)
+    setActiveIndex(-1)
+  }, [])
+
   const doFetch = useCallback(async (q: string) => {
     if (q.length < 2) {
       setPlaces([])
-      setOpen(false)
+      close()
       return
     }
     setLoading(true)
@@ -40,12 +46,13 @@ export function CityAutocomplete({
       const data = await fetchPlaces(q)
       setPlaces(data)
       setOpen(data.length > 0)
+      setActiveIndex(-1)
     } catch {
       setPlaces([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [close])
 
   function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
@@ -56,16 +63,35 @@ export function CityAutocomplete({
 
   function selectPlace(place: Place) {
     onChange(place.displayName)
-    setOpen(false)
+    close()
     setPlaces([])
     inputRef.current?.focus()
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
-      setOpen(false)
+      close()
+      return
+    }
+    if (!open || places.length === 0) return
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setActiveIndex((i) => (i + 1) % places.length)
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setActiveIndex((i) => (i <= 0 ? places.length - 1 : i - 1))
+    } else if (e.key === "Enter" && activeIndex >= 0 && activeIndex < places.length) {
+      e.preventDefault()
+      selectPlace(places[activeIndex]!)
+    } else if (e.key === "Tab") {
+      close()
     }
   }
+
+  const activeId =
+    activeIndex >= 0 && activeIndex < places.length
+      ? `${listboxId ?? "city-listbox"}-option-${activeIndex}`
+      : undefined
 
   return (
     <div className="relative">
@@ -81,23 +107,35 @@ export function CityAutocomplete({
         aria-autocomplete="list"
         aria-controls={listboxId}
         aria-expanded={open}
+        aria-activedescendant={activeId}
+        aria-busy={loading}
         className={cn("w-full", className)}
         autoComplete="off"
       />
-      {open && places.length > 0 && (
+      {(open || loading) && (
         <ul
           id={listboxId}
           role="listbox"
           aria-label={ariaLabel ?? "Villes"}
           className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border bg-popover p-1 text-sm shadow-lg"
         >
-          {places.map((place) => (
+          {loading && places.length === 0 && (
+            <li className="cursor-default rounded-lg px-3 py-2 text-muted-foreground" aria-disabled="true">
+              Chargement…
+            </li>
+          )}
+          {places.map((place, i) => (
             <li
               key={place.osmId}
+              id={`${listboxId ?? "city-listbox"}-option-${i}`}
               role="option"
               aria-selected={place.displayName === value}
-              className="cursor-pointer rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground"
+              className={cn(
+                "cursor-pointer rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground",
+                i === activeIndex && "bg-accent text-accent-foreground"
+              )}
               onMouseDown={() => selectPlace(place)}
+              onMouseEnter={() => setActiveIndex(i)}
             >
               <span className="font-medium">{place.displayName}</span>
               {place.city && place.city !== place.displayName && (

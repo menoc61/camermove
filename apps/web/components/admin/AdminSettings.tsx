@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@camermove/frontend"
 import { getSettings, updateSettings } from "@/lib/api/admin"
@@ -76,25 +76,9 @@ export function AdminSettings() {
   const [form, setForm] = useState<Partial<AppSettings>>({})
   const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({})
 
-  // Initialize form when settings load
-  useState(() => {
-    if (settings) {
-      setForm({
-        commissionPercent: settings.commissionPercent,
-        holdExpiryMinutes: settings.holdExpiryMinutes,
-        cancellationPolicy: settings.cancellationPolicy,
-        smtpHost: settings.smtpHost ?? undefined,
-        smtpPort: settings.smtpPort ?? undefined,
-        smtpUser: settings.smtpUser ?? undefined,
-        smtpFrom: settings.smtpFrom ?? undefined,
-        maintenanceMode: settings.maintenanceMode,
-      })
-      setFeatureFlags(settings.featureFlags ?? {})
-    }
-  })
-
-  // Sync when settings changes
-  if (settings && Object.keys(form).length === 0) {
+  // Initialize the form once settings are loaded (and re-sync after saves).
+  useEffect(() => {
+    if (!settings) return
     setForm({
       commissionPercent: settings.commissionPercent,
       holdExpiryMinutes: settings.holdExpiryMinutes,
@@ -106,15 +90,13 @@ export function AdminSettings() {
       maintenanceMode: settings.maintenanceMode,
     })
     setFeatureFlags(settings.featureFlags ?? {})
-  }
+  }, [settings])
 
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => updateSettings(token!, data),
     onSuccess: (updated) => {
       qc.setQueryData(["admin-settings"], updated)
       toast.success("Paramètres enregistrés avec succès")
-      setForm({})
-      setFeatureFlags({})
     },
     onError: () => toast.error("Erreur lors de l'enregistrement"),
   })

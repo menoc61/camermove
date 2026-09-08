@@ -2,45 +2,33 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
-import { motion, AnimatePresence, useMotionValueEvent, useScroll } from "motion/react"
+import { motion, useMotionValueEvent, useScroll, useReducedMotion } from "motion/react"
 import { useAuthStore } from "@camermove/frontend"
 import { cn } from "@/lib/utils"
-import { hoverLift } from "@/lib/animations"
-import type { Variants } from "motion/react"
 
-const NAV_LINKS: { href: string; label: string; isLink?: boolean }[] = [
-  { href: "/", label: "Accueil", isLink: true },
-  { href: "/results", label: "Transport interurbain", isLink: true },
-  { href: "/hotels", label: "Hôtels & apparts", isLink: true },
-  { href: "/rentals", label: "Location véhicules", isLink: true },
-  { href: "/parcels", label: "Transport colis", isLink: true },
-  { href: "/events", label: "Billetterie", isLink: true },
-  { href: "/dashboard", label: "Mes réservations", isLink: true },
+const NAV_LINKS: { href: string; label: string }[] = [
+  { href: "/", label: "Accueil" },
+  { href: "/results", label: "Transport interurbain" },
+  { href: "/hotels", label: "Hôtels & apparts" },
+  { href: "/rentals", label: "Location véhicules" },
+  { href: "/parcels", label: "Transport colis" },
+  { href: "/events", label: "Billetterie" },
+  { href: "/dashboard", label: "Mes réservations" },
 ]
 
-const overlayVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] } },
-  exit: { opacity: 0, transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] } },
-}
-
-const staggerLinks: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.15 },
-  },
-}
-
-const staggerLinkItem: Variants = {
-  hidden: { opacity: 0, x: 32 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] } },
-}
-
+/**
+ * YOLO-style navigation: fixed minimal header + full-screen overlay on ALL
+ * viewports. Overlay slides down (expo.inOut 0.75s) and links rise in with a
+ * stagger (expo.out, 0.07s) — exact port of yolo-web's SiteHeader timeline.
+ * Reduced-motion users get the same content instantly (no hidden states).
+ */
 export function SiteNav() {
   const accessToken = useAuthStore((s) => s.accessToken)
+  const shouldReduce = useReducedMotion()
   const [scrolled, setScrolled] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const linksRef = useRef<(HTMLAnchorElement | null)[]>([])
   const hamburgerRef = useRef<HTMLButtonElement>(null)
   const linesRef = useRef<(HTMLSpanElement | null)[]>([])
   const { scrollY } = useScroll()
@@ -49,33 +37,98 @@ export function SiteNav() {
     setScrolled(latest > 20)
   })
 
+  // ── Hamburger morph (3 lines → X), transform-only → compositor ──
   const animateHamburger = useCallback(
     async (open: boolean) => {
+      if (shouldReduce) return
       const gsap = (await import("gsap")).default
-      const [line1, line2, line3] = linesRef.current
-      if (!line1 || !line2 || !line3) return
-
+      const [l1, l2, l3] = linesRef.current
+      if (!l1 || !l2 || !l3) return
       if (open) {
-        gsap.to(line1, { y: 8, rotate: 45, duration: 0.3, ease: "power2.out" })
-        gsap.to(line2, { opacity: 0, scaleX: 0, duration: 0.2, ease: "power2.out" })
-        gsap.to(line3, { y: -8, rotate: -45, duration: 0.3, ease: "power2.out" })
+        gsap.to(l1, { y: 8, rotate: 45, duration: 0.3, ease: "power2.out" })
+        gsap.to(l2, { opacity: 0, scaleX: 0, duration: 0.2, ease: "power2.out" })
+        gsap.to(l3, { y: -8, rotate: -45, duration: 0.3, ease: "power2.out" })
       } else {
-        gsap.to(line1, { y: 0, rotate: 0, duration: 0.3, ease: "power2.out" })
-        gsap.to(line2, { opacity: 1, scaleX: 1, duration: 0.2, ease: "power2.out" })
-        gsap.to(line3, { y: 0, rotate: 0, duration: 0.3, ease: "power2.out" })
+        gsap.to(l1, { y: 0, rotate: 0, duration: 0.3, ease: "power2.out" })
+        gsap.to(l2, { opacity: 1, scaleX: 1, duration: 0.2, ease: "power2.out" })
+        gsap.to(l3, { y: 0, rotate: 0, duration: 0.3, ease: "power2.out" })
       }
     },
-    []
+    [shouldReduce]
   )
 
-  const toggleMobile = useCallback(() => {
-    setMobileOpen((prev) => {
-      const next = !prev
-      animateHamburger(next)
-      document.body.style.overflow = next ? "hidden" : ""
-      return next
+  // ── Overlay open: expo.inOut slide + staggered links (yolo timeline) ──
+  const openNav = useCallback(async () => {
+    animateHamburger(true)
+    setIsOpen(true)
+    document.body.style.overflow = "hidden"
+    if (shouldReduce) return
+    const overlay = overlayRef.current
+    if (!overlay) return
+    const gsap = (await import("gsap")).default
+    gsap.set(overlay, { y: "-100%" })
+    gsap.set(linksRef.current, { y: "110%", opacity: 0 })
+    const tl = gsap.timeline()
+    tl.to(overlay, { y: "0%", duration: 0.75, ease: "expo.inOut" }).fromTo(
+      linksRef.current,
+      { y: "110%", opacity: 0 },
+      { y: "0%", opacity: 1, duration: 0.7, ease: "expo.out", stagger: 0.07 },
+      "-=0.4"
+    )
+  }, [shouldReduce, animateHamburger])
+
+  // ── Overlay close: reverse, then hide + unlock scroll ──
+  const closeNav = useCallback(async () => {
+    animateHamburger(false)
+    setIsOpen(false)
+    if (shouldReduce) {
+      document.body.style.overflow = ""
+      return
+    }
+    const overlay = overlayRef.current
+    if (!overlay) return
+    const gsap = (await import("gsap")).default
+    const tl = gsap.timeline({
+      onComplete: () => {
+        gsap.set(overlay, { y: "-100%" })
+        document.body.style.overflow = ""
+      },
     })
-  }, [animateHamburger])
+    tl.to(overlay, { y: "-100%", duration: 0.6, ease: "expo.inOut" })
+  }, [shouldReduce, animateHamburger])
+
+  // Escape closes and returns focus to the hamburger; focus moves into the
+  // overlay on open (keyboard users must not lose their place).
+  useEffect(() => {
+    if (!isOpen) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        closeNav()
+        hamburgerRef.current?.focus()
+      }
+    }
+    window.addEventListener("keydown", handler)
+    const first = overlayRef.current?.querySelector<HTMLElement>("a")
+    first?.focus()
+    return () => window.removeEventListener("keydown", handler)
+  }, [isOpen, closeNav])
+
+  // Minimal focus trap: Tab cycles within the overlay instead of escaping.
+  function onOverlayKeyDown(e: React.KeyboardEvent) {
+    if (e.key !== "Tab" || !overlayRef.current) return
+    const focusables = overlayRef.current.querySelectorAll<HTMLElement>("a[href], button")
+    if (focusables.length === 0) return
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    if (!first || !last) return
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
 
   useEffect(() => {
     return () => {
@@ -88,157 +141,130 @@ export function SiteNav() {
       <motion.header
         className={cn(
           "fixed top-0 left-0 right-0 z-50 transition-colors duration-300",
-          scrolled
+          scrolled && !isOpen
             ? "border-b border-border bg-surface-0/80 backdrop-blur-xl"
             : "border-b-transparent bg-transparent"
         )}
         initial={false}
       >
-        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:h-20">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2" aria-label="CamerMove — accueil">
-            <motion.span
-              className="inline-block h-3 w-3 rounded-[4px] bg-primary"
-              aria-hidden
-              whileHover={{ scale: 1.2, transition: { duration: 0.2 } }}
+          <Link href="/" className="flex items-center gap-2" aria-label="CamerMove, accueil">
+            <span
+              className={cn(
+                "inline-block h-3 w-3 rounded-[4px] transition-colors duration-300",
+                isOpen ? "bg-white" : "bg-primary"
+              )}
             />
-            <motion.span
-              className="text-lg font-bold tracking-tight text-foreground"
-              whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+            <span
+              className={cn(
+                "text-lg font-bold tracking-tight transition-colors duration-300",
+                isOpen ? "text-white" : "text-foreground"
+              )}
             >
               CamerMove
-            </motion.span>
+            </span>
           </Link>
 
-          {/* Desktop nav links */}
-          <div className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
-            {NAV_LINKS.map((link) =>
-              link.isLink ? (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="group relative py-1 transition-colors hover:text-foreground"
-                >
-                  {link.label}
-                  <span className="absolute bottom-0 left-0 h-px w-full origin-left scale-x-0 bg-primary transition-transform duration-200 group-hover:scale-x-100" />
-                </Link>
-              ) : (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  className="group relative py-1 transition-colors hover:text-foreground"
-                >
-                  {link.label}
-                  <span className="absolute bottom-0 left-0 h-px w-full origin-left scale-x-0 bg-primary transition-transform duration-200 group-hover:scale-x-100" />
-                </a>
-              )
-            )}
+          {/* Actions: Compte + hamburger (all viewports, like yolo) */}
+          <div className="flex items-center gap-2 sm:gap-4">
+            <motion.div
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 500, damping: 25 }}
+            >
+              <Link
+                href={accessToken ? "/dashboard" : "/login"}
+                className={cn(
+                  "inline-flex h-9 items-center rounded-lg border px-4 text-sm font-semibold transition-colors",
+                  isOpen
+                    ? "border-white/40 text-white hover:bg-white/10"
+                    : "border-input bg-background text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                {accessToken ? "Compte" : "Se connecter"}
+              </Link>
+            </motion.div>
+
+            <motion.button
+              ref={hamburgerRef}
+              onClick={() => (isOpen ? closeNav() : openNav())}
+              aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
+              aria-expanded={isOpen}
+              aria-controls="cm-nav-overlay"
+              className="relative z-[60] flex h-10 w-10 flex-col items-center justify-center gap-[6px]"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 500, damping: 25 }}
+            >
+              <span
+                ref={(el) => {
+                  linesRef.current[0] = el
+                }}
+                className={cn("block h-0.5 w-6 transition-colors duration-300", isOpen ? "bg-white" : "bg-foreground")}
+              />
+              <span
+                ref={(el) => {
+                  linesRef.current[1] = el
+                }}
+                className={cn("block h-0.5 w-6 transition-colors duration-300", isOpen ? "bg-white" : "bg-foreground")}
+              />
+              <span
+                ref={(el) => {
+                  linesRef.current[2] = el
+                }}
+                className={cn("block h-0.5 w-6 transition-colors duration-300", isOpen ? "bg-white" : "bg-foreground")}
+              />
+            </motion.button>
           </div>
-
-          {/* Auth button: Compte dropdown si auth sinon Se connecter */}
-          <motion.div whileHover={hoverLift} className="hidden items-center gap-2 md:flex">
-            {accessToken ? (
-              <Link
-                href="/dashboard"
-                className="inline-flex h-9 items-center rounded-lg border border-input bg-background px-4 text-sm font-semibold text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                Compte
-              </Link>
-            ) : (
-              <Link
-                href="/login"
-                className="inline-flex h-9 items-center rounded-lg border border-input bg-background px-4 text-sm font-semibold text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                Se connecter
-              </Link>
-            )}
-          </motion.div>
-
-          {/* Mobile hamburger */}
-          <button
-            ref={hamburgerRef}
-            onClick={toggleMobile}
-            className="relative z-50 flex h-10 w-10 flex-col items-center justify-center gap-1.5 md:hidden"
-            aria-label={mobileOpen ? "Fermer le menu" : "Ouvrir le menu"}
-            aria-expanded={mobileOpen}
-          >
-            <span
-              ref={(el) => { linesRef.current[0] = el }}
-              className="block h-0.5 w-6 bg-foreground"
-            />
-            <span
-              ref={(el) => { linesRef.current[1] = el }}
-              className="block h-0.5 w-6 bg-foreground"
-            />
-            <span
-              ref={(el) => { linesRef.current[2] = el }}
-              className="block h-0.5 w-6 bg-foreground"
-            />
-          </button>
         </nav>
       </motion.header>
 
-      {/* Mobile overlay */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            className="fixed inset-0 z-40 flex flex-col bg-surface-0/95 backdrop-blur-xl md:hidden"
-            variants={overlayVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-          >
-            <div className="flex h-16 items-center px-4" />
-            <motion.nav
-              className="flex flex-col items-start gap-2 px-8 pt-8"
-              variants={staggerLinks}
-              initial="hidden"
-              animate="visible"
+      {/* Full-screen overlay — display controlled by GSAP (.is-open for reduced-motion) */}
+      <div
+        id="cm-nav-overlay"
+        ref={overlayRef}
+        onKeyDown={onOverlayKeyDown}
+        className={cn("nav-overlay", isOpen && "is-open")}
+        aria-hidden={!isOpen}
+      >
+        <div className="nav-overlay__inner">
+          <ul className="nav-links">
+            {NAV_LINKS.map((link, i) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  ref={(el) => {
+                    linksRef.current[i] = el
+                  }}
+                  onClick={closeNav}
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <div>
+            <div className="nav-contact__label">Contact</div>
+            <a href="mailto:contact@camermove.cm" className="nav-contact__item">
+              contact@camermove.cm
+            </a>
+            <div
+              className="nav-contact__item"
+              style={{ color: "#888", marginTop: 16, lineHeight: 1.8, fontSize: "0.85rem" }}
             >
-              {NAV_LINKS.map((link) => (
-                <motion.div key={link.href} variants={staggerLinkItem}>
-                  {link.isLink ? (
-                    <Link
-                      href={link.href}
-                      onClick={toggleMobile}
-                      className="block py-3 text-2xl font-semibold text-foreground transition-colors hover:text-primary"
-                    >
-                      {link.label}
-                    </Link>
-                  ) : (
-                    <a
-                      href={link.href}
-                      onClick={toggleMobile}
-                      className="block py-3 text-2xl font-semibold text-foreground transition-colors hover:text-primary"
-                    >
-                      {link.label}
-                    </a>
-                  )}
-                </motion.div>
-              ))}
-
-              <motion.div variants={staggerLinkItem} className="mt-3">
-                <Link
-                  href="/dashboard"
-                  onClick={toggleMobile}
-                  className="block py-2 text-lg font-medium text-foreground"
-                >
-                  Compte
-                </Link>
-              </motion.div>
-              <motion.div variants={staggerLinkItem} className="mt-2">
-                <Link
-                  href={accessToken ? "/dashboard" : "/login"}
-                  onClick={toggleMobile}
-                  className="inline-flex h-12 items-center rounded-xl bg-primary px-8 text-base font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-                >
-                  {accessToken ? "Mon compte" : "Se connecter"}
-                </Link>
-              </motion.div>
-            </motion.nav>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              Yaoundé · Douala
+              <br />
+              Cameroun
+            </div>
+            <div className="nav-contact__item" style={{ marginTop: 16 }}>
+              <Link href="/contact" onClick={closeNav} className="nav-contact__cta">
+                Contactez-nous →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
     </>
   )
 }

@@ -200,7 +200,7 @@ export async function listPayments(token: string, params: Record<string, string>
   return apiFetch<PaginatedResponse<PaymentItem>>(`/api/v1/admin/payments${qs ? `?${qs}` : ""}`, { method: "GET", token })
 }
 
-export async function listCommissions(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<CommissionItem> & { totals: { commission: number; net: number } }> {
+export async function listCommissions(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<CommissionItem> & { totals: { commission: number; net: number; paid: number; pending: number } }> {
   const qs = new URLSearchParams(params).toString()
   return apiFetch(`/api/v1/admin/commissions${qs ? `?${qs}` : ""}`, { method: "GET", token })
 }

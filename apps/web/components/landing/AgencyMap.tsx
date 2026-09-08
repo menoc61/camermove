@@ -84,7 +84,7 @@ export function AgencyMapInner({ city, lat, lon, agencies }: AgencyMapProps) {
                     )}
                     {a.city && <p className="text-muted-foreground">{a.city}</p>}
                     <Link
-                      href={`/results?origin=${encodeURIComponent(city ?? "")}&destination=&pax=1`}
+                      href={`/results?origin=${encodeURIComponent(a.city ?? "")}&pax=1`}
                       className="mt-1 inline-block font-medium text-primary hover:underline"
                     >
                       Voir les départs →

@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { SiteNav } from "@/components/landing/SiteNav"
 import { SiteFooter } from "@/components/landing/SiteFooter"
 import { ContactForm } from "@/components/contact/ContactForm"
 
@@ -11,7 +10,6 @@ export const metadata: Metadata = {
 export default function ContactPage() {
   return (
     <>
-      <SiteNav />
       <main className="mx-auto max-w-2xl px-4 py-24 sm:px-6">
         <h1 className="text-4xl font-bold tracking-tighter">Contact</h1>
         <p className="mt-2 text-muted-foreground">Une question ? Écrivez-nous — réponse sous 24h.</p>

@@ -138,12 +138,11 @@ export async function listPayments(token: string, params: Record<string, string>
   }
 }
 
+// NOTE: there is no transporter-scoped commissions endpoint yet — this route is
+// admin-only. Do not silently swallow the 403; surface it so the UI can tell the
+// user the section is unavailable instead of showing a fake empty list.
 export async function listCommissions(token: string): Promise<PaginatedResponse<{ id: string; commissionAmount: number; netAmount: number; payoutStatus: string }>> {
-  try {
-    return await apiFetch<PaginatedResponse<{ id: string; commissionAmount: number; netAmount: number; payoutStatus: string }>>(`/api/v1/admin/commissions`, { method: "GET", token } as never)
-  } catch {
-    return { items: [], total: 0, page: 1, totalPages: 0 }
-  }
+  return apiFetch<PaginatedResponse<{ id: string; commissionAmount: number; netAmount: number; payoutStatus: string }>>(`/api/v1/admin/commissions`, { method: "GET", token })
 }
 
 export async function bulkCreateTrips(token: string, trips: Record<string, unknown>[]): Promise<{ count: number }> {

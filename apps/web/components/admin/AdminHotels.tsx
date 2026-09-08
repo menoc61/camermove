@@ -9,6 +9,20 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
+
+async function downloadExport(token: string, path: string, format: string) {
+  const res = await fetch(`${API_URL}${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error("Export failed")
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `export-hotels-${new Date().toISOString().slice(0, 10)}.${format}`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function AdminHotels() {
   const token = useAuthStore((s) => s.accessToken)
   const qc = useQueryClient()
@@ -40,7 +54,7 @@ export function AdminHotels() {
   function exportCsv(format: "csv" | "json" = "csv") {
     if (!token) return
     const qs = new URLSearchParams({ format, ...(dateFrom ? { dateFrom } : {}), ...(dateTo ? { dateTo } : {}), ...(q ? { q } : {}) }).toString()
-    window.open(`/api/v1/admin/hotels/export?${qs}`, "_blank")
+    downloadExport(token, `/api/v1/admin/hotels/export?${qs}`, format).catch(() => toast.error("Erreur lors de l'export"))
   }
 
   return (
@@ -48,8 +62,8 @@ export function AdminHotels() {
       <div className="flex flex-wrap gap-2">
         <Input placeholder="Recherche" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} className="w-48" />
         <Input placeholder="Ville" value={city} onChange={(e) => { setCity(e.target.value); setPage(1) }} className="w-32" />
-        <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36" />
-        <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36" />
+        <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-36" />
+        <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-36" />
         <Button variant="outline" size="sm" onClick={() => exportCsv("csv")}>Export CSV</Button>
       </div>
       <div className="rounded-xl border overflow-hidden">

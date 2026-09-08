@@ -47,7 +47,6 @@ export function AdminCommissions() {
   const token = useAuthStore((s) => s.accessToken)
   const qc = useQueryClient()
 
-  const [search, setSearch] = useState("")
   const [payoutFilter, setPayoutFilter] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -58,7 +57,6 @@ export function AdminCommissions() {
     page: String(page),
     limit: String(limit),
   }
-  if (search) params.transporterId = search
   if (payoutFilter) params.payoutStatus = payoutFilter
   if (dateFrom) params.dateFrom = dateFrom
   if (dateTo) params.dateTo = dateTo
@@ -104,8 +102,9 @@ export function AdminCommissions() {
   const totalPages = data?.totalPages ?? 1
   const totals = data?.totals
 
-  const paidCount = data?.items.filter((c) => c.payoutStatus === "paid").length ?? 0
-  const pendingCount = data?.items.filter((c) => c.payoutStatus === "pending").length ?? 0
+  // Totals are computed server-side across all matching rows (not just this page).
+  const paidCount = totals?.paid ?? 0
+  const pendingCount = totals?.pending ?? 0
 
   return (
     <div className="space-y-4">

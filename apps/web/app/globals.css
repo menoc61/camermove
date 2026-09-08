@@ -8,6 +8,7 @@
 @theme inline {
   --font-heading: var(--font-heading);
   --font-sans: var(--font-sans);
+  --font-display: var(--font-heading);
   /* Brand extensions (CamerMove) - kept alongside shadcn semantics */
   --color-primary-dark: var(--primary-dark);
   --color-brand: var(--brand);
@@ -65,35 +66,36 @@
 
 @layer base {
   :root {
-    /* CamerMove warm African palette — terracotta, amber, forest */
-    --brand: 20 84% 58%;          /* Terracotta #E87A4D */
-    --brand-light: 35 91% 65%;    /* Amber highlight #F7B740 */
-    --brand-dark: 15 72% 42%;      /* Deep terracotta #C75B39 */
-    --accent: 174 84% 32%;          /* Forest teal #0e9f8f */
-    --accent-dark: 174 84% 26%;     /* Deep teal */
-    --surface-0: 30 25% 97%;       /* Warm cream #FDF8F3 */
-    --surface-1: 0 0% 100%;        /* Pure white */
-    --surface-2: 30 20% 95%;       /* Soft warm gray */
-    --surface-3: 30 15% 91%;       /* Muted warm */
-    --ink-0: 20 15% 12%;           /* Deep warm charcoal #1A1A2E */
-    --ink-1: 20 10% 35%;           /* Muted warm gray */
-    --ink-2: 20 8% 52%;            /* Light warm gray */
-    --border: 30 12% 88%;          /* Warm border */
-    --border-focus: 20 84% 58%;    /* Terracotta focus */
+    /* CamerMove blue identity — cobalt primary, sky highlights, cyan status */
+    --brand: 224 76% 48%;
+    --brand-light: 199 89% 48%;
+    --brand-dark: 226 70% 38%;
+    --accent: 189 94% 43%;
+    --accent-dark: 200 90% 38%;
+    --surface-0: 214 40% 98%;
+    --surface-1: 0 0% 100%;
+    --surface-2: 214 32% 96%;
+    --surface-3: 214 28% 93%;
+    --ink-0: 222 47% 11%;
+    --ink-1: 215 25% 40%;
+    --ink-2: 215 16% 52%;
+    --border: 214 22% 90%;
+    --border-focus: 224 76% 48%;
+    --primary-dark: 226 70% 38%;
     --radius: 0.75rem;
 
-    --background: 30 25% 97%;
-    --foreground: 20 15% 12%;
+    --background: 214 40% 98%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 20 15% 12%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 20 15% 12%;
-    --primary: 20 84% 58%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 224 76% 48%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 174 84% 32%;
+    --secondary: 199 89% 48%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 30 20% 95%;
-    --muted-foreground: 20 10% 35%;
+    --muted: 214 32% 96%;
+    --muted-foreground: 215 25% 40%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -121,6 +123,7 @@
     --ink-2: 215 16% 52%;
     --border: 218 25% 24%;
     --border-focus: 217 91% 60%;
+    --primary-dark: 224 76% 48%;
     --radius: 0.75rem;
 
     --background: 222 47% 7%;
@@ -174,8 +177,7 @@
   .shadow-md { box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06); }
   .shadow-lg { box-shadow: 0 4px 12px rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.08); }
   .shadow-xl { box-shadow: 0 8px 24px rgba(0,0,0,0.06), 0 16px 48px rgba(0,0,0,0.10); }
-  .shadow-warm { box-shadow: 0 8px 32px rgba(199,91,57,0.12), 0 4px 16px rgba(199,91,57,0.08); }
-  .shadow-glow { box-shadow: 0 0 20px rgba(232,122,77,0.15), 0 0 60px rgba(232,122,77,0.05); }
+  .shadow-brand { box-shadow: 0 8px 32px rgba(29,78,216,0.10), 0 4px 16px rgba(29,78,216,0.06); }
 }
 
 @layer utilities {
@@ -190,11 +192,8 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-  .bg-gradient-warm {
+  .bg-gradient-brand {
     background: linear-gradient(135deg, hsl(var(--brand-dark)), hsl(var(--brand)), hsl(var(--brand-light)));
-  }
-  .bg-gradient-forest {
-    background: linear-gradient(135deg, hsl(var(--accent-dark)), hsl(var(--accent)));
   }
 }
 
@@ -225,64 +224,12 @@ body {
   visibility: visible;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .intro-overlay { display: none !important; }
-  .animate-marker-pulse { animation: none !important; }
-}
-
-/* Reduced-motion: entrance keyframes become instant, transitions preserved for color state */
-@media (prefers-reduced-motion: reduce) {
-  .reveal-up,
-  .reveal-fade {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-  }
-}
-
 /* Gated hover — touch fires false hovers */
 @media (hover: hover) and (pointer: fine) {
   .hover-lift { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-  .hover-lift:hover { transform: translateY(-6px); box-shadow: 0 12px 40px rgba(199,91,57,0.15); }
+  .hover-lift:hover { transform: translateY(-6px); box-shadow: 0 12px 40px rgba(29,78,216,0.12); }
   .hover-lift-sm { transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
   .hover-lift-sm:hover { transform: translateY(-3px); }
-}
-
-/* Intro overlay panels */
-.intro-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  pointer-events: none;
-}
-
-.intro-overlay .overlay-top-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 50vh;
-  display: flex;
-}
-
-.intro-overlay .overlay-bottom-container {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 50vh;
-  display: flex;
-}
-
-.intro-overlay .overlay-top {
-  flex: 1;
-  background: linear-gradient(135deg, hsl(var(--brand-dark)), hsl(var(--brand)));
-  transform-origin: top;
-}
-
-.intro-overlay .overlay-bottom {
-  flex: 1;
-  background: linear-gradient(135deg, hsl(var(--brand)), hsl(var(--brand-light)));
-  transform-origin: left;
 }
 
 /* Agency map marker entrance — fade/rise, no scale-from-zero */
@@ -294,7 +241,6 @@ body {
 
 /* Safe entrance utilities */
 .reveal-fade { animation: reveal-fade 0.5s var(--ease-out) both; }
-.reveal-up-old { animation: reveal-up 0.6s var(--ease-out) both; }
 @keyframes reveal-fade {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -302,6 +248,15 @@ body {
 @keyframes reveal-up {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduced-motion: entrance keyframes become instant, transitions preserved for color state */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-up,
+  .reveal-fade {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* Agency map marker pulse */
@@ -318,15 +273,6 @@ body {
 
 .animate-marker-pulse {
   animation: marker-pulse 2s ease-in-out infinite;
-}
-
-/* Line span for hero text reveal */
-.line {
-  overflow: hidden;
-}
-
-.line span {
-  display: inline-block;
 }
 
 /* Route line signature motif */
@@ -365,4 +311,102 @@ body {
   syntax: '<integer>';
   initial-value: 0;
   inherits: false;
+}
+
+/* ── YOLO-style full-screen nav overlay (ported from yolo-web) ── */
+.nav-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0b0b0b;
+  z-index: 45;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+.nav-overlay.is-open {
+  display: flex;
+}
+.nav-overlay__inner {
+  display: flex;
+  gap: 80px;
+  padding: 0 64px;
+}
+@media (max-width: 768px) {
+  .nav-overlay__inner {
+    flex-direction: column;
+    gap: 32px;
+    padding: 0 24px;
+  }
+}
+.nav-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nav-links li {
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.nav-links a {
+  display: inline-block;
+  font-size: clamp(1.6rem, 4.5vw, 3.4rem);
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: color 0.2s;
+  font-family: var(--font-heading);
+}
+.nav-links a:hover {
+  color: #9aa5b1;
+}
+.nav-links a:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+}
+.nav-contact__label {
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #555;
+  margin-bottom: 16px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+.nav-contact__item {
+  color: #fff;
+  text-decoration: none;
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+  letter-spacing: 0.05em;
+  transition: color 0.2s;
+}
+.nav-contact__item:hover {
+  color: #888;
+}
+.nav-contact__cta {
+  display: inline-block;
+  border: 1px solid #333;
+  padding: 10px 18px;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #fff;
+  text-decoration: none;
+  transition: border-color 0.2s, color 0.2s;
+}
+.nav-contact__cta:hover {
+  border-color: #fff;
+  color: #ccc;
+}
+
+/* Reduced-motion: overlay still opens/closes but without the slide/stagger
+   (content is never hidden — Tier 3 of the accessible-animation contract). */
+@media (prefers-reduced-motion: reduce) {
+  .nav-overlay {
+    transition: none;
+  }
 }

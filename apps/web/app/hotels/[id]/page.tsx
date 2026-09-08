@@ -63,11 +63,11 @@ export default function HotelDetailPage() {
     } finally { setLoading(false) }
   }
 
-  if (isLoading) return <main className="mx-auto max-w-4xl p-6 space-y-4"><Skeleton className="h-64 w-full" /><Skeleton className="h-40 w-full" /></main>
-  if (!hotel) return <main className="mx-auto max-w-4xl p-6"><p>Hôtel introuvable.</p></main>
+  if (isLoading) return <main className="mx-auto max-w-4xl px-6 pb-6 pt-24 space-y-4"><Skeleton className="h-64 w-full" /><Skeleton className="h-40 w-full" /></main>
+  if (!hotel) return <main className="mx-auto max-w-4xl px-6 pb-6 pt-24"><p>Hôtel introuvable.</p></main>
 
   return (
-    <main className="mx-auto max-w-4xl p-6 space-y-6">
+    <main className="mx-auto max-w-4xl px-6 pb-6 pt-24 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">{hotel.name}</h1>
         <p className="text-sm text-muted-foreground">{hotel.city} {hotel.starRating ? `· ${hotel.starRating}★` : ""}</p>

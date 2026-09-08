@@ -16,7 +16,7 @@ export function TicketPolling({ initial, token, id }: { initial: TicketDetailRes
         if (!res.ok) return
         const json = (await res.json()) as TicketDetailResponse
         setData(json)
-        if (json.status === "valid" || json.status === "used") setPolling(false)
+        if (json.status === "valid" || json.status === "used" || json.status === "void") setPolling(false)
       } catch {}
     }, 5000)
     return () => clearInterval(iv)

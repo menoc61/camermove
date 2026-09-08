@@ -3,7 +3,10 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@camermove/frontend"],
   images: {
-    remotePatterns: [{ protocol: "https", hostname: "picsum.photos" }],
+    remotePatterns: [
+      { protocol: "https", hostname: "picsum.photos" },
+      { protocol: "https", hostname: "images.unsplash.com" },
+    ],
   },
 }
 export default nextConfig

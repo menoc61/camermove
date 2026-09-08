@@ -9,10 +9,11 @@ export function BookingsClient({ token }: { token: string }) {
   const [commissions,setCommissions]=useState<{ id:string; commissionAmount:number; netAmount:number; payoutStatus:string }[]>([])
   const [tab,setTab]=useState<"bookings"|"payments"|"commissions">("bookings")
   const [error,setError]=useState<string|null>(null)
+  const [commissionError,setCommissionError]=useState(false)
   useEffect(()=>{
     listBookings(token).then(r=>setBookings(r.items as never)).catch(e=>setError(e.message))
     listPayments(token).then(r=>setPayments(r.items as never)).catch(()=>{})
-    listCommissions(token).then(r=>setCommissions(r.items as never)).catch(()=>{})
+    listCommissions(token).then(r=>setCommissions(r.items as never)).catch(()=>setCommissionError(true))
   },[token])
   return (
     <div className="space-y-6">
@@ -37,8 +38,9 @@ export function BookingsClient({ token }: { token: string }) {
       )}
       {tab==="commissions" && (
         <ul className="divide-y rounded-2xl border">
-          {commissions.map((c)=><li key={c.id} className="p-4"><div className="font-medium">Commission {c.commissionAmount.toLocaleString()} XAF · net {c.netAmount.toLocaleString()}</div><div className="text-xs text-muted-foreground">{c.payoutStatus}</div></li>)}
-          {commissions.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune commission.</li>}
+          {commissionError && <li className="p-6 text-sm text-muted-foreground">Section indisponible pour votre compte — contactez l&apos;administrateur.</li>}
+          {!commissionError && commissions.map((c)=><li key={c.id} className="p-4"><div className="font-medium">Commission {c.commissionAmount.toLocaleString()} XAF · net {c.netAmount.toLocaleString()}</div><div className="text-xs text-muted-foreground">{c.payoutStatus}</div></li>)}
+          {!commissionError && commissions.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune commission.</li>}
         </ul>
       )}
     </div>
