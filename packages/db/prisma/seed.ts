@@ -1,6 +1,28 @@
 import { prisma } from "../src/prisma"
+import * as argon2 from "argon2"
+
+async function ensureDemoUsers() {
+  const users = [
+    { email: "admin@camermove.cm", password: "Admin123!", firstName: "Admin", lastName: "CamerMove", role: "super_admin" as const },
+    { email: "user@camermove.cm", password: "User123!", firstName: "Jean", lastName: "Voyageur", role: "traveler" as const },
+    { email: "partner@camermove.cm", password: "Partner123!", firstName: "Paul", lastName: "Partenaire", role: "transporter_staff" as const },
+  ]
+  for (const u of users) {
+    const existing = await prisma.user.findUnique({ where: { email: u.email } })
+    if (existing) continue
+    const hash = await argon2.hash(u.password)
+    const user = await prisma.user.create({
+      data: { email: u.email, passwordHash: hash, firstName: u.firstName, lastName: u.lastName, role: u.role as never, emailVerified: true },
+    })
+    if (u.role === "transporter_staff") {
+      const transporter = await prisma.transporter.findFirst({ where: { email: "express@camermove.cm" } })
+      if (transporter) await prisma.user.update({ where: { id: user.id }, data: { transporterId: transporter.id } })
+    }
+  }
+}
 
 async function main() {
+  await ensureDemoUsers()
   const transporter = await prisma.transporter.upsert({
     where: { email: "express@camermove.cm" },
     update: {},

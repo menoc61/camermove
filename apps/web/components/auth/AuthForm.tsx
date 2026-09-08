@@ -17,6 +17,9 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
+import { GoogleButton } from "./GoogleButton"
+import { PasswordInput } from "./PasswordInput"
+import { PasswordStrengthMeter } from "./PasswordStrengthMeter"
 
 interface Props {
   mode: "login" | "register"
@@ -25,11 +28,17 @@ interface Props {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+const DEMO_ACCOUNTS = [
+  { label: "Admin", email: "admin@camermove.cm", password: "Admin123!" },
+  { label: "Voyageur", email: "user@camermove.cm", password: "User123!" },
+  { label: "Partenaire", email: "partner@camermove.cm", password: "Partner123!" },
+] as const
+
 export function AuthForm({ mode, next }: Props) {
   const router = useRouter()
   const setAuth = useAuthStore((s) => s.setAuth)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [email, setEmail] = useState(mode === "login" ? "user@camermove.cm" : "")
+  const [password, setPassword] = useState(mode === "login" ? "User123!" : "")
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [touched, setTouched] = useState({ email: false, password: false })
@@ -79,7 +88,9 @@ export function AuthForm({ mode, next }: Props) {
         err instanceof ApiError
           ? err.status === 401
             ? "E-mail ou mot de passe incorrect."
-            : err.message
+            : err.status === 409
+              ? "Un compte existe déjà avec cette adresse e-mail."
+              : err.message
           : "Une erreur est survenue. Réessayez."
       setError(msg)
       toast.error(msg)
@@ -90,6 +101,26 @@ export function AuthForm({ mode, next }: Props) {
 
   return (
     <form onSubmit={submit} className="grid grid-cols-1 gap-4" noValidate>
+      {mode === "login" && (
+        <div className="rounded-xl border bg-muted/30 p-3">
+          <p className="text-xs font-semibold text-muted-foreground">Comptes de démonstration — cliquez pour remplir</p>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {DEMO_ACCOUNTS.map((a) => (
+              <button
+                key={a.email}
+                type="button"
+                onClick={() => { setEmail(a.email); setPassword(a.password); setTouched({ email: true, password: true }); setError(null) }}
+                className={`rounded-lg border px-3 py-2 text-left transition-colors ${email === a.email ? "border-primary bg-primary/10" : "bg-card hover:border-primary/50"}`}
+              >
+                <span className="block text-xs font-bold">{a.label}</span>
+                <span className="block truncate text-[11px] text-muted-foreground">{a.email}</span>
+                <span className="block text-[11px] font-mono">{a.password}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">Seed: <code>prisma/seed.ts</code> crée ces 3 comptes (argon2) au premier <code>docker compose up</code>. Mot de passe pré-rempli pour démo.</p>
+        </div>
+      )}
       <FieldGroup>
         {mode === "register" && (
           <motion.div
@@ -101,6 +132,7 @@ export function AuthForm({ mode, next }: Props) {
               <FieldLabel htmlFor="firstName">Prénom</FieldLabel>
               <Input
                 id="firstName"
+                name="givenName"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 autoComplete="given-name"
@@ -111,6 +143,7 @@ export function AuthForm({ mode, next }: Props) {
               <FieldLabel htmlFor="lastName">Nom</FieldLabel>
               <Input
                 id="lastName"
+                name="familyName"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 autoComplete="family-name"
@@ -124,6 +157,7 @@ export function AuthForm({ mode, next }: Props) {
           <FieldLabel htmlFor="email">E-mail</FieldLabel>
           <Input
             id="email"
+            name="email"
             type="email"
             required
             aria-invalid={!!emailError}
@@ -132,6 +166,7 @@ export function AuthForm({ mode, next }: Props) {
             onChange={(e) => setEmail(e.target.value)}
             onBlur={() => setTouched((p) => ({ ...p, email: true }))}
             autoComplete="email"
+            inputMode="email"
             placeholder="vous@exemple.cm"
             className={cn(emailError && "border-destructive focus-visible:ring-destructive")}
           />
@@ -152,10 +187,20 @@ export function AuthForm({ mode, next }: Props) {
         </Field>
 
         <Field data-invalid={!!passwordError || undefined}>
-          <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
-          <Input
+          <div className="flex items-baseline justify-between">
+            <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
+            {mode === "login" && (
+              <Link
+                href="/forgot-password"
+                className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+              >
+                Mot de passe oublié ?
+              </Link>
+            )}
+          </div>
+          <PasswordInput
             id="password"
-            type="password"
+            name="password"
             required
             minLength={8}
             aria-invalid={!!passwordError}
@@ -164,7 +209,8 @@ export function AuthForm({ mode, next }: Props) {
             onChange={(e) => setPassword(e.target.value)}
             onBlur={() => setTouched((p) => ({ ...p, password: true }))}
             autoComplete={mode === "login" ? "current-password" : "new-password"}
-            className={cn(passwordError && "border-destructive focus-visible:ring-destructive")}
+            hasError={!!passwordError}
+            disabled={submitting}
           />
           <AnimatePresence>
             {passwordError ? (
@@ -179,7 +225,10 @@ export function AuthForm({ mode, next }: Props) {
                 {passwordError}
               </motion.p>
             ) : mode === "register" && !passwordError ? (
-              <FieldDescription id="password-hint">8 caractères minimum.</FieldDescription>
+              <FieldDescription id="password-hint" className="space-y-1.5">
+                <span>8 caractères minimum.</span>
+                <PasswordStrengthMeter password={password} />
+              </FieldDescription>
             ) : null}
           </AnimatePresence>
         </Field>
@@ -215,6 +264,18 @@ export function AuthForm({ mode, next }: Props) {
                 : "Créer mon compte"}
           </Button>
         </motion.div>
+
+        {/* Divider */}
+        <div className="relative my-1">
+          <div className="absolute inset-0 flex items-center" aria-hidden>
+            <div className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase tracking-wider">
+            <span className="bg-card px-3 text-muted-foreground">ou</span>
+          </div>
+        </div>
+
+        <GoogleButton next={next} />
 
         <p className="text-center text-sm text-muted-foreground">
           {mode === "login" ? (
