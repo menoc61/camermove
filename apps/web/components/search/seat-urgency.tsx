@@ -16,12 +16,12 @@ export function SeatUrgency({ seatsAvailable, className }: { seatsAvailable: num
   }
   if (seatsAvailable < 5) {
     return (
-      <span className={cn("inline-flex items-center gap-1.5 text-xs font-semibold text-stone-900", className)}>
+      <span className={cn("inline-flex items-center gap-1.5 text-xs font-semibold text-[#C0392B]", className)}>
         <span
           aria-hidden
-          className="size-1.5 animate-pulse rounded-full bg-stone-900 motion-reduce:animate-none"
+          className="size-1.5 animate-pulse rounded-full bg-[#C0392B] motion-reduce:animate-none"
         />
-        Plus que {seatsAvailable} place{seatsAvailable > 1 ? "s" : ""}
+        Plus que {seatsAvailable} place{seatsAvailable > 1 ? "s" : ""} — sièges libres
       </span>
     )
   }

@@ -223,7 +223,17 @@ function ResultsInner() {
   }
 
   const { data, isLoading, error } = useQuery<SearchResult>({
-    queryKey: ["search", params],
+    queryKey: [
+      "search",
+      params.origin,
+      params.destination,
+      params.date,
+      params.pax,
+      params.sortBy,
+      params.minPrice ?? null,
+      params.maxPrice ?? null,
+      params.page,
+    ],
     queryFn: () => fetchSearch(params),
   })
 
@@ -279,6 +289,24 @@ function ResultsInner() {
         )}
       </div>
 
+      {/* Pill filters — TransportModule reference: Tous / Départ matin / VIP / Moins cher */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {[
+          { label: "Tous", active: params.sortBy === "price_asc" && params.minPrice == null && sp.get("vehicleType") == null, action: () => { const n = new URLSearchParams(sp.toString()); n.delete("sortBy"); n.delete("minPrice"); n.delete("maxPrice"); n.delete("vehicleType"); n.delete("page"); router.push(`${pathname}?${n.toString()}`, { scroll: false }) } },
+          { label: "Départ matin", active: params.sortBy === "departure_asc", action: () => { const n = new URLSearchParams(sp.toString()); n.set("sortBy", "departure_asc"); n.delete("page"); router.push(`${pathname}?${n.toString()}`, { scroll: false }) } },
+          { label: "VIP", active: sp.get("vehicleType") === "vip", action: () => { const n = new URLSearchParams(sp.toString()); n.set("vehicleType", "vip"); n.delete("page"); router.push(`${pathname}?${n.toString()}`, { scroll: false }) } },
+          { label: "Moins cher", active: params.sortBy === "price_asc", action: () => { const n = new URLSearchParams(sp.toString()); n.set("sortBy", "price_asc"); n.delete("page"); router.push(`${pathname}?${n.toString()}`, { scroll: false }) } },
+        ].map((p) => (
+          <button
+            key={p.label}
+            onClick={p.action}
+            className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-colors ${p.active ? "bg-[#14213D] text-white" : "bg-white text-[#5A6474] border border-[#E4E1D9]"}`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       {/* Filter bar */}
       <FilterBar
         sortBy={params.sortBy ?? "price_asc"}
@@ -310,8 +338,18 @@ function ResultsInner() {
       {/* Results list */}
       {hasResults && (
         <div className="flex flex-col gap-3">
-          {tripData!.items.map((trip) => (
-            <TripCard key={trip.id} trip={trip} />
+          {tripData!.items.map((trip, idx) => (
+            <TripCard
+              key={trip.id}
+              trip={trip}
+              highlight={
+                idx === 0 && params.sortBy === "price_asc"
+                  ? "best_price"
+                  : idx === 0
+                    ? "popular"
+                    : null
+              }
+            />
           ))}
         </div>
       )}

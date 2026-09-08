@@ -33,15 +33,17 @@ export function TicketDetail({ data }: { data: TicketDetailResponse }) {
       <Card>
         <CardContent className="flex flex-col items-center p-6 text-center">
           {data.qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={data.qrDataUrl} alt="QR code du billet" className="mx-auto h-auto max-w-[240px]" />
+            <div className="p-3 rounded-xl" style={{ background: "#F7F5F0" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={data.qrDataUrl} alt="QR code du billet" className="mx-auto h-[120px] w-[120px]" />
+            </div>
           ) : (
-            <div className="mx-auto flex h-[240px] w-[240px] items-center justify-center rounded-lg border border-dashed bg-muted text-xs text-muted-foreground">
+            <div className="mx-auto flex h-[120px] w-[120px] items-center justify-center rounded-xl border border-dashed text-xs" style={{ background: "#F7F5F0", borderColor: "#E4E1D9", color: "#5A6474" }}>
               QR indisponible
             </div>
           )}
-          <p className="mt-4 font-mono text-lg font-semibold">{data.verificationCode}</p>
-          <p className="text-xs text-muted-foreground">Code de vérification</p>
+          <p className="mt-3 font-mono text-sm font-bold" style={{ color: "#14213D" }}>{data.verificationCode}</p>
+          <p className="text-xs" style={{ color: "#5A6474" }}>Code de vérification</p>
         </CardContent>
       </Card>
 
