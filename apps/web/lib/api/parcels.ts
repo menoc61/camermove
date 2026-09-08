@@ -145,17 +145,18 @@ export async function fetchParcel(id: string, token: string): Promise<Parcel> {
 }
 
 export async function createParcelPayment(
-  bookingId: string,
+  parcelId: string,
   token: string,
   provider?: string
 ): Promise<{ paymentUrl: string; authorizationUrl: string }> {
-  const res = await fetch(`${apiBase()}/api/v1/payments`, {
+  const res = await fetch(`${apiBase()}/api/v1/parcels/${parcelId}/pay`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
-      ...(provider && { "X-Notch-Provider": provider }),
+      "Content-Type": "application/json",
+      "Idempotency-Key": crypto.randomUUID(),
     },
-    body: JSON.stringify({ bookingId, type: "parcel", provider }),
+    body: JSON.stringify({ provider: provider ?? "notchpay" }),
   })
   if (!res.ok) {
     const text = await res.text()

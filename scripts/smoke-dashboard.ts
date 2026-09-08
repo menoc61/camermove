@@ -17,12 +17,12 @@
  *
  * Test credentials are picked from seeded users; if not available, the test
  * skips with a clear message. Runs against API at $API_URL (default localhost:3000)
- * and WEB at $WEB_URL (default localhost:3001).
+ * and WEB at $WEB_URL (default localhost:3002).
  */
 import { prisma } from "@camermove/db"
 
 const API = process.env.API_URL ?? "http://localhost:3000"
-const WEB = process.env.WEB_URL ?? "http://localhost:3001"
+const WEB = process.env.WEB_URL ?? "http://localhost:3002"
 
 let failures = 0
 function log(label: string, ok: boolean, detail?: string) {

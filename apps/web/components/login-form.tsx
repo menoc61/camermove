@@ -78,7 +78,7 @@ export function LoginForm({
                 >
                   <h1 className="text-2xl font-bold">Welcome back</h1>
                   <p className="text-balance text-muted-foreground">
-                    Login to your Acme Inc account
+                    Login to your CamerMove account
                   </p>
                 </motion.div>
 

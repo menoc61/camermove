@@ -2,7 +2,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button-variants"
 import { cn } from "@/lib/utils"
 
 interface LookupResponse {

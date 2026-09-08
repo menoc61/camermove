@@ -65,85 +65,86 @@
 
 @layer base {
   :root {
-    --brand: 168 72% 50%;
-    --brand-light: 170 76% 54%;
-    --brand-dark: 168 65% 43%;
-    --accent: 43 95% 50%;
-    --accent-dark: 43 85% 44%;
-    --surface-0: 210 20% 98%;
-    --surface-1: 0 0% 100%;
-    --surface-2: 210 16% 96%;
-    --surface-3: 210 14% 93%;
-    --ink-0: 210 10% 11%;
-    --ink-1: 216 10% 43%;
-    --ink-2: 215 8% 55%;
-    --border: 214 12% 90%;
-    --border-focus: 168 72% 50%;
+    /* CamerMove warm African palette — terracotta, amber, forest */
+    --brand: 20 84% 58%;          /* Terracotta #E87A4D */
+    --brand-light: 35 91% 65%;    /* Amber highlight #F7B740 */
+    --brand-dark: 15 72% 42%;      /* Deep terracotta #C75B39 */
+    --accent: 174 84% 32%;          /* Forest teal #0e9f8f */
+    --accent-dark: 174 84% 26%;     /* Deep teal */
+    --surface-0: 30 25% 97%;       /* Warm cream #FDF8F3 */
+    --surface-1: 0 0% 100%;        /* Pure white */
+    --surface-2: 30 20% 95%;       /* Soft warm gray */
+    --surface-3: 30 15% 91%;       /* Muted warm */
+    --ink-0: 20 15% 12%;           /* Deep warm charcoal #1A1A2E */
+    --ink-1: 20 10% 35%;           /* Muted warm gray */
+    --ink-2: 20 8% 52%;            /* Light warm gray */
+    --border: 30 12% 88%;          /* Warm border */
+    --border-focus: 20 84% 58%;    /* Terracotta focus */
     --radius: 0.75rem;
 
-    --background: 210 20% 98%;
-    --foreground: 210 10% 11%;
+    --background: 30 25% 97%;
+    --foreground: 20 15% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 210 10% 11%;
+    --card-foreground: 20 15% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 210 10% 11%;
-    --primary: 168 72% 50%;
+    --popover-foreground: 20 15% 12%;
+    --primary: 20 84% 58%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 43 95% 50%;
-    --secondary-foreground: 210 10% 11%;
-    --muted: 210 16% 96%;
-    --muted-foreground: 216 10% 43%;
-    --accent-foreground: 210 10% 11%;
+    --secondary: 174 84% 32%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 30 20% 95%;
+    --muted-foreground: 20 10% 35%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --input: 214 12% 90%;
-    --ring: 168 72% 50%;
-    --chart-1: 168 72% 50%;
-    --chart-2: 43 95% 50%;
-    --chart-3: 215 8% 55%;
-    --chart-4: 210 14% 93%;
-    --chart-5: 168 65% 43%;
+    --input: 214 22% 90%;
+    --ring: 224 76% 48%;
+    --chart-1: 224 76% 48%;
+    --chart-2: 199 89% 48%;
+    --chart-3: 189 94% 43%;
+    --chart-4: 222 47% 25%;
+    --chart-5: 215 16% 52%;
   }
 
   .dark {
-    --brand: 170 76% 54%;
-    --brand-light: 172 80% 58%;
-    --brand-dark: 168 72% 50%;
-    --accent: 43 95% 50%;
-    --accent-dark: 43 85% 44%;
-    --surface-0: 215 20% 9%;
-    --surface-1: 215 16% 12%;
-    --surface-2: 215 14% 15%;
-    --surface-3: 215 12% 18%;
-    --ink-0: 210 20% 96%;
-    --ink-1: 216 10% 60%;
-    --ink-2: 215 8% 45%;
-    --border: 214 15% 25%;
-    --border-focus: 170 76% 54%;
+    --brand: 217 91% 60%;
+    --brand-light: 199 89% 55%;
+    --brand-dark: 224 76% 48%;
+    --accent: 189 94% 45%;
+    --accent-dark: 200 90% 38%;
+    --surface-0: 222 47% 7%;
+    --surface-1: 222 42% 11%;
+    --surface-2: 222 38% 14%;
+    --surface-3: 222 32% 18%;
+    --ink-0: 214 40% 96%;
+    --ink-1: 214 25% 68%;
+    --ink-2: 215 16% 52%;
+    --border: 218 25% 24%;
+    --border-focus: 217 91% 60%;
     --radius: 0.75rem;
 
-    --background: 215 20% 12%;
-    --foreground: 210 20% 96%;
-    --card: 215 16% 15%;
-    --card-foreground: 210 20% 96%;
-    --popover: 215 16% 15%;
-    --popover-foreground: 210 20% 96%;
-    --primary: 170 76% 54%;
-    --primary-foreground: 215 20% 9%;
-    --secondary: 43 95% 50%;
-    --secondary-foreground: 215 20% 9%;
-    --muted: 215 14% 15%;
-    --muted-foreground: 215 10% 60%;
-    --accent-foreground: 215 20% 9%;
+    --background: 222 47% 7%;
+    --foreground: 214 40% 96%;
+    --card: 222 42% 11%;
+    --card-foreground: 214 40% 96%;
+    --popover: 222 42% 11%;
+    --popover-foreground: 214 40% 96%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 7%;
+    --secondary: 199 89% 50%;
+    --secondary-foreground: 222 47% 7%;
+    --muted: 222 38% 14%;
+    --muted-foreground: 214 25% 68%;
+    --accent-foreground: 222 47% 7%;
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
-    --input: 215 12% 18%;
-    --ring: 170 76% 54%;
-    --chart-1: 170 76% 54%;
-    --chart-2: 43 95% 50%;
-    --chart-3: 215 8% 45%;
-    --chart-4: 215 12% 18%;
-    --chart-5: 168 72% 50%;
+    --input: 222 32% 18%;
+    --ring: 217 91% 60%;
+    --chart-1: 217 91% 60%;
+    --chart-2: 199 89% 55%;
+    --chart-3: 189 94% 45%;
+    --chart-4: 214 40% 80%;
+    --chart-5: 215 16% 52%;
   }
 
   :root {
@@ -173,6 +174,8 @@
   .shadow-md { box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06); }
   .shadow-lg { box-shadow: 0 4px 12px rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.08); }
   .shadow-xl { box-shadow: 0 8px 24px rgba(0,0,0,0.06), 0 16px 48px rgba(0,0,0,0.10); }
+  .shadow-warm { box-shadow: 0 8px 32px rgba(199,91,57,0.12), 0 4px 16px rgba(199,91,57,0.08); }
+  .shadow-glow { box-shadow: 0 0 20px rgba(232,122,77,0.15), 0 0 60px rgba(232,122,77,0.05); }
 }
 
 @layer utilities {
@@ -181,30 +184,67 @@
   .text-balance { text-wrap: balance; }
   .tracking-tighter { letter-spacing: -0.025em; }
   .tracking-tightest { letter-spacing: -0.03em; }
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(var(--brand)), hsl(var(--brand-light)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .bg-gradient-warm {
+    background: linear-gradient(135deg, hsl(var(--brand-dark)), hsl(var(--brand)), hsl(var(--brand-light)));
+  }
+  .bg-gradient-forest {
+    background: linear-gradient(135deg, hsl(var(--accent-dark)), hsl(var(--accent)));
+  }
 }
 
-/* Body starts hidden — GSAP/Lenis sets visible after animation */
+/* Scroll-driven reveal animations */
+@layer utilities {
+  .reveal-up {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  .reveal-up.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .reveal-scale {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  .reveal-scale.is-visible {
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+}
+
+/* Page is always visible; entrance animations run on elements, never on body */
 body {
-  visibility: hidden;
+  visibility: visible;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body { visibility: visible !important; }
   .intro-overlay { display: none !important; }
+  .animate-marker-pulse { animation: none !important; }
 }
 
-/* Reduced-motion: keep opacity/color, drop transform motion */
+/* Reduced-motion: entrance keyframes become instant, transitions preserved for color state */
 @media (prefers-reduced-motion: reduce) {
-  * {
+  .reveal-up,
+  .reveal-fade {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
   }
 }
 
 /* Gated hover — touch fires false hovers */
 @media (hover: hover) and (pointer: fine) {
-  .hover-lift:hover { transform: translateY(-4px); }
+  .hover-lift { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+  .hover-lift:hover { transform: translateY(-6px); box-shadow: 0 12px 40px rgba(199,91,57,0.15); }
+  .hover-lift-sm { transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+  .hover-lift-sm:hover { transform: translateY(-3px); }
 }
 
 /* Intro overlay panels */
@@ -235,21 +275,33 @@ body {
 
 .intro-overlay .overlay-top {
   flex: 1;
-  background: hsl(var(--foreground));
+  background: linear-gradient(135deg, hsl(var(--brand-dark)), hsl(var(--brand)));
   transform-origin: top;
 }
 
 .intro-overlay .overlay-bottom {
   flex: 1;
-  background: hsl(var(--foreground));
+  background: linear-gradient(135deg, hsl(var(--brand)), hsl(var(--brand-light)));
   transform-origin: left;
 }
 
-/* Agency map marker bounce */
+/* Agency map marker entrance — fade/rise, no scale-from-zero */
 @keyframes marker-bounce {
-  0% { transform: scale(0); }
-  60% { transform: scale(1.15); }
-  100% { transform: scale(1); }
+  0% { opacity: 0; transform: translateY(8px); }
+  60% { opacity: 1; transform: translateY(-2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Safe entrance utilities */
+.reveal-fade { animation: reveal-fade 0.5s var(--ease-out) both; }
+.reveal-up-old { animation: reveal-up 0.6s var(--ease-out) both; }
+@keyframes reveal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Agency map marker pulse */
@@ -275,4 +327,42 @@ body {
 
 .line span {
   display: inline-block;
+}
+
+/* Route line signature motif */
+.route-line {
+  position: relative;
+}
+.route-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 40px;
+  height: 3px;
+  background: linear-gradient(90deg, hsl(var(--brand)), hsl(var(--brand-light)));
+  border-radius: 2px;
+  transform: translateY(-50%);
+}
+
+/* Stagger children animation support */
+.stagger-children > * {
+  --stagger-index: 0;
+  animation-delay: calc(var(--stagger-index) * 80ms);
+}
+
+/* Ambient floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Smooth number counter */
+@property --num {
+  syntax: '<integer>';
+  initial-value: 0;
+  inherits: false;
 }

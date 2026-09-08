@@ -5,17 +5,20 @@ import { SearchQuery } from "./schema"
 import { searchTrips } from "./service"
 import { AdvancedSearchQuery, advancedSearch, BulkActionSchema, bulkTripAction } from "./advanced"
 import { TripStatusActionSchema, setTripStatus } from "./trip-status"
+import { observeSearch } from "@camermove/observability"
 
 const TripIdParams = z.object({ id: z.string().cuid() })
 
 export async function searchRoutes(app: FastifyInstance) {
   app.get("/search", async (req) => {
     const query = SearchQuery.parse(req.query)
+    observeSearch(query.origin, query.destination)
     return searchTrips(query)
   })
 
   app.get("/search/advanced", async (req) => {
     const query = AdvancedSearchQuery.parse(req.query)
+    observeSearch(query.origin, query.destination)
     return advancedSearch(query)
   })
 

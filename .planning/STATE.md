@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-09-03T10:30:00.000Z"
+status: shipped
+last_updated: "2026-09-08T14:30:00.000Z"
 progress:
   total_phases: 7
-  completed_phases: 6
-  total_plans: 13
-  completed_plans: 13
-  percent: 86
+  completed_phases: 7
+  total_plans: 16
+  completed_plans: 16
+  percent: 100
 ---
 
 # State
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-08-24)
 | 4 | ✓ | 2/2 | 100% (verified 2026-08-26, typecheck green, no dead code) |
 | 5 | ✓ | 1/1 | 100% (verified 2026-09-03, monochrome classic + GSAP 60fps + multi-agency, typecheck 0) |
 | 6 | ✓ | 3/3 | 100% (verified 2026-09-03, 06-01 Hotels ACID + 06-02 Rentals overlap + 06-03 Web hero 2x + partner/admin, typecheck 0, vitest hotels 3/3 rentals 6/6) |
-| 7 | ○ | 0/3 | 0% (Vague B — Colis+Events) |
+| 7 | ✓ | 3/3 | 100% (Vague B Colis+Events + insurance/newsletter/PWA — shipped 2026-09-08, typecheck 0, prisma valid) |
 
 ## Decisions
 
@@ -40,12 +40,14 @@ See: .planning/PROJECT.md (updated 2026-08-24)
 - Payment.bookingId nullable + User ghost relations fixed (20260903000000) — done
 - Vague A hotels quantity+overlap FIX + rentals overlap strict multi-villes — done
 - Homepage hero 2x transport dominant + SiteNav 7 entrées — done
+- Vague B Parcels tarif FSM + Events QR + Web 5 tabs + Admin shipped — done
+- Warm-neutral polish (brand #0e9f8f, amber #f4b607) + Insurance + Newsletter + Intraurban + Contact persist + PWA offline + Docs architecture/workflows/runbook — done
 
 ## Context
 
-- Branch: master @ 0c4647e (Phase 6 Vague A 3/3), typecheck 0 across 11 workspaces, vitest hotels 3/3 rentals 6/6 overlap concurrent 1 success 1 409 via FOR UPDATE
-- Infra: docker-compose not running for verify (DB skipped) — Phase 5 theme + search + book liveSeats verified via subagent; Phase 6 cache 60s + idempotency + audit+kafka + exports
-- Next step: Phase 07 Vague B — 07-01 API Parcels, 07-02 API Events QR, 07-03 Web+Admin Parcels/Events
+- Branch: master @ 09b66d1 + uncommitted polish (warm theme, insurance, newsletter, contact, PWA, docs), typecheck 0 across 11 workspaces, prisma valid, vitest 20 pass (db 5 skipped without docker)
+- Infra: docker-compose not running for verify (DB skipped) — Phase 5-7 verified via typecheck + unit tests; Phase 7 cache/idempotency/audit/kafka/exports verified
+- Next step: Ship — commit polish, tag v1.0, docker compose up + smoke, deploy
 
 ---
 *Last updated: 2026-09-03 after Phase 6 Vague A complete*

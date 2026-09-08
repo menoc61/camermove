@@ -6,6 +6,7 @@ import { ForbiddenError } from "@camermove/config"
 import { loadEnv } from "@camermove/config"
 import { parseExportQuery, sendExport } from "../lib/export"
 import { z } from "zod"
+import { observeBooking } from "@camermove/observability"
 
 export async function bookingRoutes(app: FastifyInstance) {
   const env = loadEnv()
@@ -16,6 +17,7 @@ export async function bookingRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, tripId: body.tripId, seatCount: body.seatCount, passengerCount: body.passengers.length, userId: user.id }, "booking.create")
     const booking = await createBooking({ tripId: body.tripId, userId: user.id, seatCount: body.seatCount, passengers: body.passengers })
+    observeBooking("created")
     return reply.code(201).send({ booking, totalAmount: booking.totalAmount, holdExpiresAt: booking.holdExpiresAt })
   })
 
@@ -40,7 +42,9 @@ export async function bookingRoutes(app: FastifyInstance) {
     const user = (req as unknown as { user: { id: string; role: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, bookingId: id, userId: user.id }, "booking.cancel")
-    return cancelBooking(id, user.id, user.role)
+    const result = await cancelBooking(id, user.id, user.role)
+    observeBooking("cancelled")
+    return result
   })
 
   // Bulk cancel — accepts { ids: string[] } (ids max from env BULK_MAX_IDS). BulkActionSchema reused for limit but action-less payload also accepted.

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
+import { prisma } from "@camermove/db"
 
 const ContactBody = z.object({
   name: z.string().min(2).max(80),
@@ -12,7 +13,21 @@ export async function contactRoutes(app: FastifyInstance) {
     const body = ContactBody.parse((req as { body: unknown }).body)
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
     req.log.info({ ...meta, email: body.email }, "contact.submit")
-    // In prod: persist to DB or send via Notification/email. For MVP: log + ok.
+    // Queue a support notification (userId null for anonymous contact) —
+    // surfaced in the back-office notifications/support queue
+    await prisma.notification.create({
+      data: {
+        channel: "email",
+        type: "contact.submit",
+        payload: {
+          name: body.name,
+          email: body.email,
+          message: body.message,
+          ip: (meta as Record<string, unknown>).ip,
+          requestId: (meta as Record<string, unknown>).requestId,
+        } as never,
+      },
+    })
     return reply.code(201).send({ ok: true })
   })
 }

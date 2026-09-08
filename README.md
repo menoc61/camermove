@@ -88,6 +88,9 @@ pnpm -r test          # Run all tests
 
 ## Documentation
 
+- [Architecture](./docs/architecture.md) — monorepo boundaries, runtime flow, invariants, and service map
+- [Workflows](./docs/workflows.md) — Mermaid use-case, sequence, and activity diagrams
+- [Runbook](./docs/runbook.md) — local infrastructure, ports, verification, and troubleshooting
 - [LAUNCH.md](./LAUNCH.md) — Local development setup
 - [AGENTS.md](./AGENTS.md) — Engineering principles
 - [TIXZY_RESEARCH.md](./TIXZY_RESEARCH.md) — Market research

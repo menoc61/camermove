@@ -28,6 +28,10 @@ import { hotelRoutes } from "./hotels/routes"
 import { rentalRoutes } from "./rentals/routes"
 import { parcelRoutes } from "./parcels/routes"
 import { eventRoutes } from "./events/routes"
+import { insuranceRoutes } from "./insurance"
+import { intraurbanRoutes } from "./intraurban/routes"
+import { contactRoutes } from "./contact/routes"
+import { newsletterRoutes } from "./newsletter/routes"
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true, trustProxy: true })
@@ -73,6 +77,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(rentalRoutes, { prefix: "/api/v1" })
   await app.register(parcelRoutes, { prefix: "/api/v1" })
   await app.register(eventRoutes, { prefix: "/api/v1" })
+  await app.register(insuranceRoutes, { prefix: "/api/v1" })
+  await app.register(intraurbanRoutes, { prefix: "/api/v1" })
+  await app.register(contactRoutes, { prefix: "/api/v1" })
+  await app.register(newsletterRoutes, { prefix: "/api/v1" })
   app.get("/health", async () => ({ status: "ok" }))
   return app
 }

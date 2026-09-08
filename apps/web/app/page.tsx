@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Bed, Bus, Car, Package, Ticket } from "lucide-react"
+import { Bed, Bus, Car, Package, Shield, Ticket } from "lucide-react"
 import { prisma } from "@camermove/db"
 import { SiteNav } from "@/components/landing/SiteNav"
 import { Hero } from "@/components/landing/Hero"
@@ -85,54 +85,95 @@ export default async function HomePage() {
       <SiteNav />
       <main>
         <Hero minPrice={minPrice != null ? minPrice : undefined} />
-        {/* Services grid — transport dominant 2x secondary */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
-          <p className="mb-3 text-center text-sm font-medium text-muted-foreground">
-            Le transport interurbain est notre service principal
-          </p>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Link
-              href="/results?origin=Yaound%C3%A9&destination=Douala&pax=1"
-              className="col-span-1 md:col-span-2 md:row-span-2 flex flex-col justify-between rounded-2xl bg-primary p-6 text-primary-foreground shadow-lg min-h-[280px]"
-            >
-              <div>
-                <div className="inline-flex rounded-full bg-white/20 p-3">
-                  <Bus className="size-6" />
-                </div>
-                <h2 className="mt-4 text-2xl font-bold tracking-tight">Transport interurbain</h2>
-                <p className="mt-2 text-sm text-primary-foreground/80">
-                  Yaoundé ⇄ Douala — réservez votre bus en 2 minutes, paiement Mobile Money.
-                </p>
-              </div>
-              <span className="mt-6 inline-flex w-fit rounded-full bg-white px-5 py-2 text-sm font-semibold text-primary">
-                Réserver un bus
+        {/* Services grid — transport dominant with warm styling */}
+        <section className="relative overflow-hidden py-12 sm:py-16">
+          <div className="absolute inset-0 bg-gradient-to-b from-background via-[hsl(var(--brand)/0.02)] to-background" />
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
+            <div className="mb-8 text-center">
+              <span className="text-sm font-semibold uppercase tracking-widest text-[hsl(var(--brand))]">
+                Nos services
               </span>
-            </Link>
-            <Link href="/hotels" className="rounded-2xl border bg-card p-5 shadow-sm hover:border-primary/30 transition-colors">
-              <Bed className="size-5 text-muted-foreground" />
-              <h3 className="mt-3 font-semibold">Hôtels & apparts</h3>
-              <p className="text-sm text-muted-foreground">{hotelsCount} hôtels</p>
-            </Link>
-            <Link href="/rentals" className="rounded-2xl border bg-card p-5 shadow-sm hover:border-primary/30 transition-colors">
-              <Car className="size-5 text-muted-foreground" />
-              <h3 className="mt-3 font-semibold">Location véhicules</h3>
-              <p className="text-sm text-muted-foreground">{rentalsCount} véhicules</p>
-            </Link>
-            <Link href="/parcels" className="rounded-2xl border bg-card p-5 shadow-sm hover:border-primary/30 transition-colors">
-              <Package className="size-5 text-muted-foreground" />
-              <h3 className="mt-3 font-semibold">Transport colis</h3>
-              <p className="text-sm text-muted-foreground">Envoi sécurisé</p>
-            </Link>
-            <Link href="/events" className="rounded-2xl border bg-card p-5 shadow-sm hover:border-primary/30 transition-colors">
-              <Ticket className="size-5 text-muted-foreground" />
-              <h3 className="mt-3 font-semibold">Billetterie</h3>
-              <p className="text-sm text-muted-foreground">Événements</p>
-            </Link>
-            <Link href="/intraurban" className="rounded-2xl border bg-card p-5 shadow-sm hover:border-primary/30 transition-colors">
-              <Bus className="size-5 text-muted-foreground" />
-              <h3 className="mt-3 font-semibold">Intraurbain</h3>
-              <p className="text-sm text-muted-foreground">Déplacements en ville</p>
-            </Link>
+              <p className="mt-2 text-muted-foreground">
+                Le transport interurbain est notre service principal
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-5">
+              {/* Transport - Hero card (spans 2 cols, 2 rows) */}
+              <Link
+                href="/results?origin=Yaound%C3%A9&destination=Douala&pax=1"
+                className="hover-lift group relative col-span-1 row-span-1 flex flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-[hsl(var(--brand))] to-[hsl(var(--brand-dark))] p-6 text-white shadow-warm md:col-span-2 md:row-span-2 md:p-8"
+              >
+                <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
+                <div className="absolute -bottom-12 -left-12 h-40 w-40 rounded-full bg-white/5" />
+                <div className="relative">
+                  <div className="inline-flex rounded-xl bg-white/20 p-2.5">
+                    <Bus className="size-6 text-white" />
+                  </div>
+                  <h3 className="mt-4 text-2xl font-bold md:text-3xl">Transport interurbain</h3>
+                  <p className="mt-2 max-w-[30ch] text-sm text-white/80 md:text-base">
+                    Comparez et réservez vos billets de bus entre villes. Départs quotidiens Yaoundé ⇄ Douala.
+                  </p>
+                </div>
+                <span className="relative mt-4 inline-flex items-center gap-1 text-sm font-semibold text-white group-hover:gap-2 transition-all">
+                  Réserver un bus <span>→</span>
+                </span>
+              </Link>
+
+              {/* Hotels */}
+              <Link href="/hotels" className="hover-lift group flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+                <div className="inline-flex w-fit rounded-xl bg-[hsl(var(--brand)/0.08)] p-2.5">
+                  <Bed className="size-5 text-[hsl(var(--brand))]" />
+                </div>
+                <div className="mt-3">
+                  <h3 className="font-semibold text-foreground">Hôtels & apparts</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{hotelsCount} hébergements</p>
+                </div>
+              </Link>
+
+              {/* Rentals */}
+              <Link href="/rentals" className="hover-lift group flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+                <div className="inline-flex w-fit rounded-xl bg-[hsl(var(--accent)/0.08)] p-2.5">
+                  <Car className="size-5 text-[hsl(var(--accent))]" />
+                </div>
+                <div className="mt-3">
+                  <h3 className="font-semibold text-foreground">Location véhicules</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{rentalsCount} véhicules</p>
+                </div>
+              </Link>
+
+              {/* Parcels */}
+              <Link href="/parcels" className="hover-lift group flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+                <div className="inline-flex w-fit rounded-xl bg-[hsl(var(--brand-light)/0.1)] p-2.5">
+                  <Package className="size-5 text-[hsl(var(--brand-dark))]" />
+                </div>
+                <div className="mt-3">
+                  <h3 className="font-semibold text-foreground">Transport colis</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Envoi sécurisé</p>
+                </div>
+              </Link>
+
+              {/* Insurance */}
+              <Link href="/insurance" className="hover-lift group flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+                <div className="inline-flex w-fit rounded-xl bg-[hsl(var(--accent)/0.08)] p-2.5">
+                  <Shield className="size-5 text-[hsl(var(--accent))]" />
+                </div>
+                <div className="mt-3">
+                  <h3 className="font-semibold text-foreground">Assurance voyage</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Souscription en ligne</p>
+                </div>
+              </Link>
+
+              {/* Events */}
+              <Link href="/events" className="hover-lift group flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm md:col-span-2">
+                <div className="inline-flex w-fit rounded-xl bg-[hsl(var(--brand)/0.08)] p-2.5">
+                  <Ticket className="size-5 text-[hsl(var(--brand))]" />
+                </div>
+                <div className="mt-3">
+                  <h3 className="font-semibold text-foreground">Billetterie événements</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Découvrez et réservez vos places</p>
+                </div>
+              </Link>
+            </div>
           </div>
         </section>
         <Steps />

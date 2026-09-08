@@ -9,6 +9,7 @@ import { createParcel, advanceParcelStatus, sanitizeParcelForTrack, createParcel
 import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
+import { observeParcel } from "@camermove/observability"
 
 const ParcelPayBody = z.object({
   provider: z.enum(["notchpay", "cinetpay"]).default("notchpay"),
@@ -142,6 +143,7 @@ export async function parcelRoutes(app: FastifyInstance) {
       userId: user.id,
       meta: { ip: (meta as Record<string, unknown>).ip, os: (meta as Record<string, unknown>).os, browser: (meta as Record<string, unknown>).browser, device: (meta as Record<string, unknown>).device, userId: user.id } as Record<string, unknown>,
     })
+    observeParcel("registered")
     return reply.code(201).send(parcel)
   })
 

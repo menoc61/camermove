@@ -9,6 +9,7 @@ import { createEventBooking, createEventBookingPayment, verifyEventTicket } from
 import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
+import { observeEventTicket } from "@camermove/observability"
 
 const EventPayBody = z.object({
   provider: z.enum(["notchpay", "cinetpay"]).default("notchpay"),
@@ -100,6 +101,7 @@ export async function eventRoutes(app: FastifyInstance) {
       quantity: body.quantity,
       meta: { ip: (meta as Record<string, unknown>).ip, os: (meta as Record<string, unknown>).os, browser: (meta as Record<string, unknown>).browser, device: (meta as Record<string, unknown>).device, userId: user.id } as Record<string, unknown>,
     })
+    observeEventTicket(body.eventId)
     return reply.code(201).send(booking)
   })
 

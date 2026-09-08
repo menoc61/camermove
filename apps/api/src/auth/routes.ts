@@ -42,6 +42,8 @@ export async function authRoutes(app: FastifyInstance) {
     return { user: { id: user.id, email: user.email, role: user.role }, ...tokens }
   })
 
+  // TODO(#auth-refresh): implement refresh-token rotation (verify refresh JWT,
+  // revoke via Redis denylist, issue new pair). Tracked for post-MVP hardening.
   app.post("/auth/refresh", async () => {
     return { ok: true }
   })

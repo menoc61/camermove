@@ -1,93 +1,89 @@
 "use client"
 
 import { motion, useReducedMotion } from "motion/react"
-import { Search, CreditCard, QrCode } from "lucide-react"
+import { Search, CreditCard, QrCode, ArrowRight } from "lucide-react"
 
 const steps = [
   {
-    num: "01",
     title: "Recherchez",
     body: "Choisissez votre date et comparez les départs disponibles en quelques secondes.",
     Icon: Search,
+    color: "bg-[hsl(var(--brand)/0.1)] text-[hsl(var(--brand))]",
   },
   {
-    num: "02",
     title: "Réservez et payez",
     body: "Sélectionnez vos sièges, payez par Mobile Money ou carte, en toute sécurité.",
     Icon: CreditCard,
+    color: "bg-[hsl(var(--accent)/0.1)] text-[hsl(var(--accent))]",
   },
   {
-    num: "03",
     title: "Voyagez avec votre e-billet",
     body: "Recevez un billet QR sur votre téléphone : présentez-le au contrôle, rien à imprimer.",
     Icon: QrCode,
+    color: "bg-[hsl(var(--brand-light)/0.15)] text-[hsl(var(--brand-dark))]",
   },
 ]
 
 export function Steps() {
   const shouldReduce = useReducedMotion()
 
-  // Gate: occasional (section enter) → standard animation. Purpose: state indication + preventing jarring change.
-  // Tool: Motion (exit + stagger + reducedMotion). Props: transform/opacity only. Ease: ease-out. Duration: 220ms, stagger 60ms.
   return (
-    <section id="etapes" className="border-t border-border bg-background">
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
-        <motion.h2
-          initial={shouldReduce ? false : { opacity: 0, transform: "translateY(12px)" }}
-          whileInView={{ opacity: 1, transform: "translateY(0px)" }}
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
-          className="text-3xl font-bold tracking-tighter text-foreground md:text-4xl"
-        >
-          Comment ça marche
-        </motion.h2>
+    <section id="etapes" className="relative overflow-hidden">
+      {/* Subtle warm background */}
+      <div className="absolute inset-0 bg-gradient-to-b from-background via-[hsl(var(--brand)/0.02)] to-background" />
+
+      <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
         <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-80px", amount: 0.2 }}
-          variants={{
-            hidden: { opacity: 0 },
-            visible: {
-              opacity: 1,
-              transition: { staggerChildren: 0.06, delayChildren: 0.08 },
-            },
-          }}
-          className="mt-10 grid grid-cols-1 gap-8 border-t border-border pt-10 md:grid-cols-3"
+          initial={shouldReduce ? false : { opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="max-w-2xl"
         >
-          {steps.map((s) => (
+          <span className="mb-3 inline-block text-sm font-semibold uppercase tracking-widest text-[hsl(var(--brand))]">
+            Simple et rapide
+          </span>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            Réserver en trois étapes
+          </h2>
+          <p className="mt-3 text-base text-muted-foreground sm:text-lg">
+            De la recherche au billet QR, votre réservation est fluide et sécurisée.
+          </p>
+        </motion.div>
+
+        <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-8">
+          {steps.map((s, i) => (
             <motion.div
-              key={s.num}
-              variants={{
-                hidden: shouldReduce
-                  ? { opacity: 0 }
-                  : { opacity: 0, transform: "translateY(16px) scale(0.97)" },
-                visible: {
-                  opacity: 1,
-                  transform: "translateY(0px) scale(1)",
-                  transition: { duration: 0.4, ease: [0.23, 1, 0.32, 1] },
-                },
-              }}
-              whileHover={
-                shouldReduce
-                  ? undefined
-                  : { transform: "translateY(-4px)", transition: { duration: 0.2, ease: [0.23, 1, 0.32, 1] } }
-              }
-              // gate hover to pointer:fine via CSS class
-              className="hover-lift group relative overflow-hidden rounded-2xl bg-surface-1 p-6 shadow-sm will-change-transform"
+              key={s.title}
+              initial={shouldReduce ? false : { opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.5, delay: i * 0.1, ease: [0.16, 1, 0.3, 1] }}
+              className="hover-lift group relative rounded-2xl border border-border/50 bg-card p-6 shadow-sm"
             >
-              <span className="pointer-events-none absolute -top-4 -right-2 font-[family-name:var(--font-heading)] text-6xl font-extrabold text-brand/20">
-                {s.num}
+              {/* Step number */}
+              <span className="absolute -top-3 left-6 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--brand))] text-xs font-bold text-white">
+                {i + 1}
               </span>
-              <div className="mb-4 inline-flex rounded-xl bg-brand/10 p-3 transition-colors duration-[150ms] ease-[var(--ease-out)] group-hover:bg-brand/15">
-                <s.Icon className="size-6 text-brand" />
+
+              <div className={`mb-4 inline-flex rounded-xl p-3 ${s.color}`}>
+                <s.Icon className="size-5" />
               </div>
+
               <h3 className="text-lg font-semibold text-foreground">{s.title}</h3>
-              <p className="mt-2 max-w-[42ch] text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {s.body}
               </p>
+
+              {/* Connector arrow (hidden on last item) */}
+              {i < steps.length - 1 && (
+                <div className="absolute -right-4 top-1/2 z-10 hidden -translate-y-1/2 md:block">
+                  <ArrowRight className="size-5 text-[hsl(var(--brand)/0.3)]" />
+                </div>
+              )}
             </motion.div>
           ))}
-        </motion.div>
+        </div>
       </div>
     </section>
   )

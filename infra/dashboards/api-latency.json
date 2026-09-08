@@ -2,7 +2,117 @@
   "title": "CamerMove API",
   "uid": "camermove-api",
   "panels": [
-    { "title": "Error rate", "type": "timeseries", "targets": [{ "expr": "rate(camermove_error_total[5m])", "refId": "A" }] },
-    { "title": "p95 latency", "type": "timeseries", "targets": [{ "expr": "histogram_quantile(0.95, rate(camermove_operation_duration_ms_bucket[5m]))", "refId": "A" }] }
+    {
+      "title": "Error rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(camermove_error_total[5m])",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "p95 latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(camermove_operation_duration_ms_bucket[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "title": "Searches by corridor",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "topk(5, sum by (origin, destination) (rate(search_requests_total[15m])))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "title": "Bookings per minute",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(bookings_total[5m])) * 60",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "title": "Payment outcomes",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (outcome) (rate(payments_total[15m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": null,
+      "title": "Event tickets sold",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(event_tickets_total[15m])) * 3600",
+          "refId": "A"
+        }
+      ]
+    }
   ]
 }

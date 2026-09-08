@@ -1,13 +1,10 @@
 "use client"
-import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { useParams } from "next/navigation"
 import { trackParcel } from "@/lib/api/parcels"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Separator } from "@/components/ui/separator"
-import { Truck, CheckCircle, Clock, MapPin, } from "lucide-react"
+import { Truck, TriangleAlert } from "lucide-react"
 function statusBadgeClass(status: string) {
   return {
     registered: "bg-stone-900",
@@ -29,8 +26,8 @@ function statusBadgeText(status: string) {
   }[status] || status
 }
 export default function ParcelTrackPage() {
-  const params = useSearchParams()
-  const trackingNumber = params.get("code") || undefined
+  const params = useParams<{ trackingNumber: string }>()
+  const trackingNumber = params?.trackingNumber
   const { data: trackData, isLoading, error } = useQuery({
     queryKey: ["track-public", trackingNumber],
     queryFn: trackingNumber ? () => trackParcel(trackingNumber) : undefined,
@@ -55,7 +52,7 @@ export default function ParcelTrackPage() {
           <div className="space-y-2">
             {trackData.statusHistory.map((log, i) => (
               <div
-                key={log.id || i}
+                key={i}
                 className={`flex items-start gap-3 ${i === trackData.statusHistory.length - 1 ? "border-t pt-2" : ""}`}
               >
                 <div

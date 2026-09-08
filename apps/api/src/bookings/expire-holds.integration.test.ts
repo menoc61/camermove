@@ -22,7 +22,11 @@ let baselineExpirable = 0
 
 beforeAll(async () => {
   baselineExpirable = await prisma.booking.count({
-    where: { status: "pending_payment", holdExpiresAt: { lt: new Date() } },
+    where: {
+      status: "pending_payment",
+      holdExpiresAt: { lt: new Date() },
+      payments: { none: { status: { in: ["pending", "processing"] } } },
+    },
   })
 
   const transporter = await prisma.transporter.create({

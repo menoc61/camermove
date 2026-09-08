@@ -12,6 +12,8 @@ export interface Event {
   eventType: string
   status: string
   posterUrl: string | null
+  description?: string | null
+  ticketCategories?: TicketCategory[]
 }
 
 export interface TicketCategory {
@@ -63,7 +65,7 @@ export interface EventBookingParams {
 }
 
 export async function fetchEvents(
-  token: string,
+  token?: string,
   params: EventSearchQuery = {}
 ): Promise<{ items: Event[]; total: number; page: number; totalPages: number }> {
   const url = new URL(`${apiBase()}/api/v1/events`)
@@ -84,7 +86,7 @@ export async function fetchEvents(
 
   const res = await fetch(url, {
     method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
   if (!res.ok) {
     const text = await res.text()
@@ -93,10 +95,10 @@ export async function fetchEvents(
   return res.json()
 }
 
-export async function fetchEvent(id: string, token: string): Promise<Event> {
+export async function fetchEvent(id: string, token?: string): Promise<Event> {
   const res = await fetch(`${apiBase()}/api/v1/events/${id}`, {
     method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
   if (!res.ok) {
     const text = await res.text()
@@ -162,17 +164,18 @@ export async function fetchEventBooking(id: string, token: string): Promise<Even
 }
 
 export async function createEventBookingPayment(
-  bookingId: string,
+  eventBookingId: string,
   token: string,
   provider?: string
 ): Promise<{ paymentUrl: string; authorizationUrl: string }> {
-  const res = await fetch(`${apiBase()}/api/v1/payments`, {
+  const res = await fetch(`${apiBase()}/api/v1/events/bookings/${eventBookingId}/pay`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
-      ...(provider && { "X-Notch-Provider": provider }),
+      "Content-Type": "application/json",
+      "Idempotency-Key": crypto.randomUUID(),
     },
-    body: JSON.stringify({ bookingId, type: "event", provider }),
+    body: JSON.stringify({ provider: provider ?? "notchpay" }),
   })
   if (!res.ok) {
     const text = await res.text()

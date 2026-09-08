@@ -83,17 +83,17 @@ Phases derived from v1 requirements. Each phase is a vertical MVP slice deliveri
 - [x] 06-02-PLAN.md — API Rentals : repository+service duration+overlap ACID + routes cache/meta/export/pay multi-villes
 - [x] 06-03-PLAN.md — Web+Partner+Admin : homepage/nav hero, /hotels /rentals parcours, dashboard Tabs, partner presigned, admin Hotels/Rentals + exports
 
-### Phase 7: Vague B — Logistique & Loisirs (Colis + Événements) — MASSIF (assurance defer v1.2)
-**Goal:** Colis tarifiable + suivi 6 états + Events QR billetterie, tous payés, admin publié.
+### Phase 7: Vague B — Logistique & Loisirs (Colis + Événements) + Polish v1.0 ✓
+**Goal:** Colis tarifiable + suivi 6 états + Events QR billetterie, tous payés, admin publié + warm polish + insurance/newsletter/PWA.
 **Mode:** mvp
 **Success Criteria:**
 1. Parcels : grille AppSettings 500+100/kg + création avec trackingNumber + statusHistory registered→delivered + suivi public sanitized + export + pay optionnel
 2. Events : catalogue city/type + fiche + booking atomique quantity-sold FOR UPDATE + ticketNumber QR + pay + verify
-3. Web : /parcels formulaire+s suivi timeline + /events catalogue+fiche+panier QR + admin parcels/events + exports
-**Plans:** 3 plans (à détailler après Vague A)
-- [ ] 07-01-PLAN.md — API Parcels
-- [ ] 07-02-PLAN.md — API Events + QR
-- [ ] 07-03-PLAN.md — Web+Admin Parcels/Events + Dashboard global
+3. Web : /parcels formulaire+s suivi timeline + /events catalogue+fiche+panier QR + admin parcels/events + exports + warm-neutral + PWA + insurance/newsletter
+**Plans:** 3 plans + polish — all complete 2026-09-08
+- [x] 07-01-PLAN.md — API Parcels ✓
+- [x] 07-02-PLAN.md — API Events + QR ✓
+- [x] 07-03-PLAN.md — Web+Admin Parcels/Events + Dashboard global ✓ + insurance/newsletter/intraurban/PWA/docs
 
 ## Traceability
 
@@ -112,4 +112,4 @@ Vague B maps PARCEL-01..04, EVENT-01..04, ADMIN-05. Assurance defer.
 
 ---
 *Roadmap created: 2026-08-24*
-*Roadmap updated: 2026-09-03 — Phase 5 marketplace verified + Phase 6 Vague A complete (3/3 plans)*
+*Roadmap updated: 2026-09-08 — Phase 7 Vague B + warm polish + PWA/docs shipped, v1.0 ready*

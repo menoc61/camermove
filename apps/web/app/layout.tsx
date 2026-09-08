@@ -1,8 +1,9 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import dynamic from "next/dynamic"
 import { Toaster } from "sonner"
 import "./globals.css"
 import { QueryProvider } from "../components/providers"
+import { ServiceWorkerRegister } from "../components/service-worker-register"
 import { Geist, Noto_Sans, Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,26 @@ export const metadata: Metadata = {
       "Comparez les départs, payez par Mobile Money, recevez votre e-billet QR instantanément.",
   },
   twitter: { card: "summary_large_image" },
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "CamerMove",
+    statusBarStyle: "black-translucent",
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: "#1d4ed8",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 }
 
 const jsonLd = {
@@ -64,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SmoothScroll>
           <QueryProvider>{children}</QueryProvider>
         </SmoothScroll>
+        <ServiceWorkerRegister />
         <Toaster theme="dark" position="top-center" />
       </body>
     </html>

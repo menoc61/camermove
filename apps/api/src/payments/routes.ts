@@ -3,6 +3,7 @@ import { CreatePaymentBody, PaymentParams, PaymentListQuery } from "./schema.js"
 import { createPayment, getPaymentById, listPayments } from "./service.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { loadEnv } from "@camermove/config"
+import { observePayment } from "@camermove/observability"
 
 export async function paymentRoutes(app: FastifyInstance) {
   app.post("/payments", { preHandler: app.requireAuth() }, async (req, reply) => {
@@ -10,16 +11,22 @@ export async function paymentRoutes(app: FastifyInstance) {
     const user = (req as unknown as { user: { id: string; role: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, bookingId: body.bookingId, provider: body.provider, ip: (meta as Record<string, unknown>).ip, ua: (meta as Record<string, unknown>).userAgent, userId: user.id }, "payment.create")
-    const result = await createPayment({
-      bookingId: body.bookingId,
-      userId: user.id,
-      provider: body.provider as never,
-      phone: body.phone,
-      email: body.email,
-      method: body.method,
-      meta: meta as Record<string, unknown>,
-    })
-    return reply.code(201).send({ payment: result.payment, authorizationUrl: result.authorizationUrl, paymentUrl: result.authorizationUrl })
+    try {
+      const result = await createPayment({
+        bookingId: body.bookingId,
+        userId: user.id,
+        provider: body.provider as never,
+        phone: body.phone,
+        email: body.email,
+        method: body.method,
+        meta: meta as Record<string, unknown>,
+      })
+      observePayment(body.provider, "initiated")
+      return reply.code(201).send({ payment: result.payment, authorizationUrl: result.authorizationUrl, paymentUrl: result.authorizationUrl })
+    } catch (err) {
+      observePayment(body.provider, "failed")
+      throw err
+    }
   })
 
   app.get("/payments", { preHandler: app.requireAuth() }, async (req) => {

@@ -11,3 +11,13 @@ groups:
         for: 5m
         labels: { severity: warning }
         annotations: { summary: "p95 latency over 2s" }
+      - alert: BookingSurge
+        expr: rate(bookings_total[15m]) > 1
+        for: 5m
+        labels: { severity: info }
+        annotations: { summary: "Booking rate above 1/s for 15m" }
+      - alert: PaymentFailures
+        expr: rate(payments_total{outcome="failed"}[10m]) > 0.2
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "Payment initiation failures above 0.2/s" }
