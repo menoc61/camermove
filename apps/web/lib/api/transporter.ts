@@ -128,3 +128,24 @@ export async function listBookings(token: string, params: Record<string, string>
   const qs = new URLSearchParams(params).toString()
   return apiFetch<PaginatedResponse<TransporterBooking>>(`/api/v1/transporter/bookings${qs ? `?${qs}` : ""}`, { method: "GET", token })
 }
+
+export async function listPayments(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<{ id: string; amount: number; status: string; provider: string }>> {
+  const qs = new URLSearchParams(params).toString()
+  const r = await apiFetch<PaginatedResponse<TransporterBooking>>(`/api/v1/transporter/bookings${qs ? `?${qs}` : ""}`, { method: "GET", token })
+  return {
+    ...r,
+    items: r.items.flatMap((b) => b.payments.map((p) => ({ ...p, bookingId: b.id }))) as unknown as { id: string; amount: number; status: string; provider: string }[],
+  }
+}
+
+export async function listCommissions(token: string): Promise<PaginatedResponse<{ id: string; commissionAmount: number; netAmount: number; payoutStatus: string }>> {
+  try {
+    return await apiFetch<PaginatedResponse<{ id: string; commissionAmount: number; netAmount: number; payoutStatus: string }>>(`/api/v1/admin/commissions`, { method: "GET", token } as never)
+  } catch {
+    return { items: [], total: 0, page: 1, totalPages: 0 }
+  }
+}
+
+export async function bulkCreateTrips(token: string, trips: Record<string, unknown>[]): Promise<{ count: number }> {
+  return apiFetch(`/api/v1/trips/bulk`, { method: "POST", token, body: JSON.stringify({ trips }), headers: { "Content-Type": "application/json" } })
+}
