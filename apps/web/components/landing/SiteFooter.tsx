@@ -41,31 +41,38 @@ const groups = [
 
 export function SiteFooter() {
   return (
-    <footer className="bg-ink-0">
+    <footer className="relative overflow-hidden bg-ink-0">
+      {/* Large brand watermark behind footer content */}
+      <p
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 select-none whitespace-nowrap text-center font-display text-[22vw] font-black leading-none tracking-tightest text-white/[0.04] md:text-[14vw]"
+      >
+        CamerMove
+      </p>
       {/* Brand wordmark band on blue */}
-      <div className="overflow-hidden bg-gradient-to-r from-brand-dark via-primary to-brand-light">
+      <div className="relative overflow-hidden bg-gradient-to-r from-brand-dark via-primary to-brand-light">
         <p
           aria-hidden
-          className="select-none whitespace-nowrap px-4 pt-10 text-center font-display text-[16vw] font-extrabold leading-none tracking-tightest text-white/15 md:text-[11vw]"
+          className="pointer-events-none select-none whitespace-nowrap px-4 pt-10 text-center font-display text-[16vw] font-extrabold leading-none tracking-tightest text-white/20 md:text-[11vw]"
         >
           CamerMove
         </p>
       </div>
 
       {/* Newsletter */}
-      <div className="border-b border-white/10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-10 sm:px-6 md:flex-row md:items-center md:justify-between">
+      <div className="relative border-b border-white/10">
+        <div className="relative mx-auto flex max-w-7xl flex-col gap-2 px-4 py-10 sm:px-6 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-xl font-bold text-white">Restez informé</h2>
             <p className="mt-1 text-sm text-surface-2">
-              Nouveaux trajets, promotions et conseils de voyage — une fois par mois.
+              Nouveaux trajets, promotions et conseils de voyage. Une fois par mois.
             </p>
           </div>
           <NewsletterForm />
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-10 px-4 py-14 sm:px-6 lg:grid-cols-4">
+      <div className="relative mx-auto grid max-w-7xl grid-cols-2 gap-10 px-4 py-14 sm:px-6 lg:grid-cols-4">
         <div className="md:col-span-1">
           <div className="flex items-center gap-2">
             <span className="inline-block h-3 w-3 rounded-[4px] bg-brand" aria-hidden />
@@ -141,8 +148,8 @@ export function SiteFooter() {
         ))}
       </div>
 
-      <div className="border-t border-white/10">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-xs text-surface-3 sm:px-6">
+      <div className="relative border-t border-white/10">
+        <div className="relative mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-xs text-surface-3 sm:px-6">
           <span>© 2026 CamerMove. Tous droits réservés.</span>
           <span>Yaoundé · Douala · Cameroun</span>
         </div>

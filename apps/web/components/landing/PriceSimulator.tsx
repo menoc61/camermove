@@ -71,14 +71,14 @@ export function PriceSimulator() {
       })
       if (res.items.length === 0) {
         setResult(null)
-        setError(`Aucun départ pour ${origin} → ${destination} — prochaine ouverture bientôt.`)
+        setError(`Aucun départ pour ${origin} → ${destination}. Prochaine ouverture bientôt.`)
       } else {
         const prices = res.items.map((t) => t.price)
         const min = prices[0]!
         setResult({ min, total: res.pagination.total })
       }
     } catch {
-      setError("Impossible de vérifier les prix — réessayez.")
+      setError("Impossible de vérifier les prix. Réessayez.")
       setResult(null)
     } finally {
       setLoading(false)
@@ -88,7 +88,7 @@ export function PriceSimulator() {
   const resultsHref = `/results?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${encodeURIComponent(date)}&pax=${pax}`
 
   return (
-    <div className="rounded-2xl bg-surface-1 p-6 shadow-md">
+    <div className="rounded-2xl border border-border/60 bg-surface-1 p-6 shadow-md">
       <FieldGroup>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr]">
           <Field>
