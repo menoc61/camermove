@@ -2,8 +2,14 @@ import type { Metadata, Viewport } from "next"
 import dynamic from "next/dynamic"
 import { Toaster } from "sonner"
 import "./globals.css"
+import "../components/yolo/yolo.css"
 import { QueryProvider } from "../components/providers"
+import { RouteAwareNav } from "../components/route-aware-nav"
+import { PageTransition } from "../components/page-transition"
+import { BackToTop } from "../components/back-to-top"
 import { ServiceWorkerRegister } from "../components/service-worker-register"
+import { YoloHeader } from "../components/yolo/Header"
+import { Navigation } from "../components/yolo/Navigation"
 import { Geist, Noto_Sans, Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { cn } from "@/lib/utils";
 
@@ -82,9 +88,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <SmoothScroll>
-          <QueryProvider>{children}</QueryProvider>
-        </SmoothScroll>
+        <YoloHeader />
+        <Navigation />
+        <div className="App">
+          <SmoothScroll>
+            <QueryProvider>
+              <RouteAwareNav />
+              <PageTransition>{children}</PageTransition>
+              <BackToTop />
+            </QueryProvider>
+          </SmoothScroll>
+        </div>
         <ServiceWorkerRegister />
         <Toaster theme="dark" position="top-center" />
       </body>
