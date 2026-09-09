@@ -40,3 +40,20 @@ jobs:
       - run: pnpm --filter @camermove/db exec prisma migrate deploy
       - run: pnpm -r typecheck
       - run: pnpm -r test
+      # Playwright setup
+      - name: Add Playwright test dependency
+        run: pnpm add -D @playwright/test
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+      - name: Start Next.js dev server
+        run: pnpm dev &
+      - name: Wait for dev server
+        run: npx wait-on http://localhost:3002
+      - name: Run Playwright end‑to‑end tests
+        run: npx playwright test
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report

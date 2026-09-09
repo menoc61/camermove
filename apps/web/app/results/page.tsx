@@ -241,7 +241,7 @@ function ResultsInner() {
 
   if (isLoading)
     return (
-      <main className="mx-auto max-w-2xl space-y-4 px-6 pb-6 pt-24">
+      <main className="mx-auto max-w-[1560px] space-y-8 px-6 pb-12 pt-32 sm:px-8 md:px-12">
         <Skeleton className="h-6 w-48" />
         <FilterBar sortBy="price_asc" />
         <ResultsSkeleton />
@@ -250,7 +250,7 @@ function ResultsInner() {
 
   if (error)
     return (
-      <main className="mx-auto max-w-2xl px-6 pb-6 pt-24">
+      <main className="mx-auto max-w-[1560px] px-6 pb-12 pt-32 sm:px-8 md:px-12">
         <Alert variant="destructive">
           <TriangleAlert />
           <AlertTitle>Erreur</AlertTitle>
@@ -276,22 +276,25 @@ function ResultsInner() {
   const totalPages = tripData?.pagination.totalPages ?? 1
 
   return (
-    <main className="mx-auto max-w-2xl space-y-4 px-6 pb-6 pt-24">
+    <main className="mx-auto max-w-[1560px] space-y-8 px-6 pb-12 pt-32 sm:px-8 md:px-12">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold tracking-tight">
-          {hasResults && tripData!.items.length > 0
-            ? `${tripData!.items.length} trajet${tripData!.items.length > 1 ? "s" : ""} · ${params.origin} → ${params.destination}`
-            : `Résultats · ${params.origin} → ${params.destination}`}
-        </h1>
-        {hasResults && tripData!.pagination.total > 0 && (
-          <Badge variant="outline" className="font-normal">
-            {tripData!.pagination.total} total
-          </Badge>
-        )}
+      <div className="border-b border-line pb-6">
+        <p className="eyebrow">Recherche · Transport interurbain</p>
+        <div className="mt-3 flex items-end justify-between gap-4">
+          <h1 className="text-3xl font-medium tracking-[-0.02em] text-ink sm:text-4xl">
+            {hasResults && tripData!.items.length > 0
+              ? `${tripData!.items.length} trajet${tripData!.items.length > 1 ? "s" : ""} · ${params.origin} → ${params.destination}`
+              : `Résultats · ${params.origin} → ${params.destination}`}
+          </h1>
+          {hasResults && tripData!.pagination.total > 0 && (
+            <span className="border border-ink px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.22em] text-ink num-tabular">
+              {tripData!.pagination.total} total
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Pill filters — TransportModule reference: Tous / Départ matin / VIP / Moins cher */}
+      {/* Pill filters — Swiss/Bauhaus squared chips */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {[
           { label: "Tous", active: params.sortBy === "price_asc" && params.minPrice == null && sp.get("vehicleType") == null, action: () => { const n = new URLSearchParams(sp.toString()); n.delete("sortBy"); n.delete("minPrice"); n.delete("maxPrice"); n.delete("vehicleType"); n.delete("page"); router.push(`${pathname}?${n.toString()}`, { scroll: false }) } },
@@ -302,7 +305,11 @@ function ResultsInner() {
           <button
             key={p.label}
             onClick={p.action}
-            className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition-colors ${p.active ? "bg-[#14213D] text-white" : "bg-white text-[#5A6474] border border-[#E4E1D9]"}`}
+            className={`shrink-0 border px-4 py-2 text-[11px] font-medium uppercase tracking-[0.22em] transition-colors ${
+              p.active
+                ? "border-ink bg-ink text-paper"
+                : "border-line bg-surface-1 text-ink-1 hover:border-ink hover:text-ink"
+            }`}
           >
             {p.label}
           </button>
@@ -339,7 +346,7 @@ function ResultsInner() {
 
       {/* Results list */}
       {hasResults && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-px bg-line">
           {tripData!.items.map((trip, idx) => (
             <TripCard
               key={trip.id}
@@ -369,7 +376,7 @@ export default function ResultsPage() {
       fallback={
         <main className="mx-auto max-w-2xl space-y-4 px-6 pb-6 pt-24">
           <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-full" />
           <ResultsSkeleton />
         </main>
       }

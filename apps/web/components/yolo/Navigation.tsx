@@ -1,24 +1,43 @@
 "use client"
 import Link from "next/link"
 
-// Exact name Navigation as Yolo-web/src/components/navigation.js
-// desktop-first two columns: Menu 45% + Contact 55%, yellow #fff3d8 bg
 export function Navigation() {
   return (
-    <nav className="yolo-nav">
+    <nav className="yolo-nav" id="primary-nav">
       <div className="container">
         <div className="nav-columns">
           <div className="nav-column">
             <div className="nav-label">Menu</div>
             <ul className="nav-links">
-              <li><Link href="/">Accueil</Link></li>
-              <li><Link href="/results?origin=Yaound%C3%A9&destination=Douala&pax=1">Transport interurbain</Link></li>
-              <li><Link href="/hotels">Hôtels &amp; apparts</Link></li>
-              <li><Link href="/rentals">Location véhicules</Link></li>
-              <li><Link href="/parcels">Transport colis</Link></li>
-              <li><Link href="/events">Billetterie</Link></li>
-              <li><Link href="/dashboard">Mes réservations</Link></li>
-              <li><Link href="/transporter/apply">Devenir partenaire</Link></li>
+              <li>
+                <Link href="/">Accueil</Link>
+              </li>
+              <li>
+                <Link href="/results?origin=Yaound%C3%A9&destination=Douala&pax=1">
+                  Transport interurbain
+                </Link>
+              </li>
+              <li>
+                <Link href="/hotels">Hôtels &amp; appartements</Link>
+              </li>
+              <li>
+                <Link href="/rentals">Location de véhicules</Link>
+              </li>
+              <li>
+                <Link href="/parcels">Transport de colis</Link>
+              </li>
+              <li>
+                <Link href="/insurance">Assurance voyage</Link>
+              </li>
+              <li>
+                <Link href="/events">Billetterie événements</Link>
+              </li>
+              <li>
+                <Link href="/dashboard">Mes réservations</Link>
+              </li>
+              <li>
+                <Link href="/transporter/apply">Devenir partenaire</Link>
+              </li>
             </ul>
           </div>
           <div className="nav-column">
@@ -26,8 +45,12 @@ export function Navigation() {
             <div className="nav-infos">
               <ul className="nav-info">
                 <li className="nav-info-label">Email</li>
-                <li><a href="mailto:contact@camermove.cm">contact@camermove.cm</a></li>
-                <li><a href="mailto:support@camermove.cm">support@camermove.cm</a></li>
+                <li>
+                  <a href="mailto:contact@camermove.cm">contact@camermove.cm</a>
+                </li>
+                <li>
+                  <a href="mailto:support@camermove.cm">support@camermove.cm</a>
+                </li>
               </ul>
               <ul className="nav-info">
                 <li className="nav-info-label">Siège</li>
@@ -41,11 +64,22 @@ export function Navigation() {
               </ul>
               <ul className="nav-info">
                 <li className="nav-info-label">Légal</li>
-                <li><Link href="/legal/cgu">CGU</Link></li>
-                <li><Link href="/legal/privacy">Confidentialité</Link></li>
+                <li>
+                  <Link href="/legal/cgu">CGU</Link>
+                </li>
+                <li>
+                  <Link href="/legal/privacy">Confidentialité</Link>
+                </li>
+                <li>
+                  <Link href="/legal/terms">Mentions légales</Link>
+                </li>
               </ul>
             </div>
           </div>
+        </div>
+        <div className="nav-meta">
+          <span>Réinventons la mobilité africaine</span>
+          <span>Yaoundé · Douala · 2026</span>
         </div>
       </div>
     </nav>

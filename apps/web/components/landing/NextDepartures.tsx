@@ -6,90 +6,107 @@ import { priceXaf } from "@camermove/shared"
 import type { SearchResultItem } from "../../lib/api/search"
 
 function timeFr(iso: string): string {
-  return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Douala" })
+  return new Date(iso).toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Africa/Douala",
+  })
 }
 function dateFr(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Douala" })
+  return new Date(iso).toLocaleDateString("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "Africa/Douala",
+  })
 }
 
 export function NextDepartures({ trips }: { trips: SearchResultItem[] }) {
   const shouldReduce = useReducedMotion()
 
   return (
-    <section id="departures" className="bg-background">
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
-        <div className="flex flex-wrap items-baseline justify-between gap-4">
+    <section
+      id="departures"
+      aria-label="Prochains départs Yaoundé → Douala"
+      className="border-t border-line bg-paper text-ink"
+    >
+      <div className="mx-auto max-w-[1560px] px-6 py-20 sm:px-8 md:px-12 md:py-28">
+        <div className="mb-10 flex flex-col gap-6 border-b border-line pb-8 md:mb-12 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tighter text-foreground md:text-4xl">
-              Prochains départs Yaoundé → Douala
+            <p className="text-[11px] uppercase tracking-[0.22em] text-ink-2">
+              03 — Départs
+            </p>
+            <h2 className="mt-3 text-[clamp(2rem,3.6vw,3.2rem)] font-medium leading-[1.02] tracking-[-0.025em] text-balance">
+              Prochains bus Yaoundé → Douala
             </h2>
-            <p className="mt-2 text-muted-foreground">
-              Les premiers bus du jour, au meilleur prix.
+            <p className="mt-3 max-w-[48ch] text-[15px] leading-[1.55] text-ink-1">
+              Les premiers départs du jour, sélectionnés par nos partenaires
+              transporteurs.
             </p>
           </div>
           <Link
             href="/results?origin=Yaound%C3%A9&destination=Douala&pax=1"
-            className="text-sm font-semibold text-primary-dark underline-offset-4 hover:underline"
+            className="group inline-flex items-center gap-3 self-start text-[11px] font-medium uppercase tracking-[0.22em] text-ink hover:text-ink-1"
           >
-            Voir tous les trajets →
+            <span className="block h-px w-10 bg-ink transition-all group-hover:w-16" aria-hidden />
+            Voir tous les trajets
           </Link>
         </div>
 
         {trips.length === 0 ? (
-          <p className="mt-8 rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
+          <p className="border border-dashed border-line bg-surface-1 p-10 text-center text-sm text-ink-2">
             Aucun départ disponible pour le moment. Revenez bientôt.
           </p>
         ) : (
-          <motion.ul
-            initial={shouldReduce ? false : { opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.4 }}
-            className="mt-10 overflow-hidden rounded-2xl border border-border/60 bg-card"
-          >
+          <ul className="divide-y divide-line border-y border-line">
             {trips.map((t, i) => (
               <motion.li
                 key={t.id}
-                initial={shouldReduce ? false : { opacity: 0, x: -12 }}
-                whileInView={{ opacity: 1, x: 0 }}
+                initial={shouldReduce ? false : { opacity: 0, y: 8 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.35, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                className={i > 0 ? "border-t border-border/60" : ""}
+                transition={{ duration: 0.4, delay: i * 0.04 }}
               >
                 <Link
                   href={`/trips/${t.id}`}
-                  className="group flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:gap-6 active:bg-muted/60"
+                  className="group grid grid-cols-12 items-center gap-x-4 gap-y-3 px-1 py-6 transition-colors hover:bg-surface-2 sm:px-3"
                 >
-                  <div className="flex items-baseline gap-3 sm:w-28 sm:shrink-0">
-                    <span className="font-['Plus_Jakarta_Sans'] text-xl font-bold tracking-tight text-foreground">
+                  <div className="col-span-6 flex items-baseline gap-4 sm:col-span-2">
+                    <span className="text-[11px] font-medium uppercase tracking-[0.22em] text-ink-2 num-tabular">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="font-body text-2xl font-medium tracking-[-0.02em] num-tabular">
                       {timeFr(t.departureAt)}
                     </span>
-                    <span className="text-xs text-muted-foreground sm:hidden">{dateFr(t.departureAt)}</span>
                   </div>
-                  <div className="hidden text-xs text-muted-foreground sm:block sm:w-32 sm:shrink-0">
+                  <div className="col-span-6 text-right text-[12px] uppercase tracking-[0.18em] text-ink-2 sm:col-span-2 sm:text-left">
                     {dateFr(t.departureAt)}
                   </div>
-                  <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                  <div className="col-span-12 flex min-w-0 items-center gap-3 sm:col-span-4">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center border border-ink text-[10px] font-medium text-ink">
                       {t.companyName.charAt(0)}
                     </span>
-                    <span className="truncate text-sm text-muted-foreground">
+                    <span className="truncate text-sm text-ink-1">
                       {t.companyName}
                       {t.vehicleTypeInfo ? ` · ${t.vehicleTypeInfo}` : ""}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-4 sm:w-40 sm:justify-end">
-                    <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-bold text-brand-dark">
+                  <div className="col-span-6 flex items-center gap-2 sm:col-span-2 sm:justify-start">
+                    <span className="border border-wood-dark px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-wood-dark num-tabular">
                       {priceXaf(t.price)}
                     </span>
-                    <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary-dark transition-transform group-hover:translate-x-1">
-                      Réserver →
-                    </span>
+                  </div>
+                  <div className="col-span-6 flex items-center justify-end gap-3 text-[11px] font-medium uppercase tracking-[0.22em] text-ink sm:col-span-2">
+                    <span className="hidden sm:inline">Réserver</span>
+                    <span
+                      aria-hidden
+                      className="block h-px w-8 bg-ink transition-all group-hover:w-14"
+                    />
                   </div>
                 </Link>
               </motion.li>
             ))}
-          </motion.ul>
+          </ul>
         )}
       </div>
     </section>

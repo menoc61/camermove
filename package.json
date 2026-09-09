@@ -12,6 +12,7 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "seed": "pnpm --filter @camermove/api exec tsx ../../scripts/seed-rich.ts",
     "smoke": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts all",
     "smoke:auth": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts auth",
     "smoke:search": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts search",

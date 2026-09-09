@@ -2,55 +2,17 @@
 
 import Link from "next/link"
 import { motion } from "motion/react"
-import {
-  ArrowRight,
-  Bus,
-  Clock,
-  Snowflake,
-  Star,
-  Wifi,
-  Zap,
-  Users,
-  Sparkles,
-  Check,
-} from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { ArrowRight, Clock, Wifi, Snowflake, Zap, Users, Check } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import type { SearchResultItem } from "../../lib/api/search"
 import { SeatUrgency } from "./seat-urgency"
 
 interface TripCardProps {
   trip: SearchResultItem
-  /** First card in a list can wear a "populaire" tag for visual rhythm. */
   highlight?: "popular" | "best_price" | null
 }
 
 const XAF = new Intl.NumberFormat("fr-CM")
-
-/** Stable color seed from a string so each carrier gets its own brand swatch. */
-function carrierColor(name: string): { from: string; to: string; ring: string } {
-  const palette: { from: string; to: string; ring: string }[] = [
-    { from: "from-blue-600", to: "to-sky-500", ring: "ring-blue-600/20" },
-    { from: "from-emerald-600", to: "to-teal-500", ring: "ring-emerald-600/20" },
-    { from: "from-violet-600", to: "to-fuchsia-500", ring: "ring-violet-600/20" },
-    { from: "from-amber-600", to: "to-orange-500", ring: "ring-amber-600/20" },
-    { from: "from-rose-600", to: "to-pink-500", ring: "ring-rose-600/20" },
-    { from: "from-indigo-600", to: "to-blue-500", ring: "ring-indigo-600/20" },
-  ]
-  let hash = 0
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0
-  return palette[Math.abs(hash) % palette.length]!
-}
-
-/** Cosmetic rating — the search API doesn't expose ratings yet, so we seed
- *  deterministically per carrier so the UI feels real without faking reviews. */
-function ratingFor(name: string): { score: number; count: number } {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) hash = (hash * 33 + name.charCodeAt(i)) | 0
-  const score = 3.8 + (Math.abs(hash) % 12) / 10 // 3.8 – 5.0
-  const count = 80 + (Math.abs(hash) % 920) // 80 – 999
-  return { score: Math.round(score * 10) / 10, count }
-}
 
 function formatDeparture(iso: string): { time: string; date: string; relative: string } {
   const d = new Date(iso)
@@ -89,7 +51,7 @@ function HighlightsBadges({ vehicleInfo }: { vehicleInfo: string | null }) {
       {items.slice(0, 3).map((it, i) => (
         <li
           key={i}
-          className="inline-flex items-center gap-1 rounded-md bg-secondary/60 px-1.5 py-0.5 text-[11px] font-medium text-secondary-foreground/80"
+          className="inline-flex items-center gap-1 border border-line bg-paper px-1.5 py-0.5 text-[11px] font-medium text-ink-1"
         >
           {it.icon}
           {it.label}
@@ -101,117 +63,85 @@ function HighlightsBadges({ vehicleInfo }: { vehicleInfo: string | null }) {
 
 export function TripCard({ trip, highlight = null }: TripCardProps) {
   const { time, date, relative } = formatDeparture(trip.departureAt)
-  const color = carrierColor(trip.companyName)
-  const rating = ratingFor(trip.companyName)
   const occupancy = trip.totalSeats > 0
     ? Math.round(((trip.totalSeats - trip.seatsAvailable) / trip.totalSeats) * 100)
     : 0
+  const initial = (trip.companyName ?? "?").charAt(0).toUpperCase()
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-      whileHover={{ y: -3 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -2 }}
     >
-      <Card className="group relative overflow-hidden border-border/60 transition-shadow duration-300 hover:border-primary/30 hover:shadow-brand">
-        {/* Left accent strip — visually anchors the brand color */}
-        <div
-          aria-hidden
-          className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${color.from} ${color.to}`}
-        />
-
-        {/* Highlight ribbon */}
-        {highlight === "popular" && (
-          <div className="absolute right-3 top-3 z-10">
-            <Badge className="border-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm">
-              <Sparkles className="mr-1 size-3" />
-              Le plus réservé
-            </Badge>
-          </div>
-        )}
-        {highlight === "best_price" && (
-          <div className="absolute right-3 top-3 z-10">
-            <Badge className="border-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm">
-              <Sparkles className="mr-1 size-3" />
-              Meilleur prix
-            </Badge>
-          </div>
-        )}
-
+      <Card className="group relative overflow-hidden border border-line bg-surface-1 transition-colors hover:bg-surface-2">
         <CardContent className="p-0">
           <Link
             href={`/trips/${trip.id}`}
             className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-6"
           >
-            {/* LEFT: brand & vehicle */}
+            {/* LEFT: carrier */}
             <div className="flex items-start gap-3 sm:w-56 sm:flex-shrink-0">
               <div
-                className={`flex size-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color.from} ${color.to} text-white shadow-sm ring-4 ${color.ring}`}
+                className="flex size-12 flex-shrink-0 items-center justify-center border border-ink bg-paper text-base font-medium text-ink"
                 aria-hidden
               >
-                <Bus className="size-6" />
+                {initial}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground" title={trip.companyName}>
+                <p
+                  className="truncate text-sm font-semibold text-ink"
+                  title={trip.companyName}
+                >
                   {trip.companyName}
                 </p>
-                <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                  <Star className="size-3 fill-amber-400 text-amber-400" />
-                  <span className="font-medium text-foreground">{rating.score}</span>
-                  <span>·</span>
-                  <span>{rating.count} avis</span>
-                </div>
                 <div className="mt-1.5">
                   <HighlightsBadges vehicleInfo={trip.vehicleTypeInfo} />
                 </div>
               </div>
             </div>
 
-            {/* MIDDLE: time + seat urgency */}
-            <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
-              {/* Time block with route line */}
+            {/* MIDDLE: time + occupancy */}
+            <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="text-center sm:text-left">
-                  <p className="font-display text-2xl font-bold tabular-nums leading-none tracking-tight text-foreground">
+                  <p className="text-2xl font-medium tabular-nums leading-none tracking-tight text-ink">
                     {time}
                   </p>
-                  <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.22em] text-ink-2">
                     {relative}
                   </p>
                 </div>
 
-                {/* Route line — visual signature of the trip */}
-                <div className="flex flex-1 items-center gap-2 px-1 sm:min-w-[120px]">
-                  <div className="size-2 flex-shrink-0 rounded-full bg-primary ring-2 ring-primary/20" />
-                  <div className="relative h-px flex-1 bg-border">
+                {/* Route line — Swiss hairline */}
+                <div className="flex flex-1 items-center gap-2 px-1 sm:min-w-[120px]" aria-hidden>
+                  <div className="size-1.5 flex-shrink-0 bg-ink" />
+                  <div className="relative h-px flex-1 bg-line">
                     <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center">
-                      <ArrowRight className="size-3.5 text-primary" />
+                      <ArrowRight className="size-3.5 text-ink-1" />
                     </div>
                   </div>
-                  <div className="size-2 flex-shrink-0 rounded-full bg-foreground/30" />
+                  <div className="size-1.5 flex-shrink-0 bg-ink-2" />
                 </div>
 
                 <div className="text-center sm:text-right">
-                  <p className="font-display text-base font-semibold tabular-nums text-muted-foreground">
-                    {date}
-                  </p>
-                  <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <p className="text-sm font-medium tabular-nums text-ink-1">{date}</p>
+                  <p className="mt-1 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] text-ink-2">
                     <Clock className="size-3" />
                     Direct
                   </p>
                 </div>
               </div>
 
-              {/* Seat urgency + occupancy */}
               <div className="flex flex-col gap-1.5 sm:items-end">
                 <SeatUrgency seatsAvailable={trip.seatsAvailable} />
                 {trip.totalSeats > 0 && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-1.5 text-[11px] text-ink-2">
                     <Users className="size-3" />
-                    <div className="h-1 w-16 overflow-hidden rounded-full bg-muted">
+                    <div className="h-1 w-16 overflow-hidden bg-surface-3">
                       <div
-                        className="h-full rounded-full bg-primary/70 transition-all"
+                        className="h-full bg-ink transition-all"
                         style={{ width: `${occupancy}%` }}
                         aria-hidden
                       />
@@ -223,20 +153,30 @@ export function TripCard({ trip, highlight = null }: TripCardProps) {
             </div>
 
             {/* RIGHT: price + CTA */}
-            <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4 sm:flex-col sm:items-end sm:justify-center sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+            <div className="flex items-center justify-between gap-3 border-t border-line pt-4 sm:flex-col sm:items-end sm:justify-center sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
               <div className="sm:text-right">
-                <p className="font-display text-2xl font-bold tabular-nums leading-none text-foreground">
+                {highlight === "best_price" && (
+                  <p className="mb-1 inline-block border border-wood-dark px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.22em] text-wood-dark">
+                    Meilleur prix
+                  </p>
+                )}
+                {highlight === "popular" && (
+                  <p className="mb-1 inline-block border border-ink px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.22em] text-ink">
+                    Le plus réservé
+                  </p>
+                )}
+                <p className="text-2xl font-medium tabular-nums leading-none text-ink">
                   {XAF.format(trip.price)}
-                  <span className="ml-1 text-sm font-semibold text-muted-foreground">XAF</span>
+                  <span className="ml-1 text-sm font-medium text-ink-2">XAF</span>
                 </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">par place</p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-ink-2">par place</p>
               </div>
               <span
-                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-transform group-hover:translate-x-0.5"
+                className="inline-flex h-9 items-center gap-2 border border-ink bg-ink px-4 text-xs font-medium uppercase tracking-[0.22em] text-paper transition-colors group-hover:bg-paper group-hover:text-ink"
                 aria-hidden
               >
                 Sélectionner
-                <ArrowRight className="size-4" />
+                <ArrowRight className="size-3.5" />
               </span>
             </div>
           </Link>

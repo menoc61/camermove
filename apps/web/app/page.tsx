@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { Bed, Bus, Car, Package, Shield, Ticket } from "lucide-react"
 import { prisma } from "@camermove/db"
 import { Hero } from "@/components/landing/Hero"
 import { StatsBand } from "@/components/landing/StatsBand"
@@ -11,6 +10,7 @@ import { SiteFooter } from "@/components/landing/SiteFooter"
 import { MotionSection } from "@/components/landing/MotionSection"
 import { AgencyMapDynamic } from "@/components/landing/AgencyMapDynamic"
 import { GsapBatchReveal } from "@/components/landing/GsapBatchReveal"
+import { ServicesBento } from "@/components/landing/ServicesBento"
 import type { SearchResultItem } from "@/lib/api/search"
 import type { Agency } from "@/lib/api/agencies"
 
@@ -24,7 +24,10 @@ export default async function HomePage() {
   try {
     const [minTrip, upcomingTrips, agencyRows] = await Promise.all([
       prisma.trip.findFirst({
-        where: { status: "active", seatAvailability: { seatsAvailable: { gte: 1 } } },
+        where: {
+          status: "active",
+          seatAvailability: { seatsAvailable: { gte: 1 } },
+        },
         orderBy: { price: "asc" },
         select: { price: true },
       }),
@@ -83,138 +86,69 @@ export default async function HomePage() {
   return (
     <>
       <main>
-        <Hero minPrice={minPrice != null ? minPrice : undefined} nextDepartureAt={trips[0]?.departureAt} />
-        <StatsBand minPrice={minPrice} hotelsCount={hotelsCount} rentalsCount={rentalsCount} />
-        {/* Services bento — transport dominant with photo cell */}
-        <section className="relative overflow-hidden py-12 sm:py-16">
-          <div className="absolute inset-0 bg-gradient-to-b from-background via-[hsl(var(--brand)/0.02)] to-background" />
-          <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
-            <div className="mb-8 text-center">
-              <span className="text-sm font-semibold uppercase tracking-widest text-[hsl(var(--brand))]">
-                Nos services
-              </span>
-              <p className="mt-2 text-muted-foreground">
-                Le transport interurbain est notre service principal
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-5">
-              {/* Transport - Hero card (photo cell, spans 2 cols, 2 rows) */}
-              <Link
-                href="/results?origin=Yaound%C3%A9&destination=Douala&pax=1"
-                className="hover-lift group relative col-span-1 row-span-1 flex min-h-[220px] flex-col justify-between overflow-hidden rounded-2xl p-6 text-white shadow-brand md:col-span-2 md:row-span-2 md:min-h-0 md:p-8"
-              >
-                <img
-                  src="https://picsum.photos/seed/camermove-service-bus/800/600"
-                  alt=""
-                  aria-hidden
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--brand-dark)/0.9)] via-[hsl(var(--brand-dark)/0.4)] to-[hsl(var(--brand)/0.15)]" />
-                <div className="relative">
-                  <div className="inline-flex rounded-xl bg-white/20 p-2.5 backdrop-blur-sm">
-                    <Bus className="size-6 text-white" />
-                  </div>
-                  <h3 className="mt-4 text-2xl font-bold md:text-3xl">Transport interurbain</h3>
-                  <p className="mt-2 max-w-[30ch] text-sm text-white/85 md:text-base">
-                    Comparez et réservez vos billets de bus entre villes. Départs quotidiens Yaoundé ⇄ Douala.
-                  </p>
-                </div>
-                <span className="relative mt-4 inline-flex items-center gap-1 text-sm font-semibold text-white group-hover:gap-2 transition-all">
-                  Réserver un bus <span>→</span>
-                </span>
-              </Link>
+        <Hero
+          minPrice={minPrice != null ? minPrice : undefined}
+          nextDepartureAt={trips[0]?.departureAt}
+        />
 
-              {/* Hotels */}
-              <Link href="/hotels" className="hover-lift group flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
-                <div className="inline-flex w-fit rounded-xl bg-[hsl(var(--brand)/0.08)] p-2.5">
-                  <Bed className="size-5 text-[hsl(var(--brand))]" />
-                </div>
-                <div className="mt-3">
-                  <h3 className="font-semibold text-foreground">Hôtels & apparts</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{hotelsCount} hébergements</p>
-                </div>
-              </Link>
+        <StatsBand
+          minPrice={minPrice}
+          hotelsCount={hotelsCount}
+          rentalsCount={rentalsCount}
+        />
 
-              {/* Rentals */}
-              <Link href="/rentals" className="hover-lift group flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
-                <div className="inline-flex w-fit rounded-xl bg-[hsl(var(--accent)/0.08)] p-2.5">
-                  <Car className="size-5 text-[hsl(var(--accent))]" />
-                </div>
-                <div className="mt-3">
-                  <h3 className="font-semibold text-foreground">Location véhicules</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{rentalsCount} véhicules</p>
-                </div>
-              </Link>
-
-              {/* Parcels */}
-              <Link href="/parcels" className="hover-lift group flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
-                <div className="inline-flex w-fit rounded-xl bg-[hsl(var(--brand-light)/0.1)] p-2.5">
-                  <Package className="size-5 text-[hsl(var(--brand-dark))]" />
-                </div>
-                <div className="mt-3">
-                  <h3 className="font-semibold text-foreground">Transport colis</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Envoi sécurisé</p>
-                </div>
-              </Link>
-
-              {/* Insurance */}
-              <Link href="/insurance" className="hover-lift group flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
-                <div className="inline-flex w-fit rounded-xl bg-[hsl(var(--accent)/0.08)] p-2.5">
-                  <Shield className="size-5 text-[hsl(var(--accent))]" />
-                </div>
-                <div className="mt-3">
-                  <h3 className="font-semibold text-foreground">Assurance voyage</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Souscription en ligne</p>
-                </div>
-              </Link>
-
-              {/* Events */}
-              <Link href="/events" className="hover-lift group flex flex-col justify-between rounded-2xl border border-border/50 bg-card p-5 shadow-sm md:col-span-2">
-                <div className="inline-flex w-fit rounded-xl bg-[hsl(var(--brand)/0.08)] p-2.5">
-                  <Ticket className="size-5 text-[hsl(var(--brand))]" />
-                </div>
-                <div className="mt-3">
-                  <h3 className="font-semibold text-foreground">Billetterie événements</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Découvrez et réservez vos places</p>
-                </div>
-              </Link>
-            </div>
-          </div>
-        </section>
         <Steps />
 
+        <ServicesBento hotelsCount={hotelsCount} rentalsCount={rentalsCount} />
+
         <MotionSection>
-          <section className="bg-background">
-            <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
-              <div className="text-center">
-                <h2 className="text-3xl font-bold tracking-tighter text-foreground md:text-4xl">
-                  Vérifiez le prix de votre trajet
-                </h2>
-                <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-                  Entrez votre ville de départ et destination pour voir les prix en temps réel.
-                </p>
-              </div>
-              <div className="mx-auto mt-10 max-w-2xl">
-                <PriceSimulator />
+          <section className="border-t border-line bg-paper text-ink">
+            <div className="mx-auto max-w-[1560px] px-6 py-20 sm:px-8 md:px-12 md:py-28">
+              <div className="grid grid-cols-12 gap-x-6 gap-y-10">
+                <div className="col-span-12 md:col-span-4">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-ink-2">
+                    06 — Simulateur
+                  </p>
+                  <h2 className="mt-3 text-[clamp(1.8rem,3vw,2.6rem)] font-medium leading-[1.05] tracking-[-0.025em] text-balance">
+                    Vérifiez le prix de votre trajet en direct.
+                  </h2>
+                  <p className="mt-4 text-[15px] leading-[1.55] text-ink-1">
+                    Entrez votre ville de départ et la destination. CamerMove
+                    interroge les transporteurs partenaires en temps réel.
+                  </p>
+                </div>
+                <div className="col-span-12 md:col-span-8">
+                  <div className="border border-line bg-surface-1 p-6 sm:p-8">
+                    <PriceSimulator />
+                  </div>
+                </div>
               </div>
             </div>
           </section>
         </MotionSection>
 
         <MotionSection direction="scale">
-          <section id="agences" className="bg-background">
-            <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
-              <div className="flex flex-wrap items-baseline justify-between gap-4">
+          <section
+            id="agences"
+            aria-label="Agences partenaires"
+            className="border-t border-line bg-paper text-ink"
+          >
+            <div className="mx-auto max-w-[1560px] px-6 py-20 sm:px-8 md:px-12 md:py-28">
+              <div className="mb-10 flex flex-col gap-6 border-b border-line pb-8 md:mb-12 md:flex-row md:items-end md:justify-between">
                 <div>
-                  <h2 className="text-3xl font-bold tracking-tighter text-foreground md:text-4xl">
-                    Nos agences partenaires
-                  </h2>
-                  <p className="mt-2 text-muted-foreground">
-                    Retrouvez les points de départ de nos transporteurs partenaires au Cameroun.
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-ink-2">
+                    07 — Réseau
                   </p>
+                  <h2 className="mt-3 text-[clamp(1.8rem,3.2vw,2.8rem)] font-medium leading-[1.02] tracking-[-0.025em] text-balance">
+                    Nos agences partenaires au Cameroun
+                  </h2>
                 </div>
+                <p className="max-w-[40ch] text-[14px] leading-[1.55] text-ink-1">
+                  {agencies.length} transporteurs approuvés · points de
+                  départ vérifiés.
+                </p>
               </div>
-              <div className="mt-10">
+              <div className="border border-line">
                 <AgencyMapDynamic agencies={agencies} />
               </div>
               <ul className="sr-only">
@@ -243,5 +177,3 @@ export default async function HomePage() {
     </>
   )
 }
-
-

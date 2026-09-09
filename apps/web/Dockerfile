@@ -26,6 +26,8 @@ RUN apk add --no-cache dumb-init
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# standalone output — node_modules already in standalone, but ensure prisma client available
+COPY --from=builder /app/node_modules ./node_modules
 # standalone output
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static

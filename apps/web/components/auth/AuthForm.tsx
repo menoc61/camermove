@@ -11,15 +11,17 @@ import { login, register } from "../../lib/api/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
-import { GoogleButton } from "./GoogleButton"
+// import { FieldError } from "@/components/ui/field" // unused import removed
 import { PasswordInput } from "./PasswordInput"
 import { PasswordStrengthMeter } from "./PasswordStrengthMeter"
+import { GoogleButton } from "./GoogleButton"
 
 interface Props {
   mode: "login" | "register"
@@ -40,6 +42,9 @@ export function AuthForm({ mode, next }: Props) {
   const [email, setEmail] = useState(mode === "login" ? "user@camermove.cm" : "")
   const [password, setPassword] = useState(mode === "login" ? "User123!" : "")
   const [firstName, setFirstName] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [confirmTouched, setConfirmTouched] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
   const [lastName, setLastName] = useState("")
   const [touched, setTouched] = useState({ email: false, password: false })
   const [error, setError] = useState<string | null>(null)
@@ -49,13 +54,14 @@ export function AuthForm({ mode, next }: Props) {
   const emailRequired = touched.email && email.length === 0
   const emailError = emailInvalid ? "Adresse e-mail invalide." : emailRequired ? "L'e-mail est requis." : null
 
-  const passwordInvalid = touched.password && password.length > 0 && password.length < 8
-  const passwordRequired = touched.password && password.length === 0
+  const passwordInvalid = touched.password && password.length > 0 && password.length < 8;
+  const passwordRequired = touched.password && password.length === 0;
   const passwordError = passwordInvalid
     ? "Le mot de passe doit contenir au moins 8 caractères."
     : passwordRequired
       ? "Le mot de passe est requis."
-      : null
+      : null;
+  const confirmPasswordError = mode === "register" && confirmTouched && confirmPassword !== password ? "Les mots de passe ne correspondent pas." : null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -68,6 +74,16 @@ export function AuthForm({ mode, next }: Props) {
     if (password.length < 8) {
       setError("Le mot de passe doit contenir au moins 8 caractères.")
       return
+    }
+    if (mode === "register") {
+      if (confirmPassword !== password) {
+        setError("Les mots de passe ne correspondent pas.")
+        return
+      }
+      if (!termsAccepted) {
+        setError("Vous devez accepter les conditions d'utilisation.")
+        return
+      }
     }
     setSubmitting(true)
     try {
@@ -232,6 +248,55 @@ export function AuthForm({ mode, next }: Props) {
             ) : null}
           </AnimatePresence>
         </Field>
+
+        {/* Confirm Password */}
+        {mode === "register" && (
+          <Field data-invalid={!!confirmPasswordError || undefined}>
+            <FieldLabel htmlFor="confirmPassword">Confirmer le mot de passe</FieldLabel>
+            <PasswordInput
+              id="confirmPassword"
+              name="confirmPassword"
+              required
+              minLength={8}
+              aria-invalid={!!confirmPasswordError}
+              aria-describedby={confirmPasswordError ? "confirm-password-error" : undefined}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              onBlur={() => setConfirmTouched(true)}
+              autoComplete="new-password"
+              hasError={!!confirmPasswordError}
+              disabled={submitting}
+            />
+            <AnimatePresence>
+              {confirmPasswordError && (
+                <motion.p
+                  id="confirm-password-error"
+                  initial={{ opacity: 0, y: -4, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: "auto" }}
+                  exit={{ opacity: 0, y: -4, height: 0 }}
+                  className="text-sm text-destructive"
+                  role="alert"
+                >
+                  {confirmPasswordError}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </Field>
+        )}
+
+        {/* Terms acceptance */}
+        {mode === "register" && (
+          <Field orientation="horizontal">
+            <Checkbox
+              id="terms"
+              checked={termsAccepted}
+              onCheckedChange={(checked) => setTermsAccepted(!!checked)}
+            />
+            <FieldLabel htmlFor="terms" className="flex items-center">
+              J’accepte les <Link href="/terms" className="ml-1 underline hover:text-primary">conditions d&apos;utilisation</Link>
+            </FieldLabel>
+          </Field>
+        )}
 
         <AnimatePresence>
           {error ? (

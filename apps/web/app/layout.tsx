@@ -10,43 +10,45 @@ import { BackToTop } from "../components/back-to-top"
 import { ServiceWorkerRegister } from "../components/service-worker-register"
 import { YoloHeader } from "../components/yolo/Header"
 import { Navigation } from "../components/yolo/Navigation"
-import { Geist, Noto_Sans, Inter, Plus_Jakarta_Sans } from "next/font/google";
-import { cn } from "@/lib/utils";
+import { Inter } from "next/font/google";
 
 const SmoothScroll = dynamic(
   () => import("@/components/smooth-scroll").then((m) => m.SmoothScroll),
   { ssr: true }
 )
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
-
-const plusJakarta = Plus_Jakarta_Sans({
+/* Helvetica-first stack via Inter as a close web analogue */
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-heading",
-  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-body",
+  weight: ["300", "400", "500", "600", "700"],
 });
-
-const notoSans = Noto_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002"
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "CamerMove — Billets de bus Yaoundé ⇄ Douala",
+    default: "CamerMove — Mobilité, transport et services au Cameroun",
     template: "%s | CamerMove",
   },
   description:
-    "Réservez vos billets de bus interurbains au Cameroun. Comparez les départs Yaoundé–Douala, payez par Mobile Money, recevez votre e-billet QR instantanément.",
-  keywords: ["bus Cameroun", "Yaoundé Douala", "billet de bus en ligne", "réservation bus", "Mobile Money"],
+    "CamerMove est la plateforme multi-services dédiée à la mobilité au Cameroun : transport interurbain, hôtels, location de véhicules, colis, assurance et événements.",
+  keywords: [
+    "CamerMove",
+    "mobilité Cameroun",
+    "bus Yaoundé Douala",
+    "réservation transport",
+    "Mobile Money",
+  ],
   openGraph: {
     type: "website",
     locale: "fr_CM",
     siteName: "CamerMove",
     url: SITE_URL,
-    title: "CamerMove — Billets de bus Yaoundé ⇄ Douala",
+    title: "CamerMove — Mobilité, transport et services au Cameroun",
     description:
-      "Comparez les départs, payez par Mobile Money, recevez votre e-billet QR instantanément.",
+      "Une plateforme, six services. Comparez, réservez, payez en Mobile Money, voyagez léger.",
   },
   twitter: { card: "summary_large_image" },
   manifest: "/manifest.json",
@@ -65,7 +67,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#1d4ed8",
+  themeColor: "#0E0E0E",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -77,13 +79,13 @@ const jsonLd = {
   name: "CamerMove",
   url: SITE_URL,
   areaServed: "CM",
-  slogan: "Yaoundé ⇄ Douala en un clic",
+  slogan: "Réinventons la mobilité africaine",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" suppressHydrationWarning className={cn("font-sans", inter.variable, plusJakarta.variable, notoSans.variable)}>
-      <body>
+    <html lang="fr" suppressHydrationWarning className={inter.variable}>
+      <body className="font-body antialiased">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

@@ -27,13 +27,12 @@ FROM node:22-alpine AS runner
 RUN apk add --no-cache dumb-init
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages ./packages
-COPY --from=deps /app/apps/worker/package.json ./apps/worker/package.json
-COPY --from=deps /app/apps/api/package.json ./apps/api/package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/apps/worker/package.json ./apps/worker/package.json
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/apps/worker/dist ./apps/worker/dist
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/packages/db/generated ./packages/db/generated
 COPY --from=builder /app/packages/db/prisma ./packages/db/prisma
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "apps/worker/dist/index.js"]

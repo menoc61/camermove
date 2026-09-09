@@ -1,23 +1,22 @@
 "use client"
 
 import { motion, useReducedMotion } from "motion/react"
-import { Search, CreditCard, QrCode } from "lucide-react"
 
 const steps = [
   {
+    n: "01",
     title: "Recherchez",
-    body: "Choisissez votre date et comparez les départs disponibles en quelques secondes.",
-    Icon: Search,
+    body: "Comparez les départs par horaire, prix et opérateur. Filtrage en direct, sans rechargement.",
   },
   {
+    n: "02",
     title: "Réservez et payez",
-    body: "Sélectionnez vos sièges, payez par Mobile Money ou carte, en toute sécurité.",
-    Icon: CreditCard,
+    body: "Sélectionnez vos sièges, payez par Mobile Money, carte ou virement. Confirmation instantanée.",
   },
   {
-    title: "Voyagez avec votre e-billet",
-    body: "Recevez un billet QR sur votre téléphone, présentez-le au contrôle, rien à imprimer.",
-    Icon: QrCode,
+    n: "03",
+    title: "Voyagez léger",
+    body: "E-billet QR dans votre poche. Présentation au contrôle, modification ou annulation depuis l’app.",
   },
 ]
 
@@ -25,46 +24,54 @@ export function Steps() {
   const shouldReduce = useReducedMotion()
 
   return (
-    <section id="etapes" className="relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-[hsl(var(--brand)/0.02)] to-background" />
+    <section
+      id="etapes"
+      aria-label="Trois étapes pour réserver"
+      className="border-t border-line bg-paper text-ink"
+    >
+      <div className="mx-auto max-w-[1560px] px-6 py-20 sm:px-8 md:px-12 md:py-28">
+        <div className="grid grid-cols-12 gap-x-6 gap-y-12">
+          <div className="col-span-12 md:col-span-4">
+            <motion.p
+              initial={shouldReduce ? false : { opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="text-[11px] uppercase tracking-[0.22em] text-ink-2"
+            >
+              02 — Processus
+            </motion.p>
+            <motion.h2
+              initial={shouldReduce ? false : { opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.05 }}
+              className="mt-4 text-[clamp(2rem,3.6vw,3.2rem)] font-medium leading-[1.02] tracking-[-0.025em] text-balance"
+            >
+              Trois étapes, un seul compte, zéro friction.
+            </motion.h2>
+          </div>
 
-      <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24">
-        <motion.div
-          initial={shouldReduce ? false : { opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="max-w-2xl"
-        >
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Réserver en trois étapes
-          </h2>
-          <p className="mt-3 text-base text-muted-foreground sm:text-lg">
-            De la recherche au billet QR, votre réservation est fluide et sécurisée.
-          </p>
-        </motion.div>
-
-        <div className="relative mt-14">
-          {/* Connector line (desktop only) */}
-          <div
-            aria-hidden
-            className="absolute left-[12%] right-[12%] top-8 hidden border-t-2 border-dashed border-[hsl(var(--brand)/0.25)] md:block"
-          />
-          <ol className="grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-8">
+          <ol className="col-span-12 grid grid-cols-1 gap-px bg-line md:col-span-8 md:grid-cols-3">
             {steps.map((s, i) => (
               <motion.li
-                key={s.title}
+                key={s.n}
                 initial={shouldReduce ? false : { opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: 0.5, delay: i * 0.1, ease: [0.16, 1, 0.3, 1] }}
-                className="relative text-center md:text-left"
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.5, delay: i * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                className="flex flex-col gap-5 bg-paper p-6 sm:p-7"
               >
-                <div className="relative z-10 mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-border/60 bg-card shadow-sm md:mx-0">
-                  <s.Icon className="size-7 text-[hsl(var(--brand))]" />
+                <div className="flex items-center justify-between">
+                  <span className="font-body text-3xl font-medium leading-none tracking-[-0.04em] text-ink num-tabular">
+                    {s.n}
+                  </span>
+                  <span className="h-px w-12 bg-line" aria-hidden />
                 </div>
-                <h3 className="mt-5 text-lg font-semibold text-foreground">{s.title}</h3>
-                <p className="mt-2 max-w-[36ch] text-sm leading-relaxed text-muted-foreground md:mx-0">
+                <h3 className="text-xl font-medium tracking-[-0.015em] text-ink">
+                  {s.title}
+                </h3>
+                <p className="max-w-[36ch] text-[15px] leading-[1.55] text-ink-1">
                   {s.body}
                 </p>
               </motion.li>
