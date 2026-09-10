@@ -20,9 +20,26 @@ jobs:
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
+      kafka:
+        image: bitnamilegacy/kafka:3.7
+        env:
+          KAFKA_CFG_NODE_ID: "1"
+          KAFKA_CFG_PROCESS_ROLES: controller,broker
+          KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+          KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+          KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+          KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+          KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+          KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+          KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+          ALLOW_PLAINTEXT_LISTENER: "yes"
+        ports: ["9092:9092"]
     env:
       DATABASE_URL: postgresql://camermove:camermove@localhost:5432/camermove
       REDIS_URL: redis://localhost:6379
+      KAFKA_BROKERS: localhost:9092
       JWT_SECRET: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       JWT_REFRESH_SECRET: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
       MINIO_ACCESS_KEY: minioadmin
@@ -38,19 +55,25 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @camermove/db generate
       - run: pnpm --filter @camermove/db exec prisma migrate deploy
+      - run: pnpm seed:rich
+      - run: pnpm seed:verify
       - run: pnpm -r typecheck
       - run: pnpm -r test
-      # Playwright setup
-      - name: Add Playwright test dependency
-        run: pnpm add -D @playwright/test
+      # Playwright setup (@playwright/test is a committed devDependency — do not pnpm add here)
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-      - name: Start Next.js dev server
+        run: npx playwright install --with-deps chromium
+      - name: Start dev servers
         run: pnpm dev &
-      - name: Wait for dev server
-        run: npx wait-on http://localhost:3002
+      - name: Wait for API + web
+        run: npx wait-on http://localhost:3000/health http://localhost:3002
+      - name: Run smoke tests (API must be up)
+        run: pnpm smoke
+      - name: Run tickets smoke
+        run: pnpm smoke:tickets
+      - name: Run dashboard smoke
+        run: pnpm smoke:dashboard
       - name: Run Playwright end‑to‑end tests
-        run: npx playwright test
+        run: npx playwright test --project=chromium
       - name: Upload Playwright HTML report
         if: always()
         uses: actions/upload-artifact@v4

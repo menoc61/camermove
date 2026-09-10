@@ -1,29 +1,6 @@
-import { prisma } from "@camermove/db"
+import { getAppSettingsCached, prisma } from "@camermove/db"
 import { BadRequestError, ConflictError, NotFoundError, ForbiddenError, loadEnv } from "@camermove/config"
-import { getCached, setCached, invalidateCache } from "../lib/cache.js"
-
-const SETTINGS_CACHE_KEY = "appsettings:global"
-const SETTINGS_TTL = 30
-
-export async function getAppSettingsCached() {
-  try {
-    const cached = await getCached<Record<string, unknown>>(SETTINGS_CACHE_KEY)
-    if (cached) return cached as unknown as { commissionPercent: unknown; holdExpiryMinutes: number; featureFlags: unknown }
-  } catch {}
-  let settings = await prisma.appSettings.findUnique({ where: { id: "global" } })
-  if (!settings) {
-    try {
-      settings = await prisma.appSettings.create({ data: { id: "global" } })
-    } catch {
-      settings = await prisma.appSettings.findUnique({ where: { id: "global" } })
-    }
-  }
-  if (settings) {
-    await setCached(SETTINGS_CACHE_KEY, settings as unknown as Record<string, unknown>, SETTINGS_TTL).catch(() => {})
-    return settings as unknown as { commissionPercent: unknown; holdExpiryMinutes: number; featureFlags: unknown }
-  }
-  return { commissionPercent: 10, holdExpiryMinutes: 15, featureFlags: {} } as never
-}
+import { invalidateCache } from "../lib/cache.js"
 
 export async function calcShippingCost(input: {
   parcelType: string
@@ -83,6 +60,10 @@ export function isValidTransition(from: string, to: string): boolean {
   return (ALLOWED_TRANSITIONS[from] ?? []).includes(to)
 }
 
+export function parcelPaymentReference(parcelId: string): string {
+  return `PARCEL-${parcelId.slice(0, 8).toUpperCase()}`
+}
+
 async function publishParcelEvent(topic: string, data: Record<string, unknown>) {
   try {
     const env = loadEnv() as unknown as Record<string, unknown>
@@ -94,6 +75,35 @@ async function publishParcelEvent(topic: string, data: Record<string, unknown>) 
       .send({
         topic: topic as never,
         messages: [{ key: String(data.id ?? data.trackingNumber ?? ""), value: JSON.stringify({ type: topic, ts: new Date().toISOString(), data }) }],
+      })
+      .catch(() => {})
+    await producer.disconnect().catch(() => {})
+  } catch {}
+}
+
+/** Publish a typed NotificationEvent (shared contract) for the worker dispatcher fan-out. */
+async function publishParcelTypedEvent(topic: string, type: string, typedEvent: Record<string, unknown>, key: string) {
+  try {
+    const env = loadEnv() as unknown as Record<string, unknown>
+    const { createKafkaClient } = await import("@camermove/events")
+    const kafka = createKafkaClient(env as never)
+    const producer = kafka.producer({ idempotent: true })
+    await producer.connect().catch(() => {})
+    await producer
+      .send({
+        topic: topic as never,
+        messages: [
+          {
+            key,
+            value: JSON.stringify({
+              id: `${type}-${key}-${Date.now()}`,
+              type,
+              ts: new Date().toISOString(),
+              aggregateId: key,
+              data: typedEvent,
+            }),
+          },
+        ],
       })
       .catch(() => {})
     await producer.disconnect().catch(() => {})
@@ -247,6 +257,23 @@ export async function advanceParcelStatus(input: {
     })
   } catch {}
   await publishParcelEvent("parcel.status.updated", { id: input.parcelId, status: input.nextStatus, location: input.location })
+  const parcelAfter = (upd as unknown as { id: string; userId: string; trackingNumber: string; currentLocation: string | null })
+  await publishParcelTypedEvent(
+    "camermove.parcel.status.changed",
+    "parcel.status.changed",
+    {
+      type: "parcel.status.changed",
+      userId: parcelAfter.userId,
+      payload: {
+        parcelId: parcelAfter.id,
+        trackingNumber: parcelAfter.trackingNumber,
+        reference: parcelAfter.trackingNumber,
+        status: input.nextStatus,
+        location: parcelAfter.currentLocation ?? input.location,
+      },
+    },
+    input.parcelId,
+  )
   try {
     await invalidateCache("parcels*")
     await invalidateCache("search*")
@@ -282,8 +309,8 @@ export async function createParcelPayment(input: {
     return { payment: existing, authorizationUrl: authUrl ?? null }
   }
 
-  const env = loadEnv() as Record<string, unknown>
-  const reference = `PARCEL-${input.parcelId.slice(0, 8).toUpperCase()}`
+  const env = loadEnv()
+  const reference = parcelPaymentReference(input.parcelId)
   const baseUrl = env.API_URL as string | undefined
   const frontendUrl = env.FRONTEND_URL as string | undefined
   const callbackBase = (frontendUrl ?? baseUrl ?? "https://camermove.cm") as string
@@ -331,7 +358,7 @@ export async function createParcelPayment(input: {
         currency: "XAF",
         method: (input.method as never) ?? "mobile_money",
         status: "pending" as never,
-        webhookPayload: { ...((result.rawResponse as Record<string, unknown>) ?? {}), authorizationUrl: result.authorizationUrl } as never,
+        webhookPayload: { ...((result.rawResponse as Record<string, unknown>) ?? {}), authorizationUrl: result.authorizationUrl, bookingReference: reference, entityKind: "parcel" } as never,
       },
     })
     // Need to link via tx.parcel.update but prisma.$transaction with tx object — use tx.parcel.update if available, else prisma.parcel.update
@@ -369,4 +396,153 @@ export async function createParcelPayment(input: {
   } catch {}
 
   return { payment, authorizationUrl: result.authorizationUrl }
+}
+
+/**
+ * Confirm a parcel payment after success (webhook / reconciliation).
+ * Parcel has no pending_payment status — it stays `registered`; the paid flag
+ * is Payment.status. ACID via $transaction with SELECT ... FOR UPDATE.
+ * Idempotent: replay returns { confirmed: false } but still re-publishes the
+ * payment.confirmed notification event for fan-out safety.
+ */
+export async function confirmParcelPaymentSuccess(paymentId: string, event: unknown): Promise<{ confirmed: boolean; parcelId: string }> {
+  const link = (await prisma.parcel.findFirst({ where: { paymentId } })) as unknown as {
+    id: string
+    userId: string
+    trackingNumber: string
+    shippingCost: number
+  } | null
+  if (!link) throw new NotFoundError("Colis introuvable pour ce paiement")
+
+  let wasNew = false
+  await prisma.$transaction(async (tx: unknown) => {
+    const t = tx as {
+      parcel: { findUnique: (a: unknown) => Promise<unknown> }
+      payment: { findUnique: (a: unknown) => Promise<unknown>; update: (a: unknown) => Promise<unknown> }
+      auditLog: { create: (a: unknown) => Promise<unknown> }
+    }
+    await (tx as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Parcel" WHERE "id"=${link.id} FOR UPDATE`
+    await (tx as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Payment" WHERE "id"=${paymentId} FOR UPDATE`
+    const freshPayment = (await t.payment.findUnique({ where: { id: paymentId } })) as unknown as { status: string; provider: string } | null
+    const freshParcel = await t.parcel.findUnique({ where: { id: link.id } })
+    if (!freshPayment || !freshParcel) return
+    if (freshPayment.status === "success") return
+    if (["failed", "expired", "refunded"].includes(freshPayment.status as string)) return
+    await t.payment.update({ where: { id: paymentId }, data: { status: "success", webhookPayload: event as never } })
+    try {
+      await t.auditLog.create({
+        data: {
+          actorId: "system",
+          action: "payment.success",
+          entityType: "Payment",
+          entityId: paymentId,
+          metadata: { provider: freshPayment.provider, parcelId: link.id, deliveryId: (event as Record<string, unknown>)?.id ?? null } as never,
+        },
+      })
+    } catch {}
+    wasNew = true
+  })
+
+  // Reuse the generic payment.confirmed channel (tracking number as reference).
+  await publishParcelTypedEvent(
+    "camermove.payment.confirmed",
+    "payment.confirmed",
+    {
+      type: "payment.confirmed",
+      userId: link.userId,
+      payload: { bookingId: link.id, reference: link.trackingNumber, amount: link.shippingCost },
+    },
+    link.id,
+  )
+  return { confirmed: wasNew, parcelId: link.id }
+}
+
+/**
+ * User cancellation for a parcel. Cancellable only from `registered` with no
+ * successful payment — a paid or in-transit parcel must go through support (409).
+ * ACID: status flip + history row inside $transaction with SELECT ... FOR UPDATE.
+ */
+export async function cancelParcel(id: string, actorId: string, actorRole = "traveler") {
+  const parcel = (await prisma.parcel.findUnique({ where: { id } })) as unknown as {
+    id: string
+    userId: string
+    status: string
+    trackingNumber: string
+    senderCity: string
+    recipientCity: string
+    shippingCost: number
+    paymentId: string | null
+  } | null
+  if (!parcel) throw new NotFoundError("Colis introuvable")
+  const isAdmin = actorRole === "admin" || actorRole === "super_admin"
+  if (!isAdmin && parcel.userId !== actorId) throw new ForbiddenError("Accès refusé")
+  if (parcel.status !== "registered") {
+    throw new ConflictError(`Colis non annulable — statut: ${parcel.status}`)
+  }
+  if (parcel.paymentId) {
+    const payment = await prisma.payment.findUnique({ where: { id: parcel.paymentId } }).catch(() => null)
+    if (payment && (payment as unknown as { status: string }).status === "success") {
+      throw new ConflictError("Colis déjà payé — contactez le support pour toute annulation")
+    }
+  }
+
+  const updated = await prisma.$transaction(async (tx: unknown) => {
+    const t = tx as {
+      parcel: { findUnique: (a: unknown) => Promise<unknown>; update: (a: unknown) => Promise<unknown> }
+      payment: { findUnique: (a: unknown) => Promise<unknown> }
+      parcelStatusLog: { create: (a: unknown) => Promise<unknown> }
+    }
+    await (tx as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Parcel" WHERE "id"=${id} FOR UPDATE`
+    const fresh = (await t.parcel.findUnique({ where: { id } })) as unknown as { status: string; paymentId: string | null } | null
+    if (!fresh) throw new NotFoundError("Colis introuvable")
+    if (fresh.status !== "registered") {
+      throw new ConflictError(`Colis non annulable — statut: ${fresh.status}`)
+    }
+    if (fresh.paymentId) {
+      const linked = (await t.payment.findUnique({ where: { id: fresh.paymentId } }).catch(() => null)) as unknown as { status: string } | null
+      if (linked && linked.status === "success") {
+        throw new ConflictError("Colis déjà payé — contactez le support pour toute annulation")
+      }
+    }
+    await t.parcelStatusLog.create({
+      data: { parcelId: id, status: "cancelled" as never, note: "Annulation par l'utilisateur" },
+    })
+    return t.parcel.update({ where: { id }, data: { status: "cancelled" as never } })
+  })
+
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actorId,
+        action: "parcel.booking.cancel",
+        entityType: "Parcel",
+        entityId: id,
+        metadata: { userId: parcel.userId, status: "cancelled", trackingNumber: parcel.trackingNumber, shippingCost: parcel.shippingCost } as never,
+      },
+    })
+  } catch {}
+  await publishParcelTypedEvent(
+    "camermove.booking.status.changed",
+    "booking.status.changed",
+    {
+      type: "booking.status.changed",
+      userId: parcel.userId,
+      payload: {
+        parcelId: id,
+        trackingNumber: parcel.trackingNumber,
+        reference: parcel.trackingNumber,
+        amount: parcel.shippingCost,
+        serviceLabel: "Colis",
+        entityLabel: `${parcel.senderCity} → ${parcel.recipientCity}`,
+        newStatus: "cancelled",
+        status: "cancelled",
+      },
+    },
+    id,
+  )
+  try {
+    await invalidateCache("parcels*")
+    await invalidateCache("search*")
+  } catch {}
+  return updated
 }

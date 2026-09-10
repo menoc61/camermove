@@ -6,10 +6,13 @@ import { useAuthStore } from "@camermove/frontend"
 import {
   fetchInsurancePolicies,
   subscribeInsurance,
+  createInsurancePayment,
   COVERAGE_LABELS,
   COVERAGE_PRICES,
   type CoverageType,
+  type InsurancePolicy,
 } from "@/lib/api/insurance"
+import { PaymentStep } from "@/components/booking/PaymentStep"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -31,7 +34,8 @@ export default function InsurancePage() {
   const [endDate, setEndDate] = useState("")
   const [travelers, setTravelers] = useState(1)
   const [coverageType, setCoverageType] = useState<CoverageType>("standard")
-  const [lastPolicy, setLastPolicy] = useState<{ policyNumber: string | null; premium: number } | null>(null)
+  const [lastPolicy, setLastPolicy] = useState<InsurancePolicy | null>(null)
+  const [paid, setPaid] = useState(false)
 
   const { data: policies, isLoading, error } = useQuery({
     queryKey: ["insurance-policies", token],
@@ -49,7 +53,8 @@ export default function InsurancePage() {
         coverageType,
       }),
     onSuccess: (policy) => {
-      setLastPolicy({ policyNumber: policy.policyNumber, premium: policy.premium })
+      setLastPolicy(policy)
+      setPaid(false)
       qc.invalidateQueries({ queryKey: ["insurance-policies"] })
     },
   })
@@ -101,7 +106,7 @@ export default function InsurancePage() {
             </div>
             <div>
               <label className="text-sm text-muted-foreground">Type de couverture</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                 {COVERAGES.map((c) => (
                   <button
                     type="button"
@@ -133,14 +138,51 @@ export default function InsurancePage() {
               <AlertDescription>Souscription impossible — vérifiez les dates et réessayez.</AlertDescription>
             </Alert>
           )}
-          {lastPolicy && (
-            <Alert>
-              <ShieldCheck />
-              <AlertTitle>Assurance souscrite — police {lastPolicy.policyNumber}</AlertTitle>
-              <AlertDescription>
-                Prime : {new Intl.NumberFormat("fr-CM").format(lastPolicy.premium)} XAF. Votre attestation figure dans « Mes polices ».
-              </AlertDescription>
-            </Alert>
+          {lastPolicy && !paid && token && (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">Police {lastPolicy.policyNumber} — Prime : {new Intl.NumberFormat("fr-CM").format(lastPolicy.premium)} XAF</p>
+              <p className="text-sm text-muted-foreground">Procédez au paiement de la prime pour activer la couverture.</p>
+              <PaymentStep
+                amount={lastPolicy.premium}
+                currency={lastPolicy.currency || "XAF"}
+                createPayment={(provider, opts) =>
+                  createInsurancePayment(token, lastPolicy.id, {
+                    provider,
+                    method: (opts.method as "mobile_money" | "card" | undefined) ?? "mobile_money",
+                    ...(opts.phone ? { phone: opts.phone } : {}),
+                  })
+                }
+                onPaymentCreated={() => setPaid(true)}
+              />
+            </div>
+          )}
+          {lastPolicy && paid && (
+            <div className="space-y-3">
+              <Alert>
+                <ShieldCheck />
+                <AlertTitle>Assurance souscrite — police {lastPolicy.policyNumber}</AlertTitle>
+                <AlertDescription>
+                  Prime : {new Intl.NumberFormat("fr-CM").format(lastPolicy.premium)} XAF. Votre attestation figure dans « Mes polices ».
+                </AlertDescription>
+              </Alert>
+              {lastPolicy.documentUrl ? (
+                <Alert>
+                  <AlertDescription>
+                    <a href={lastPolicy.documentUrl} target="_blank" rel="noreferrer" className="underline">Télécharger l&apos;attestation officielle</a>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="rounded-lg border p-4 space-y-2 print:shadow-none">
+                  <p className="text-sm font-bold">Attestation d&apos;assurance voyage — n° {lastPolicy.policyNumber}</p>
+                  <p className="text-sm">Couverture : {COVERAGE_LABELS[lastPolicy.coverageType]}</p>
+                  <p className="text-sm">Destination : {lastPolicy.destination}</p>
+                  <p className="text-sm">Période : {new Date(lastPolicy.startDate).toLocaleDateString("fr-FR")} → {new Date(lastPolicy.endDate).toLocaleDateString("fr-FR")}</p>
+                  <p className="text-sm">Voyageurs : {lastPolicy.travelers}</p>
+                  <p className="text-sm font-bold">Prime : {new Intl.NumberFormat("fr-CM").format(lastPolicy.premium)} {lastPolicy.currency}</p>
+                  <Button variant="outline" className="print:hidden" onClick={() => window.print()}>Imprimer l&apos;attestation</Button>
+                </div>
+              )}
+            </div>
           )}
         </form>
       </div>

@@ -1,21 +1,17 @@
 // @ts-nocheck
 import type { FastifyInstance } from "fastify"
-import { prisma } from "@camermove/db"
 import { loadEnv } from "@camermove/config"
 import { ForbiddenError, BadRequestError } from "@camermove/config"
 import { parseExportQuery, sendExport } from "../lib/export"
 import * as svc from "./service"
+import * as repo from "./repository"
 import {
   VehicleInput, VehicleUpdateInput, VehicleParams,
   RouteInput, RouteUpdateInput, RouteParams,
   TripInput, TripUpdateInput, TripParams,
+  BookingIdParams,
   TransporterProfileUpdate, TransporterPresignInput,
 } from "./schema"
-
-function getTransporterId(userId: string, role: string) {
-  // transporter_staff and admin link to a transporter via User.transporterId
-  return null // resolved async below
-}
 
 async function resolveTransporter(req: Parameters<typeof loadEnv>[0], role: string, userId: string) {
   if (role !== "transporter_staff" && role !== "admin" && role !== "super_admin") {
@@ -25,9 +21,9 @@ async function resolveTransporter(req: Parameters<typeof loadEnv>[0], role: stri
     // admin can view all — return special marker
     return "__admin__"
   }
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { transporterId: true } })
-  if (!user?.transporterId) throw new ForbiddenError("Aucun profil transporteur lié à ce compte")
-  return user.transporterId
+  const transporterId = await repo.findUserTransporterId(userId)
+  if (!transporterId) throw new ForbiddenError("Aucun profil transporteur lié à ce compte")
+  return transporterId
 }
 
 export async function transporterRoutes(app: FastifyInstance) {
@@ -51,9 +47,9 @@ export async function transporterRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, userId: user.id }, "transporter.profile.update")
     const updated = await svc.updateTransporterProfile(tid, body)
-    await prisma.auditLog.create({
-      data: { actorId: user.id, action: "transporter.profile.update", entityType: "Transporter", entityId: tid, metadata: body as never },
-    }).catch(() => {})
+    await repo.createAuditLog(
+      { actorId: user.id, action: "transporter.profile.update", entityType: "Transporter", entityId: tid, metadata: body as never },
+    )
     return updated
   })
 
@@ -86,9 +82,9 @@ export async function transporterRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, userId: user.id }, "transporter.vehicle.create")
     const vehicle = await svc.createVehicle(tid, body)
-    await prisma.auditLog.create({
-      data: { actorId: user.id, action: "transporter.vehicle.create", entityType: "Vehicle", entityId: vehicle.id, metadata: body as never },
-    }).catch(() => {})
+    await repo.createAuditLog(
+      { actorId: user.id, action: "transporter.vehicle.create", entityType: "Vehicle", entityId: vehicle.id, metadata: body as never },
+    )
     return reply.code(201).send(vehicle)
   })
 
@@ -101,9 +97,9 @@ export async function transporterRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, vehicleId: id, userId: user.id }, "transporter.vehicle.update")
     const updated = await svc.updateVehicle(id, tid, body)
-    await prisma.auditLog.create({
-      data: { actorId: user.id, action: "transporter.vehicle.update", entityType: "Vehicle", entityId: id, metadata: body as never },
-    }).catch(() => {})
+    await repo.createAuditLog(
+      { actorId: user.id, action: "transporter.vehicle.update", entityType: "Vehicle", entityId: id, metadata: body as never },
+    )
     return updated
   })
 
@@ -115,9 +111,9 @@ export async function transporterRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, vehicleId: id, userId: user.id }, "transporter.vehicle.delete")
     const deleted = await svc.deleteVehicle(id, tid)
-    await prisma.auditLog.create({
-      data: { actorId: user.id, action: "transporter.vehicle.delete", entityType: "Vehicle", entityId: id },
-    }).catch(() => {})
+    await repo.createAuditLog(
+      { actorId: user.id, action: "transporter.vehicle.delete", entityType: "Vehicle", entityId: id },
+    )
     return deleted
   })
 
@@ -137,9 +133,9 @@ export async function transporterRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, userId: user.id }, "transporter.route.create")
     const route = await svc.createRoute(tid, body)
-    await prisma.auditLog.create({
-      data: { actorId: user.id, action: "transporter.route.create", entityType: "Route", entityId: route.id, metadata: body as never },
-    }).catch(() => {})
+    await repo.createAuditLog(
+      { actorId: user.id, action: "transporter.route.create", entityType: "Route", entityId: route.id, metadata: body as never },
+    )
     return reply.code(201).send(route)
   })
 
@@ -152,9 +148,9 @@ export async function transporterRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, routeId: id, userId: user.id }, "transporter.route.update")
     const updated = await svc.updateRoute(id, tid, body)
-    await prisma.auditLog.create({
-      data: { actorId: user.id, action: "transporter.route.update", entityType: "Route", entityId: id, metadata: body as never },
-    }).catch(() => {})
+    await repo.createAuditLog(
+      { actorId: user.id, action: "transporter.route.update", entityType: "Route", entityId: id, metadata: body as never },
+    )
     return updated
   })
 
@@ -166,9 +162,9 @@ export async function transporterRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, routeId: id, userId: user.id }, "transporter.route.delete")
     const deleted = await svc.deleteRoute(id, tid)
-    await prisma.auditLog.create({
-      data: { actorId: user.id, action: "transporter.route.delete", entityType: "Route", entityId: id },
-    }).catch(() => {})
+    await repo.createAuditLog(
+      { actorId: user.id, action: "transporter.route.delete", entityType: "Route", entityId: id },
+    )
     return deleted
   })
 
@@ -189,6 +185,26 @@ export async function transporterRoutes(app: FastifyInstance) {
     return result
   })
 
+  // GET /transporter/trips/export — §6 style, registered before any /:id route
+  app.get("/transporter/trips/export", { preHandler: app.requireAuth() }, async (req, reply) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const tid = await resolveTransporter(env, user.role, user.id)
+    if (tid === "__admin__") throw new ForbiddenError("Utilisez le panneau admin")
+    const q = req.query as Record<string, unknown>
+    const { dateFrom, dateTo, format } = parseExportQuery(q)
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, userId: user.id, dateFrom, dateTo, format }, "transporter.trips.export")
+    const result = await svc.listTrips(tid, {
+      dateFrom,
+      dateTo,
+      limit: env.SEARCH_MAX_LIMIT,
+      status: q.status as string | undefined,
+      routeId: q.routeId as string | undefined,
+    })
+    const columns = ["id", "routeId", "vehicleId", "departureAt", "arrivalEstimateAt", "price", "totalSeats", "status", "createdAt"]
+    return sendExport(reply, "transporter-trips", dateFrom, dateTo, format, result.items as unknown as Record<string, unknown>[], columns)
+  })
+
   app.post("/transporter/trips", { preHandler: app.requireAuth() }, async (req, reply) => {
     const user = (req as unknown as { user: { id: string; role: string } }).user
     const tid = await resolveTransporter(env, user.role, user.id)
@@ -201,9 +217,9 @@ export async function transporterRoutes(app: FastifyInstance) {
       departureAt: new Date(body.departureAt),
       arrivalEstimateAt: body.arrivalEstimateAt ? new Date(body.arrivalEstimateAt) : undefined,
     })
-    await prisma.auditLog.create({
-      data: { actorId: user.id, action: "transporter.trip.create", entityType: "Trip", entityId: trip.id, metadata: body as never },
-    }).catch(() => {})
+    await repo.createAuditLog(
+      { actorId: user.id, action: "transporter.trip.create", entityType: "Trip", entityId: trip.id, metadata: body as never },
+    )
     return reply.code(201).send(trip)
   })
 
@@ -220,9 +236,9 @@ export async function transporterRoutes(app: FastifyInstance) {
       departureAt: body.departureAt ? new Date(body.departureAt) : undefined,
       arrivalEstimateAt: body.arrivalEstimateAt ? new Date(body.arrivalEstimateAt) : undefined,
     })
-    await prisma.auditLog.create({
-      data: { actorId: user.id, action: "transporter.trip.update", entityType: "Trip", entityId: id, metadata: body as never },
-    }).catch(() => {})
+    await repo.createAuditLog(
+      { actorId: user.id, action: "transporter.trip.update", entityType: "Trip", entityId: id, metadata: body as never },
+    )
     return updated
   })
 
@@ -234,9 +250,9 @@ export async function transporterRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, tripId: id, userId: user.id }, "transporter.trip.delete")
     const deleted = await svc.deleteTrip(id, tid)
-    await prisma.auditLog.create({
-      data: { actorId: user.id, action: "transporter.trip.delete", entityType: "Trip", entityId: id },
-    }).catch(() => {})
+    await repo.createAuditLog(
+      { actorId: user.id, action: "transporter.trip.delete", entityType: "Trip", entityId: id },
+    )
     return deleted
   })
 
@@ -258,16 +274,7 @@ export async function transporterRoutes(app: FastifyInstance) {
     return result
   })
 
-  app.get("/transporter/bookings/:id", { preHandler: app.requireAuth() }, async (req) => {
-    const user = (req as unknown as { user: { id: string; role: string } }).user
-    const tid = await resolveTransporter(env, user.role, user.id)
-    if (tid === "__admin__") throw new ForbiddenError("Utilisez le panneau admin")
-    const { id } = TripParams.parse(req.params)
-    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
-    req.log.info({ ...meta, bookingId: id, userId: user.id }, "transporter.booking.get")
-    return svc.getTransporterBooking(id, tid)
-  })
-
+  // Export registered BEFORE /:id so "export" is not captured as an id (§6)
   app.get("/transporter/bookings/export", { preHandler: app.requireAuth() }, async (req, reply) => {
     const user = (req as unknown as { user: { id: string; role: string } }).user
     const tid = await resolveTransporter(env, user.role, user.id)
@@ -281,31 +288,21 @@ export async function transporterRoutes(app: FastifyInstance) {
     return sendExport(reply, "transporter-bookings", dateFrom, dateTo, format, result.items as unknown as Record<string, unknown>[], columns)
   })
 
+  app.get("/transporter/bookings/:id", { preHandler: app.requireAuth() }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const tid = await resolveTransporter(env, user.role, user.id)
+    if (tid === "__admin__") throw new ForbiddenError("Utilisez le panneau admin")
+    const { id } = BookingIdParams.parse(req.params)
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, bookingId: id, userId: user.id }, "transporter.booking.get")
+    return svc.getTransporterBooking(id, tid)
+  })
+
   // ── Dashboard stats ─────────────────────────────────────────────────────────
   app.get("/transporter/stats", { preHandler: app.requireAuth() }, async (req) => {
     const user = (req as unknown as { user: { id: string; role: string } }).user
     const tid = await resolveTransporter(env, user.role, user.id)
     if (tid === "__admin__") throw new ForbiddenError("Utilisez le panneau admin")
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1)
-
-    const [activeTrips, upcomingTrips, totalBookings, todayBookings, revenueResult] = await Promise.all([
-      prisma.trip.count({ where: { transportId: tid, status: "active" } }),
-      prisma.trip.count({ where: { transportId: tid, departureAt: { gte: today, lt: tomorrow }, status: "active" } }),
-      prisma.booking.count({ where: { trip: { transportId: tid } } }),
-      prisma.booking.count({ where: { trip: { transportId: tid }, createdAt: { gte: today, lt: tomorrow } } }),
-      prisma.booking.aggregate({
-        where: { trip: { transportId: tid }, status: "confirmed" },
-        _sum: { totalAmount: true },
-      }),
-    ])
-
-    return {
-      activeTrips,
-      upcomingTrips,
-      totalBookings,
-      todayBookings,
-      totalRevenue: revenueResult._sum.totalAmount ?? 0,
-    }
+    return svc.getTransporterStats(tid)
   })
 }

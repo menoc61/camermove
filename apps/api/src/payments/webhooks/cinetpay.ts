@@ -21,7 +21,7 @@ export async function cinetpayWebhookRoutes(app: FastifyInstance) {
       // rawBody captured by rawBodyPlugin — for form-encoded this is "cpm_site_id=...&cpm_trans_id=..."
       const rawForm = (req as unknown as { rawBody?: string }).rawBody
       if (typeof rawForm !== "string" || rawForm.length === 0) {
-        return reply.code(400).send({ error: "rawBody required — check rawBody plugin registration" })
+        return reply.code(400).send({ error: "BAD_REQUEST", message: "rawBody required — check rawBody plugin registration" })
       }
 
       // Parse form (keep rawForm for debug)
@@ -29,7 +29,7 @@ export async function cinetpayWebhookRoutes(app: FastifyInstance) {
 
       const xToken = (req.headers["x-token"] as string | undefined) ?? (req.headers["x_token"] as string | undefined)
       if (!xToken) {
-        return reply.code(401).send({ error: "missing x-token" })
+        return reply.code(401).send({ error: "UNAUTHORIZED", message: "missing x-token" })
       }
 
       let secret: string | undefined
@@ -40,7 +40,7 @@ export async function cinetpayWebhookRoutes(app: FastifyInstance) {
       }
       if (!secret) {
         req.log.warn("CINETPAY_SECRET_KEY not configured")
-        return reply.code(503).send({ error: "cinetpay not configured" })
+        return reply.code(503).send({ error: "SERVICE_UNAVAILABLE", message: "cinetpay not configured" })
       }
 
       // Verify via isolated helper (does 15-field concat + fallback Object.values join)
@@ -58,11 +58,11 @@ export async function cinetpayWebhookRoutes(app: FastifyInstance) {
 
       if (!ok) {
         req.log.warn({ xTokenLen: xToken.length }, "cinetpay webhook x-token invalid")
-        return reply.code(403).send({ error: "invalid x-token" })
+        return reply.code(403).send({ error: "FORBIDDEN", message: "invalid x-token" })
       }
 
       if (!parsed.cpm_trans_id || !parsed.cpm_trans_date) {
-        return reply.code(400).send({ error: "missing cpm_trans_id or cpm_trans_date" })
+        return reply.code(400).send({ error: "BAD_REQUEST", message: "missing cpm_trans_id or cpm_trans_date" })
       }
 
       const deliveryId = `cinetpay:${parsed.cpm_trans_id}:${parsed.cpm_trans_date}`
@@ -85,7 +85,7 @@ export async function cinetpayWebhookRoutes(app: FastifyInstance) {
 
       if (isDuplicate) {
         req.log.info({ deliveryId }, "cinetpay webhook duplicate, ack 200")
-        return reply.code(200).send({ status: "duplicate" })
+        return reply.code(200).send({ id: deliveryId, status: "duplicate" })
       }
 
       const domainEvent = {
@@ -113,7 +113,7 @@ export async function cinetpayWebhookRoutes(app: FastifyInstance) {
           const redis = getRedis()
           await redis.lpush("payment-webhooks", JSON.stringify(domainEvent))
         } catch {
-          return reply.code(500).send({ error: "enqueue failed, retry" })
+          return reply.code(500).send({ error: "INTERNAL", message: "enqueue failed, retry" })
         }
       }
 
@@ -123,7 +123,7 @@ export async function cinetpayWebhookRoutes(app: FastifyInstance) {
         "cinetpay webhook enqueued",
       )
 
-      return reply.code(200).send({ status: "received" })
+      return reply.code(200).send({ id: deliveryId, status: "received" })
     },
   )
 }

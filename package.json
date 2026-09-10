@@ -12,7 +12,9 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
-    "seed": "pnpm --filter @camermove/api exec tsx ../../scripts/seed-rich.ts",
+    "seed": "pnpm --filter @camermove/db exec tsx prisma/seed.ts",
+    "seed:rich": "pnpm --filter @camermove/api exec tsx ../../scripts/seed-rich.ts",
+    "seed:verify": "pnpm --filter @camermove/api exec tsx ../../scripts/seed-verify.ts",
     "smoke": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts all",
     "smoke:auth": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts auth",
     "smoke:search": "pnpm --filter @camermove/api exec tsx ../../scripts/smoke/index.ts search",
@@ -21,6 +23,7 @@
     "swagger:export": "pnpm --filter @camermove/api exec tsx ../../scripts/swagger-export.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "prettier": "^3.6.0",
     "turbo": "^2.10.11"
   },

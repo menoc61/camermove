@@ -13,7 +13,7 @@ export interface Parcel {
   recipientCity: string
   parcelType: string
   weightKg: number | null
-  dimensionsCm: number | null
+  dimensionsCm: string | null
   description: string | null
   shippingCost: number
   status: string
@@ -45,7 +45,7 @@ export interface CreateParcelBody {
   recipientCity: string
   parcelType: string
   weightKg?: number
-  dimensionsCm?: number
+  dimensionsCm?: string
   description?: string
   declaredValue?: number
 }
@@ -61,7 +61,7 @@ export interface TrackParcelResponse {
   recipientCity: string
   parcelType: string
   weightKg: number | null
-  dimensionsCm: number | null
+  dimensionsCm: string | null
   description: string | null
   shippingCost: number
   status: string
@@ -72,7 +72,7 @@ export interface TrackParcelResponse {
 export async function fetchParcels(
   token: string,
   params: ParcelSearchQuery = {}
-): Promise<{ items: Parcel[]; total: number; page: number; totalPages: number }> {
+): Promise<{ items: Parcel[]; total: number; page: number; perPage: number; totalPages: number }> {
   const url = new URL(`${apiBase()}/api/v1/parcels`)
   const searchParams = new URLSearchParams()
   if (params.q) searchParams.append("q", params.q)
@@ -108,6 +108,7 @@ export async function createParcel(
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
       "Idempotency-Key": idempotencyKey || crypto.randomUUID(),
     },
     body: JSON.stringify(body),
@@ -136,6 +137,18 @@ export async function fetchParcel(id: string, token: string): Promise<Parcel> {
   const res = await fetch(`${apiBase()}/api/v1/parcels/${id}`, {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function cancelParcel(token: string, id: string): Promise<{ id: string; status: string }> {
+  const res = await fetch(`${apiBase()}/api/v1/parcels/${id}/cancel`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
   })
   if (!res.ok) {
     const text = await res.text()

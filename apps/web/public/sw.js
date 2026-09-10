@@ -21,8 +21,13 @@ self.addEventListener("fetch", (event) => {
   }
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(request, copy));
+      // Cache only full 200 responses. The Cache API rejects partial responses
+      // (e.g. 206 from video range requests) and other non-2xx statuses, so
+      // we must guard the put() to avoid an unhandled rejection.
+      if (res && res.status === 200) {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+      }
       return res;
     }).catch(() => caches.match("/")))
   );

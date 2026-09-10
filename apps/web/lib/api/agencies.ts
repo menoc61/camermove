@@ -15,5 +15,5 @@ export async function fetchAgencies(city: string): Promise<Agency[]> {
   )
   if (!res.ok) throw new Error("agencies failed")
   const data = await res.json()
-  return data.agencies
+  return (data.items ?? data.agencies ?? []) as Agency[]
 }

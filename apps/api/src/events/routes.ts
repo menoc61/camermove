@@ -3,9 +3,9 @@ import { z } from "zod"
 import { prisma } from "@camermove/db"
 import { AppError, ForbiddenError, NotFoundError } from "@camermove/config"
 import { loadEnv } from "@camermove/config"
-import { CreateEventBookingSchema, EventSearchQuery, EventBookingParams, EventIdParams } from "./schema.js"
+import { CreateEventBookingSchema, EventSearchQuery, EventBookingParams, EventIdParams, EventBookingsListQuery } from "./schema.js"
 import { buildEventWhere, findEvents, countEvents, findEventById } from "./repository.js"
-import { createEventBooking, createEventBookingPayment, verifyEventTicket } from "./service.js"
+import { createEventBooking, createEventBookingPayment, verifyEventTicket, cancelEventBooking } from "./service.js"
 import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
@@ -107,27 +107,28 @@ export async function eventRoutes(app: FastifyInstance) {
 
   // GET /events/bookings/me — owner list with dateFrom/dateTo/q/page/limit
   app.get("/events/bookings/me", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const q = EventBookingsListQuery.parse(req.query)
     const user = (req as unknown as { user: { id: string } }).user
-    const query = req.query as Record<string, unknown>
-    const page = Math.max(1, Number(query.page ?? 1))
-    const perPage = Math.min(50, Math.max(1, Number(query.perPage ?? query.limit ?? 20)))
-    const q = query.q as string | undefined
-    const dateFrom = query.dateFrom as string | undefined
-    const dateTo = query.dateTo as string | undefined
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.(
+      { ...meta, userId: user.id, page: q.page, perPage: q.perPage, q: q.q, dateFrom: q.dateFrom, dateTo: q.dateTo },
+      "events.bookings.me.list",
+    )
+    const pagination = buildPagination({ page: q.page, perPage: q.perPage, limit: q.limit, offset: q.offset })
     const where: Record<string, unknown> = { userId: user.id }
-    if (q) where.OR = [{ event: { name: { contains: q, mode: "insensitive" } } }, { ticketNumber: { contains: q, mode: "insensitive" } }]
-    if (dateFrom || dateTo) {
+    if (q.q) where.OR = [{ event: { name: { contains: q.q, mode: "insensitive" } } }, { ticketNumber: { contains: q.q, mode: "insensitive" } }]
+    if (q.dateFrom || q.dateTo) {
       const createdAt: Record<string, Date> = {}
-      if (dateFrom) createdAt.gte = new Date(dateFrom)
-      if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59Z")
+      if (q.dateFrom) createdAt.gte = new Date(q.dateFrom)
+      if (q.dateTo) createdAt.lte = new Date(q.dateTo + "T23:59:59Z")
       where.createdAt = createdAt
     }
-    const skip = (page - 1) * perPage
     const [items, total] = await Promise.all([
-      prisma.eventBooking.findMany({ where: where as never, include: { event: true, ticketCategory: true, payment: true }, orderBy: { createdAt: "desc" }, skip, take: perPage }),
+      prisma.eventBooking.findMany({ where: where as never, include: { event: true, ticketCategory: true, payment: true }, orderBy: { createdAt: "desc" }, skip: pagination.skip, take: pagination.take }),
       prisma.eventBooking.count({ where: where as never }),
     ])
-    return { items, total, page, perPage, totalPages: Math.ceil(total / perPage) }
+    const perPage = pagination.take
+    return { items, total, page: q.page, perPage, totalPages: Math.ceil(total / perPage) }
   })
 
   // GET /events/bookings/export — streamed csv/json with SEARCH_MAX_LIMIT
@@ -164,6 +165,16 @@ export async function eventRoutes(app: FastifyInstance) {
     const isAdmin = user.role === "admin" || user.role === "super_admin"
     if (!isAdmin && (booking as unknown as { userId: string }).userId !== user.id) throw new ForbiddenError("Accès refusé")
     return booking
+  })
+
+  // POST /events/bookings/:id/cancel — owner or admin, pending_payment only
+  app.post("/events/bookings/:id/cancel", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const { id } = EventBookingParams.parse(req.params)
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "events.booking.cancel")
+    await cancelEventBooking(id, user.id, user.role)
+    return { id, status: "cancelled" }
   })
 
   // POST /events/bookings/:id/pay — polymorphic (Payment bookingId null + EventBooking.paymentId)
@@ -278,52 +289,84 @@ export async function eventRoutes(app: FastifyInstance) {
     return sendExport(reply, "event-bookings", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
 
-  // POST /tickets/verify — reuse for event QR (ticketNumber, qrCode, CM-T:code, ?code query)
-  app.post("/tickets/verify", async (req) => {
+  // POST /tickets/verify — staff entrance control (auth required).
+  // Returns a SANITIZED view only: { kind, valid, status, label, holder, quantity }.
+  // Never returns emails, phones, full bookings or ticket rows (enumeration-safe).
+  app.post("/tickets/verify", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
     const query = req.query as Record<string, unknown>
     const body = (req.body ?? {}) as Record<string, unknown>
     const parsed = TicketVerifyBody.safeParse({ ...query, ...body })
     const code = (parsed.success ? (parsed.data.code ?? parsed.data.ticketNumber ?? parsed.data.verificationCode) : (query.code as string | undefined) ?? (body.code as string | undefined) ?? (body.ticketNumber as string | undefined) ?? (body.verificationCode as string | undefined)) as string | undefined
     if (!code) throw new AppError(400, "VALIDATION", "code or ticketNumber requis")
+    const user = (req as unknown as { user: { id: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
-    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, code }, "tickets.verify")
-    // Try event ticket first, fall back to regular ticket verificationCode
-    try {
-      const eventBooking = await verifyEventTicket({ code })
-      return { kind: "event", booking: eventBooking, verificationCode: code }
-    } catch (e) {
-      // Fallback to regular Ticket verificationCode check
-      if ((e as Error).message?.includes("Événement") || (e as { status?: number }).status === 404) {
-        const { findTicketByVerificationCodeWithTrip } = await import("../tickets/ticket.repo.js")
-        // code may be CM-T:xxx, strip prefix
-        const raw = code.startsWith("CM-T:") ? code.slice(5) : code
-        const ticket = await findTicketByVerificationCodeWithTrip(raw)
-        if (!ticket) throw new NotFoundError("Billet introuvable")
-        return { kind: "trip", ticket }
-      }
-      throw e
-    }
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, code, userId: user.id }, "tickets.verify")
+    return verifyCodeSanitized(code)
   })
 
-  // GET /tickets/verify alias for query param style (tickets/lookup compatibility)
-  app.get("/tickets/verify", async (req) => {
+  // GET /tickets/verify alias for query param style (tickets/lookup compatibility) — same auth + sanitized view.
+  app.get("/tickets/verify", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
     const query = req.query as Record<string, unknown>
     const code = (query.code as string | undefined) ?? (query.ticketNumber as string | undefined) ?? (query.verificationCode as string | undefined)
     if (!code) throw new AppError(400, "VALIDATION", "code or ticketNumber requis")
+    const user = (req as unknown as { user: { id: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
-    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, code }, "tickets.verify.get")
-    try {
-      const eventBooking = await verifyEventTicket({ code })
-      return { kind: "event", booking: eventBooking }
-    } catch (e) {
-      if ((e as { status?: number }).status === 404) {
-        const { findTicketByVerificationCodeWithTrip } = await import("../tickets/ticket.repo.js")
-        const raw = code.startsWith("CM-T:") ? code.slice(5) : code
-        const ticket = await findTicketByVerificationCodeWithTrip(raw)
-        if (!ticket) throw new NotFoundError("Billet introuvable")
-        return { kind: "trip", ticket }
-      }
-      throw e
-    }
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, code, userId: user.id }, "tickets.verify.get")
+    return verifyCodeSanitized(code)
   })
+}
+
+/**
+ * Shared ticket verification returning an enumeration-safe sanitized view.
+ * Tries event tickets first, falls back to trip tickets by verificationCode.
+ * Throws NotFoundError when neither matches (status 404 — no error-message sniffing).
+ */
+async function verifyCodeSanitized(code: string) {
+  try {
+    const eb = (await verifyEventTicket({ code })) as unknown as {
+      status: string
+      quantity: number
+      ticketNumber: string | null
+      event: { name: string; venue: string; city: string; startDate: Date }
+      ticketCategory: { name: string } | null
+      user: { firstName: string | null } | null
+    }
+    const valid = eb.status !== "cancelled"
+    return {
+      kind: "event" as const,
+      valid,
+      status: eb.status,
+      label: eb.event.name,
+      detail: `${eb.event.venue}, ${eb.event.city}`,
+      holder: eb.user?.firstName ?? "",
+      quantity: eb.quantity,
+      category: eb.ticketCategory?.name ?? null,
+    }
+  } catch (e) {
+    // Only fall through on 404 — any other error propagates (no string-match routing).
+    if ((e as { status?: number }).status !== 404) throw e
+    const { findTicketByVerificationCodeWithTrip } = await import("../tickets/ticket.repo.js")
+    // code may be CM-T:xxx, strip prefix
+    const raw = code.startsWith("CM-T:") ? code.slice(5) : code
+    const ticket = (await findTicketByVerificationCodeWithTrip(raw)) as unknown as {
+      status: string
+      booking: {
+        status: string
+        trip: { route: { originCity: string; destinationCity: string }; transport: { companyName: string } }
+        passengers: { fullName: string }[]
+      } | null
+    } | null
+    if (!ticket || !ticket.booking) throw new NotFoundError("Billet introuvable")
+    const valid = ticket.status === "valid" && ticket.booking.status === "confirmed"
+    return {
+      kind: "trip" as const,
+      valid,
+      status: ticket.status,
+      label: `${ticket.booking.trip.route.originCity} → ${ticket.booking.trip.route.destinationCity}`,
+      detail: ticket.booking.trip.transport.companyName,
+      holder: ticket.booking.passengers[0]?.fullName.split(" ")[0] ?? "",
+      quantity: ticket.booking.passengers.length || 1,
+      category: null,
+    }
+  }
 }

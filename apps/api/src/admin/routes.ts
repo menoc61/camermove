@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { FastifyInstance } from "fastify"
 import { loadEnv } from "@camermove/config"
 import { parseExportQuery, sendExport } from "../lib/export"
@@ -9,27 +8,15 @@ import {
   UserUpdateBody, UserParams, TransporterUpdateBody, TransporterParams,
   TripAdminUpdateBody, TripParams, BookingParams, PaymentParams,
   PartnerAppParams, PartnerAppReviewBody, BulkActionBody, CommissionParams,
+  HotelParams, HotelAdminUpdateBody, RentalParams, RentalAdminUpdateBody,
 } from "./schema"
-
-function adminAuth() {
-  return async (req: Parameters<FastifyInstance["requireAuth"]>[0], reply: Parameters<FastifyInstance["requireAuth"]>[1]) => {
-    const user = (req as unknown as { user: { id: string; role: string } }).user
-    if (user.role !== "admin" && user.role !== "super_admin") {
-      reply.code(403).send({ error: "FORBIDDEN", message: "Accès réservé aux administrateurs" })
-    }
-  }
-}
 
 export async function adminRoutes(app: FastifyInstance) {
   const env = loadEnv()
 
-  // All admin routes require admin role
-  app.addHook("preHandler", async (req, reply) => {
-    const user = (req as unknown as { user: { id: string; role: string } }).user
-    if (user.role !== "admin" && user.role !== "super_admin") {
-      return reply.code(403).send({ error: "FORBIDDEN", message: "Accès réservé aux administrateurs" })
-    }
-  })
+  // All admin routes require admin role (super_admin satisfies via role hierarchy).
+  // Canonical requireAuth — 401 when unauthenticated, 403 when under-privileged.
+  app.addHook("preHandler", app.requireAuth("admin"))
 
   // ── Dashboard ───────────────────────────────────────────────────────────────
   app.get("/admin/stats", async (req) => {
@@ -46,6 +33,16 @@ export async function adminRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, actorId: user.id, ...q }, "admin.users.list")
     return svc.listUsers({ ...q, role: (req.query as Record<string, string>).role, status: (req.query as Record<string, string>).status })
+  })
+
+  app.get("/admin/users/export", async (req, reply) => {
+    const { dateFrom, dateTo, format } = parseExportQuery(req.query as Record<string, unknown>)
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, actorId: actor.id, dateFrom, dateTo, format }, "admin.users.export")
+    const result = await svc.listUsers({ page: 1, limit: env.SEARCH_MAX_LIMIT, dateFrom, dateTo })
+    const columns = ["id", "email", "firstName", "lastName", "phone", "role", "status", "createdAt"]
+    return sendExport(reply, "admin-users", dateFrom, dateTo, format, result.items as unknown as Record<string, unknown>[], columns)
   })
 
   app.get("/admin/users/:id", async (req) => {
@@ -82,6 +79,16 @@ export async function adminRoutes(app: FastifyInstance) {
     return svc.listTransporters({ ...q, status: (req.query as Record<string, string>).status })
   })
 
+  app.get("/admin/transporters/export", async (req, reply) => {
+    const { dateFrom, dateTo, format } = parseExportQuery(req.query as Record<string, unknown>)
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, actorId: actor.id, dateFrom, dateTo, format }, "admin.transporters.export")
+    const result = await svc.listTransporters({ page: 1, limit: env.SEARCH_MAX_LIMIT, dateFrom, dateTo })
+    const columns = ["id", "companyName", "contactName", "email", "phone", "city", "transportType", "vehicleCount", "status", "createdAt"]
+    return sendExport(reply, "admin-transporters", dateFrom, dateTo, format, result.items as unknown as Record<string, unknown>[], columns)
+  })
+
   app.get("/admin/transporters/:id", async (req) => {
     const { id } = TransporterParams.parse(req.params)
     const user = (req as unknown as { user: { id: string } }).user
@@ -108,7 +115,17 @@ export async function adminRoutes(app: FastifyInstance) {
     return svc.listPartnerApplications({ ...q, status: (req.query as Record<string, string>).status })
   })
 
-  app.put("/admin/partner-applications/:id/review", async (req) => {
+  app.get("/admin/partner-applications/export", async (req, reply) => {
+    const { dateFrom, dateTo, format } = parseExportQuery(req.query as Record<string, unknown>)
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, actorId: actor.id, dateFrom, dateTo, format }, "admin.partner-applications.export")
+    const result = await svc.listPartnerApplications({ page: 1, limit: env.SEARCH_MAX_LIMIT, dateFrom, dateTo })
+    const columns = ["id", "companyName", "contactName", "email", "phone", "city", "transportType", "vehicleCount", "status", "transporterId", "createdAt"]
+    return sendExport(reply, "admin-partner-applications", dateFrom, dateTo, format, result.items as unknown as Record<string, unknown>[], columns)
+  })
+
+  app.post("/admin/partner-applications/:id/review", async (req) => {
     const { id } = PartnerAppParams.parse(req.params)
     const body = PartnerAppReviewBody.parse(req.body)
     const actor = (req as unknown as { user: { id: string } }).user
@@ -124,6 +141,16 @@ export async function adminRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, actorId: user.id, ...q }, "admin.trips.list")
     return svc.listTrips({ ...q, status: (req.query as Record<string, string>).status, transporterId: (req.query as Record<string, string>).transporterId })
+  })
+
+  app.get("/admin/trips/export", async (req, reply) => {
+    const { dateFrom, dateTo, format } = parseExportQuery(req.query as Record<string, unknown>)
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, actorId: actor.id, dateFrom, dateTo, format }, "admin.trips.export")
+    const result = await svc.listTrips({ page: 1, limit: env.SEARCH_MAX_LIMIT, dateFrom, dateTo })
+    const columns = ["id", "routeId", "transportId", "vehicleId", "departureAt", "price", "totalSeats", "status", "createdAt"]
+    return sendExport(reply, "admin-trips", dateFrom, dateTo, format, result.items as unknown as Record<string, unknown>[], columns)
   })
 
   app.put("/admin/trips/:id", async (req) => {
@@ -219,8 +246,8 @@ export async function adminRoutes(app: FastifyInstance) {
     return sendExport(reply, "admin-commissions", dateFrom, dateTo, format, result.items as unknown as Record<string, unknown>[], columns)
   })
 
-  // Mark commission as paid
-  app.put("/admin/commissions/:id/mark-paid", async (req) => {
+  // Mark commission as paid (state-changing action → POST)
+  app.post("/admin/commissions/:id/mark-paid", async (req) => {
     const { id } = CommissionParams.parse(req.params)
     const actor = (req as unknown as { user: { id: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
@@ -300,10 +327,10 @@ export async function adminRoutes(app: FastifyInstance) {
   })
 
   app.put("/admin/hotels/:id", async (req) => {
-    const { id } = req.params as { id: string }
+    const { id } = HotelParams.parse(req.params)
     const actor = (req as unknown as { user: { id: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
-    const body = req.body as Record<string, unknown>
+    const body = HotelAdminUpdateBody.parse(req.body)
     const { prisma: p } = await import("@camermove/db")
     req.log.info({ ...meta, actorId: actor.id, entityId: id }, "admin.hotel.update")
     const updated = await p.hotel.update({ where: { id }, data: body as never })
@@ -359,56 +386,15 @@ export async function adminRoutes(app: FastifyInstance) {
   })
 
   app.put("/admin/rentals/:id", async (req) => {
-    const { id } = req.params as { id: string }
+    const { id } = RentalParams.parse(req.params)
     const actor = (req as unknown as { user: { id: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
-    const body = req.body as Record<string, unknown>
+    const body = RentalAdminUpdateBody.parse(req.body)
     const { prisma: p } = await import("@camermove/db")
     req.log.info({ ...meta, actorId: actor.id, entityId: id }, "admin.rental.update")
     const updated = await p.rentalVehicle.update({ where: { id }, data: body as never })
     await p.auditLog.create({ data: { actorId: actor.id, action: "admin.rental.update", entityType: "RentalVehicle", entityId: id, metadata: body as never } }).catch(() => {})
     return updated
-  })
-
-  // ── Settings ────────────────────────────────────────────────────────────────
-  // (settings routes are already in admin/settings.ts — include them here too)
-  const { prisma } = await import("@camermove/db")
-
-  app.get("/admin/settings", async (req) => {
-    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
-    req.log.info({ ...meta }, "admin.settings.get")
-    let settings = await prisma.appSettings.findUnique({ where: { id: "global" } })
-    if (!settings) settings = await prisma.appSettings.create({ data: { id: "global" } })
-    return settings
-  })
-
-  const { z } = await import("zod")
-  const UpdateSettingsBody = z.object({
-    commissionPercent: z.number().min(0).max(100).optional(),
-    holdExpiryMinutes: z.number().int().min(1).max(1440).optional(),
-    cancellationPolicy: z.string().optional(),
-    smtpHost: z.string().optional(),
-    smtpPort: z.number().int().optional(),
-    smtpUser: z.string().optional(),
-    smtpFrom: z.string().optional(),
-    featureFlags: z.record(z.string(), z.boolean()).optional(),
-    maintenanceMode: z.boolean().optional(),
-  })
-
-  app.put("/admin/settings", async (req) => {
-    const body = UpdateSettingsBody.parse(req.body)
-    const actorId = (req as unknown as { user: { id: string } }).user.id
-    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
-    req.log.info({ ...meta, actorId, ...body }, "admin.settings.update")
-    const settings = await prisma.appSettings.upsert({
-      where: { id: "global" },
-      update: { ...body, updatedBy: actorId },
-      create: { id: "global", ...body, updatedBy: actorId },
-    })
-    await prisma.auditLog.create({
-      data: { actorId, action: "admin.settings.update", entityType: "AppSettings", entityId: "global", metadata: body as never },
-    }).catch(() => {})
-    return settings
   })
 }
 

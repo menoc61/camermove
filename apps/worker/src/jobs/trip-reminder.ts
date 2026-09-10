@@ -7,8 +7,10 @@
  * (matches apps/worker/src/index.ts expireHolds/reconcileStalePayments cadence).
  */
 import { prisma } from "@camermove/db"
-import { loadEnv } from "@camermove/config"
+import { createLogger, loadEnv } from "@camermove/config"
 import { createKafkaClient, EVENT_TOPICS } from "@camermove/events"
+
+const log = createLogger()
 
 const REMINDER_TYPE = "trip.reminder.24h"
 const WINDOW_MINUTES_BEFORE = 24 * 60
@@ -104,12 +106,12 @@ export async function runTripReminder(now: Date = new Date()): Promise<number> {
         .catch(() => {})
       sent++
     } catch (e) {
-      console.error(`trip-reminder failed for booking ${b.bookingId}`, e)
+      log.error({ err: (e as Error).message, bookingId: b.bookingId }, "trip-reminder failed for booking")
     }
   }
 
   await producer.disconnect().catch(() => {})
-  if (sent > 0) console.log(`trip-reminder published ${sent} event(s)`)
+  if (sent > 0) log.info({ sent }, "trip-reminder published events")
   return sent
 }
 
@@ -119,7 +121,7 @@ export async function runTripReminder(now: Date = new Date()): Promise<number> {
  */
 export async function runOnce(): Promise<number> {
   const n = await runTripReminder()
-  console.log(`trip-reminder one-shot processed ${n} booking(s)`)
+  log.info({ n }, "trip-reminder one-shot processed bookings")
   return n
 }
 
@@ -127,7 +129,7 @@ if (process.argv.includes("--once")) {
   runOnce()
     .then(() => process.exit(0))
     .catch((e) => {
-      console.error(e)
+      log.error({ err: (e as Error).message }, "trip-reminder one-shot failed")
       process.exit(1)
     })
 }

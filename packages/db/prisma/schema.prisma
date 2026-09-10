@@ -100,6 +100,7 @@ model User {
   parcels Parcel[]
   insurancePolicies InsurancePolicy[]
   eventBookings EventBooking[]
+  favorites      Favorite[]
   notifications  Notification[]
   auditLogs      AuditLog[]
   transporter    Transporter?     @relation(fields: [transporterId], references: [id], onDelete: SetNull)
@@ -119,6 +120,18 @@ model SocialAccount {
   createdAt      DateTime @default(now())
 
   @@unique([provider, providerUserId])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String // hotel | rental | event (CHECK constraint in migration)
+  entityId  String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, kind, entityId])
+  @@index([userId])
 }
 
 model Transporter {
@@ -328,6 +341,7 @@ enum ParcelStatus {
   available_for_pickup
   delivered
   returned
+  cancelled
 }
 
 enum InsuranceCoverageType {
@@ -454,6 +468,7 @@ model RentalVehicle {
 
   @@index([pickupCity, status])
   @@index([category, status])
+  @@index([status, pricePerUnit])
   @@index([partnerStatus])
 }
 

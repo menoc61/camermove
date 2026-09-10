@@ -1,11 +1,20 @@
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
-import { findUserByEmail, createUser, findOrCreateSocialUser } from "@camermove/db"
+import { findUserByEmail, findUserById, createUser, findOrCreateSocialUser } from "@camermove/db"
 import { loadEnv, ConflictError, UnauthorizedError } from "@camermove/config"
 import { hashPassword, verifyPassword } from "./password"
-import { signTokens } from "./tokens"
+import {
+  issueTokenPair,
+  verifyRefreshToken,
+  getRefreshRecord,
+  consumeRefreshRecord,
+  isRefreshDenied,
+  isRefreshRotated,
+  denyRefreshJti,
+  revokeTokenFamily,
+} from "./tokens"
 import { googleProvider } from "./social"
-import { randomUUID } from "node:crypto"
+import { randomUUID, createHash } from "node:crypto"
 
 const env = loadEnv()
 
@@ -15,6 +24,18 @@ const RegisterBody = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
 })
+
+const RefreshBody = z.object({
+  refreshToken: z.string().min(1),
+})
+
+const LogoutBody = z.object({
+  refreshToken: z.string().min(1).optional(),
+})
+
+function hashEmail(email: string): string {
+  return createHash("sha256").update(email.toLowerCase()).digest("hex")
+}
 
 export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/register", async (req, reply) => {
@@ -28,7 +49,8 @@ export async function authRoutes(app: FastifyInstance) {
       firstName: body.firstName,
       lastName: body.lastName,
     })
-    const tokens = signTokens(user, env)
+    const tokens = await issueTokenPair(user, env)
+    req.log.info({ ...req.meta, emailHash: hashEmail(user.email), userId: user.id }, "auth.register")
     return reply.code(201).send({ user: { id: user.id, email: user.email, role: user.role }, ...tokens })
   })
 
@@ -38,14 +60,48 @@ export async function authRoutes(app: FastifyInstance) {
     if (!user?.passwordHash) throw new UnauthorizedError()
     const ok = await verifyPassword(user.passwordHash, body.password)
     if (!ok) throw new UnauthorizedError()
-    const tokens = signTokens(user, env)
+    const tokens = await issueTokenPair(user, env)
+    req.log.info({ ...req.meta, emailHash: hashEmail(user.email), userId: user.id }, "auth.login")
     return { user: { id: user.id, email: user.email, role: user.role }, ...tokens }
   })
 
-  // TODO(#auth-refresh): implement refresh-token rotation (verify refresh JWT,
-  // revoke via Redis denylist, issue new pair). Tracked for post-MVP hardening.
-  app.post("/auth/refresh", async () => {
-    return { ok: true }
+  app.post("/auth/refresh", async (req) => {
+    const parsed = RefreshBody.safeParse(req.body)
+    if (!parsed.success) throw new UnauthorizedError("Refresh token manquant")
+    const claims = verifyRefreshToken(parsed.data.refreshToken, env)
+    if (await isRefreshDenied(claims.jti)) throw new UnauthorizedError("Session révoquée")
+    const storedUserId = await getRefreshRecord(claims.jti)
+    if (storedUserId !== claims.sub) {
+      // No live record for a validly-signed jti: replay of an already-rotated
+      // token (theft) or an unknown jti. Nuke the family only on proven reuse.
+      if (storedUserId === null && (await isRefreshRotated(claims.jti)) !== null) {
+        await revokeTokenFamily(claims.sub)
+        req.log.info({ ...req.meta, userId: claims.sub }, "auth.refresh.reuse-detected")
+      }
+      throw new UnauthorizedError("Refresh token invalide")
+    }
+    const user = await findUserById(claims.sub)
+    if (!user) throw new UnauthorizedError("Refresh token invalide")
+    await consumeRefreshRecord(claims.jti, user.id)
+    const tokens = await issueTokenPair(user, env)
+    req.log.info({ ...req.meta, userId: user.id }, "auth.refresh")
+    return { user: { id: user.id, email: user.email, role: user.role }, ...tokens }
+  })
+
+  app.post("/auth/logout", { preHandler: (app as unknown as { requireAuth: (r?: string) => never }).requireAuth() }, async (req) => {
+    const userId = (req as unknown as { user: { id: string } }).user.id
+    const parsed = LogoutBody.safeParse(req.body)
+    const refreshToken = parsed.success ? parsed.data.refreshToken : undefined
+    if (refreshToken) {
+      try {
+        const claims = verifyRefreshToken(refreshToken, env)
+        await denyRefreshJti(claims.jti)
+      } catch {
+        // best-effort: an unusable refresh token is already effectively dead
+      }
+    }
+    req.log.info({ ...req.meta, userId }, "auth.logout")
+    return { loggedOut: true }
   })
 
   app.get("/auth/me", { preHandler: (app as unknown as { requireAuth: (r?: string) => never }).requireAuth() }, async (req) => {
@@ -75,7 +131,9 @@ export async function authRoutes(app: FastifyInstance) {
       providerUserId: profile.sub,
       name: profile.name,
     })
-    const tokens = signTokens(user, env)
+    // Social logins join refresh rotation + family tracking like password logins.
+    const tokens = await issueTokenPair(user, env)
+    req.log.info({ ...req.meta, userId: user.id }, "auth.google.callback")
     return reply.send({ user: { id: user.id, email: user.email, role: user.role }, ...tokens })
   })
 }

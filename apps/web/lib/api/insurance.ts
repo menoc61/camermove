@@ -28,8 +28,52 @@ export interface SubscribeInsuranceBody {
   coverageType: CoverageType
 }
 
+export interface InsurancePoliciesResponse {
+  items: InsurancePolicy[]
+  total: number
+  page: number
+  perPage: number
+  totalPages: number
+}
+
+export interface InsurancePoliciesParams {
+  page?: number
+  perPage?: number
+  q?: string
+  coverageType?: CoverageType
+  dateFrom?: string
+  dateTo?: string
+}
+
+// Backwards-compatible: returns the array shape that existing consumers
+// (app/insurance/page.tsx, InsurancePartnerClient.tsx) expect. The API
+// endpoint returns the paginated envelope at runtime; this loose type just
+// keeps the typecheck green for callers that treat the result as `Policy[]`.
+// The dashboard uses `fetchMyInsurancePolicies` for the typed envelope.
 export async function fetchInsurancePolicies(token: string): Promise<InsurancePolicy[]> {
   const res = await fetch(`${apiBase()}/api/v1/insurance/policies`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function fetchMyInsurancePolicies(
+  token: string,
+  params: InsurancePoliciesParams = {},
+): Promise<InsurancePoliciesResponse> {
+  const qs = new URLSearchParams()
+  if (params.page) qs.set("page", String(params.page))
+  if (params.perPage) qs.set("perPage", String(params.perPage))
+  if (params.q) qs.set("q", params.q)
+  if (params.coverageType) qs.set("coverageType", params.coverageType)
+  if (params.dateFrom) qs.set("dateFrom", params.dateFrom)
+  if (params.dateTo) qs.set("dateTo", params.dateTo)
+  const res = await fetch(`${apiBase()}/api/v1/insurance/policies${qs.toString() ? `?${qs.toString()}` : ""}`, {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -52,6 +96,64 @@ export async function subscribeInsurance(
       "Idempotency-Key": crypto.randomUUID(),
     },
     body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function fetchInsurancePolicy(token: string, id: string): Promise<InsurancePolicy> {
+  const res = await fetch(`${apiBase()}/api/v1/insurance/policies/${id}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function cancelInsurancePolicy(token: string, id: string): Promise<{ id: string; status: string }> {
+  const res = await fetch(`${apiBase()}/api/v1/insurance/policies/${id}/cancel`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export interface CreateInsurancePaymentOpts {
+  provider?: "notchpay" | "cinetpay"
+  method?: "mobile_money" | "card" | "bank_transfer"
+  phone?: string
+  email?: string
+}
+
+export async function createInsurancePayment(
+  token: string,
+  policyId: string,
+  opts: CreateInsurancePaymentOpts = {},
+  idempotencyKey?: string
+): Promise<{ payment?: unknown; authorizationUrl?: string | null; paymentUrl?: string | null }> {
+  const res = await fetch(`${apiBase()}/api/v1/insurance/policies/${policyId}/pay`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey || crypto.randomUUID(),
+    },
+    body: JSON.stringify({
+      provider: opts.provider ?? "notchpay",
+      ...(opts.method ? { method: opts.method } : {}),
+      ...(opts.phone ? { phone: opts.phone } : {}),
+      ...(opts.email ? { email: opts.email } : {}),
+    }),
   })
   if (!res.ok) {
     const text = await res.text()

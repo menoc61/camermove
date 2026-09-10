@@ -12,6 +12,7 @@ import { adminSettingsRoutes } from "./admin/settings"
 import { ticketLookupRoutes } from "./routes/tickets/lookup"
 import { dashboardRoutes } from "./routes/me/dashboard"
 import { meTicketRoutes } from "./routes/me/tickets"
+import { meNotificationRoutes } from "./routes/me/notifications"
 import { meProfileRoutes } from "./routes/me/profile"
 import { partnerApplicationRoutes } from "./partner-applications/routes"
 import { placesRoutes } from "./places/routes"
@@ -32,6 +33,7 @@ import { insuranceRoutes } from "./insurance"
 import { intraurbanRoutes } from "./intraurban/routes"
 import { contactRoutes } from "./contact/routes"
 import { newsletterRoutes } from "./newsletter/routes"
+import { favoriteRoutes } from "./favorites/routes"
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true, trustProxy: true })
@@ -39,6 +41,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(swaggerPlugin)
   const env = loadEnv()
   if ((env as unknown as { METRICS_ENABLED: boolean }).METRICS_ENABLED) {
+    await app.register(metricsPlugin)
+  } else if (process.env.NODE_ENV !== "production") {
+    // In dev / staging, expose /metrics by default so Prometheus scrapes and
+    // browser dev-tools probes never 404. The env flag stays for prod cost control.
     await app.register(metricsPlugin)
   }
   // rawBody must be before metadata/rateLimit so HMAC can use raw string (T-03-14)
@@ -65,10 +71,12 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(notchpayWebhookRoutes, { prefix: "/api/v1" })
   await app.register(cinetpayWebhookRoutes, { prefix: "/api/v1" })
   await app.register(adminRoutes, { prefix: "/api/v1" })
+  await app.register(adminSettingsRoutes, { prefix: "/api/v1" })
   await app.register(transporterRoutes, { prefix: "/api/v1" })
   await app.register(ticketLookupRoutes, { prefix: "/api/v1" })
   await app.register(dashboardRoutes, { prefix: "/api/v1" })
   await app.register(meTicketRoutes, { prefix: "/api/v1" })
+  await app.register(meNotificationRoutes, { prefix: "/api/v1" })
   await app.register(meProfileRoutes, { prefix: "/api/v1" })
   await app.register(partnerApplicationRoutes, { prefix: "/api/v1" })
   await app.register(placesRoutes, { prefix: "/api/v1" })
@@ -81,6 +89,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(intraurbanRoutes, { prefix: "/api/v1" })
   await app.register(contactRoutes, { prefix: "/api/v1" })
   await app.register(newsletterRoutes, { prefix: "/api/v1" })
+  await app.register(favoriteRoutes, { prefix: "/api/v1" })
   app.get("/health", async () => ({ status: "ok" }))
   return app
 }

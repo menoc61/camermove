@@ -1,7 +1,6 @@
-import { prisma } from "@camermove/db"
+import { getAppSettingsCached, prisma } from "@camermove/db"
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, loadEnv } from "@camermove/config"
 import { findPendingPaymentByBookingId, findPaymentById } from "./repository.js"
-import { getAppSettingsCached } from "./commission.js"
 import { getProvider } from "./providers/index.js"
 import type { SupportedProvider } from "./providers/types.js"
 
@@ -45,8 +44,8 @@ export async function createPayment(input: {
 
   const reference = booking.reference
   const description = `CamerMove ${reference}`
-  const baseUrl = (env as Record<string, unknown>).API_URL as string | undefined
-  const frontendUrl = (env as Record<string, unknown>).FRONTEND_URL as string | undefined
+  const baseUrl = env.API_URL as string | undefined
+  const frontendUrl = env.FRONTEND_URL as string | undefined
   const callbackBase = frontendUrl ?? baseUrl ?? "https://camermove.cm"
   const callbackUrl = `${String(callbackBase).replace(/\/$/, "")}/payment/callback?reference=${reference}`
   const notifyUrl = `${String(baseUrl ?? "https://camermove.cm").replace(/\/$/, "")}/api/v1/webhooks/${input.provider}`
@@ -187,5 +186,5 @@ export async function listPayments(
     p.payment.findMany({ where: where as never, skip, take, orderBy: orderBy as never, include: { booking: true } }),
     p.payment.count({ where: where as never }),
   ])
-  return { data, total, totalPages: Math.ceil(total / take), page: query.page, perPage: take }
+  return { items: data, total, totalPages: Math.ceil(total / take), page: query.page, perPage: take }
 }

@@ -2,6 +2,7 @@
 "use client"
 import { useEffect, useState } from "react"
 import { listBookings, listPayments, listCommissions } from "@/lib/api/transporter"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export function BookingsClient({ token }: { token: string }) {
   const [bookings,setBookings]=useState<{ id:string; reference:string; seatCount:number; totalAmount:number; status:string }[]>([])
@@ -10,10 +11,11 @@ export function BookingsClient({ token }: { token: string }) {
   const [tab,setTab]=useState<"bookings"|"payments"|"commissions">("bookings")
   const [error,setError]=useState<string|null>(null)
   const [commissionError,setCommissionError]=useState(false)
+  const [loading,setLoading]=useState({ bookings: true, payments: true, commissions: true })
   useEffect(()=>{
-    listBookings(token).then(r=>setBookings(r.items as never)).catch(e=>setError(e.message))
-    listPayments(token).then(r=>setPayments(r.items as never)).catch(()=>{})
-    listCommissions(token).then(r=>setCommissions(r.items as never)).catch(()=>setCommissionError(true))
+    listBookings(token).then(r=>setBookings(r.items as never)).catch(e=>setError(e.message)).finally(()=>setLoading(l=>({ ...l, bookings: false })))
+    listPayments(token).then(r=>setPayments(r.items as never)).catch(()=>{}).finally(()=>setLoading(l=>({ ...l, payments: false })))
+    listCommissions(token).then(r=>setCommissions(r.items as never)).catch(()=>setCommissionError(true)).finally(()=>setLoading(l=>({ ...l, commissions: false })))
   },[token])
   return (
     <div className="space-y-6">
@@ -26,21 +28,39 @@ export function BookingsClient({ token }: { token: string }) {
       {error && <p className="text-sm text-destructive">{error}</p>}
       {tab==="bookings" && (
         <ul className="divide-y rounded-2xl border">
-          {bookings.map((b)=><li key={b.id} className="p-4"><div className="font-mono text-sm">{b.reference}</div><div className="text-xs text-muted-foreground">{b.seatCount} place(s) · {b.totalAmount.toLocaleString()} XAF · {b.status}</div></li>)}
-          {bookings.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune réservation.</li>}
+          {loading.bookings && Array.from({ length: 4 }).map((_, i) => (
+            <li key={`sk-${i}`} className="p-4 space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-48" />
+            </li>
+          ))}
+          {!loading.bookings && bookings.map((b)=><li key={b.id} className="p-4"><div className="font-mono text-sm">{b.reference}</div><div className="text-xs text-muted-foreground">{b.seatCount} place(s) · {b.totalAmount.toLocaleString()} XAF · {b.status}</div></li>)}
+          {!loading.bookings && bookings.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune réservation.</li>}
         </ul>
       )}
       {tab==="payments" && (
         <ul className="divide-y rounded-2xl border">
-          {payments.map((p)=><li key={p.id} className="p-4"><div className="font-medium">{p.amount.toLocaleString()} XAF — {p.provider}</div><div className="text-xs text-muted-foreground">{p.status} · {p.id}</div></li>)}
-          {payments.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucun paiement.</li>}
+          {loading.payments && Array.from({ length: 4 }).map((_, i) => (
+            <li key={`sk-${i}`} className="p-4 space-y-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-56" />
+            </li>
+          ))}
+          {!loading.payments && payments.map((p)=><li key={p.id} className="p-4"><div className="font-medium">{p.amount.toLocaleString()} XAF — {p.provider}</div><div className="text-xs text-muted-foreground">{p.status} · {p.id}</div></li>)}
+          {!loading.payments && payments.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucun paiement.</li>}
         </ul>
       )}
       {tab==="commissions" && (
         <ul className="divide-y rounded-2xl border">
-          {commissionError && <li className="p-6 text-sm text-muted-foreground">Section indisponible pour votre compte — contactez l&apos;administrateur.</li>}
-          {!commissionError && commissions.map((c)=><li key={c.id} className="p-4"><div className="font-medium">Commission {c.commissionAmount.toLocaleString()} XAF · net {c.netAmount.toLocaleString()}</div><div className="text-xs text-muted-foreground">{c.payoutStatus}</div></li>)}
-          {!commissionError && commissions.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune commission.</li>}
+          {loading.commissions && Array.from({ length: 3 }).map((_, i) => (
+            <li key={`sk-${i}`} className="p-4 space-y-2">
+              <Skeleton className="h-4 w-56" />
+              <Skeleton className="h-3 w-24" />
+            </li>
+          ))}
+          {!loading.commissions && commissionError && <li className="p-6 text-sm text-muted-foreground">Section indisponible pour votre compte — contactez l&apos;administrateur.</li>}
+          {!loading.commissions && !commissionError && commissions.map((c)=><li key={c.id} className="p-4"><div className="font-medium">Commission {c.commissionAmount.toLocaleString()} XAF · net {c.netAmount.toLocaleString()}</div><div className="text-xs text-muted-foreground">{c.payoutStatus}</div></li>)}
+          {!loading.commissions && !commissionError && commissions.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune commission.</li>}
         </ul>
       )}
     </div>

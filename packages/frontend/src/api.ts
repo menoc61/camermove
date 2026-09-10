@@ -1,4 +1,3 @@
-export function apiUrl(path: string): string {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
-  return `${base}/api/v1${path}`
-}
+// NOTE: apiUrl helper removed (dead code — no importers). API calls use
+// apps/web/lib/api/* with NEXT_PUBLIC_API_URL directly.
+export {}

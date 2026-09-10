@@ -1,4 +1,6 @@
-import type { Env } from "@camermove/config"
+import { createLogger, type Env } from "@camermove/config"
+
+const log = createLogger()
 
 /**
  * Push channel adapter — Phase 4 typed signature, ntfy topic fix.
@@ -22,7 +24,10 @@ export interface PushMessage {
 
 export async function sendPush(env: Env, msg: PushMessage): Promise<void> {
   if (env.NODE_ENV === "test" || process.env.NOTIF_DRIVER === "stub") {
-    console.log(`[push:stub] topic=${msg.userId} title=${JSON.stringify(msg.title)} message=${JSON.stringify(msg.message)}`)
+    // Dev-only visibility: silenced in production.
+    if ((env.NODE_ENV ?? process.env.NODE_ENV) !== "production") {
+      log.info({ topic: msg.userId, title: msg.title }, "push stub send")
+    }
     return
   }
   const baseUrl = env.NTFY_BASE_URL || env.NTFY_HOST

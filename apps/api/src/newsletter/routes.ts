@@ -22,7 +22,7 @@ export async function newsletterRoutes(app: FastifyInstance) {
       select: { id: true },
     })
     if (existing) {
-      return reply.code(200).send({ ok: true, alreadySubscribed: true })
+      return reply.code(200).send({ alreadySubscribed: true, email: body.email })
     }
 
     await prisma.notification.create({
@@ -36,6 +36,6 @@ export async function newsletterRoutes(app: FastifyInstance) {
         } as never,
       },
     })
-    return reply.code(201).send({ ok: true, alreadySubscribed: false })
+    return reply.code(201).send({ alreadySubscribed: false, email: body.email })
   })
 }

@@ -14,24 +14,25 @@ export interface AuthResponse {
   refreshToken: string
 }
 
+async function parseErrorResponse(res: Response): Promise<string> {
+  const text = await res.text()
+  try {
+    const parsed = JSON.parse(text) as { message?: string }
+    if (parsed.message) return parsed.message
+  } catch {
+    // keep generic status message
+  }
+  return text || `HTTP ${res.status}`
+}
+
 async function authPost(path: string, body: unknown): Promise<AuthResponse> {
   const res = await fetch(`${base()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  const text = await res.text()
-  if (!res.ok) {
-    let message = `HTTP ${res.status}`
-    try {
-      const parsed = JSON.parse(text) as { message?: string }
-      if (parsed.message) message = parsed.message
-    } catch {
-      // keep generic status message
-    }
-    throw new ApiError(res.status, message)
-  }
-  return JSON.parse(text) as AuthResponse
+  if (!res.ok) throw new ApiError(res.status, await parseErrorResponse(res))
+  return (await res.json()) as AuthResponse
 }
 
 export function login(email: string, password: string): Promise<AuthResponse> {
@@ -45,4 +46,21 @@ export function register(input: {
   lastName?: string
 }): Promise<AuthResponse> {
   return authPost("/api/v1/auth/register", input)
+}
+
+export function refreshAccessToken(refreshToken: string): Promise<AuthResponse> {
+  return authPost("/api/v1/auth/refresh", { refreshToken })
+}
+
+export async function logout(accessToken: string, refreshToken?: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${base()}/api/v1/auth/logout`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(refreshToken ? { refreshToken } : {}),
+  })
+  if (!res.ok) throw new ApiError(res.status, await parseErrorResponse(res))
+  return (await res.json()) as { ok: boolean }
 }

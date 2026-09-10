@@ -1,8 +1,11 @@
 import { prisma } from "@camermove/db"
 import { atomicHoldSeats, atomicReleaseHeldSeats, atomicConfirmBookedSeats } from "@camermove/db"
-import { ConflictError, NotFoundError, loadEnv } from "@camermove/config"
+import { ConflictError, NotFoundError, createLogger, loadEnv } from "@camermove/config"
+import { scheduleHoldExpiry } from "@camermove/shared/queues"
 import { randomUUID } from "node:crypto"
 import { findExpiredHolds } from "./repository"
+
+const log = createLogger()
 
 export function generateReference(): string {
   return `CM-${randomUUID().slice(0, 8).toUpperCase()}`
@@ -70,6 +73,13 @@ export async function createBooking(input: { tripId: string; userId: string; sea
       })
     } catch {}
     await publishBookingCreated({ id: booking.id, reference: booking.reference, tripId: booking.tripId, userId: booking.userId })
+    // BullMQ owns hold expiry (AGENTS.md §1): schedule a delayed single-shot job.
+    // Best-effort — the error is logged (surfaces in tests/logs) but never blocks booking success.
+    try {
+      await scheduleHoldExpiry(booking.id, holdExpiresAt.getTime() - Date.now())
+    } catch (e) {
+      log.error({ err: (e as Error).message, bookingId: booking.id }, "scheduleHoldExpiry failed")
+    }
     return booking
   } catch (e) {
     await atomicReleaseHeldSeats(input.tripId, input.seatCount).catch(() => {})
@@ -77,26 +87,36 @@ export async function createBooking(input: { tripId: string; userId: string; sea
   }
 }
 
+/** Expire a single hold by id. Same FOR UPDATE logic as the bulk loop. Returns true if it expired. */
+export async function expireHoldById(bookingId: string): Promise<boolean> {
+  return prisma.$transaction(async (tx: any): Promise<boolean> => {
+    // Lock the row and re-check status inside the tx: a concurrent payment confirmation
+    // (SELECT FOR UPDATE in the payment worker) may have flipped status moments ago
+    await tx.$queryRaw`SELECT "id","status","tripId","seatCount" FROM "Booking" WHERE "id"=${bookingId} FOR UPDATE`
+    const fresh = await tx.booking.findUnique({ where: { id: bookingId } })
+    if (!fresh || fresh.status !== "pending_payment") return false
+    // Skip expiry while a payment is actively being processed (same guard as findExpiredHolds)
+    const activePayment = await tx.payment.findFirst({
+      where: { bookingId, status: { in: ["pending", "processing"] } },
+      select: { id: true },
+    })
+    if (activePayment) return false
+    await tx.booking.update({ where: { id: bookingId }, data: { status: "expired" } })
+    const sa = await tx.seatAvailability.findUnique({ where: { tripId: fresh.tripId } })
+    if (sa && sa.seatsHeld >= fresh.seatCount) {
+      await tx.seatAvailability.update({ where: { tripId: fresh.tripId }, data: { seatsAvailable: { increment: fresh.seatCount }, seatsHeld: { decrement: fresh.seatCount } } })
+    }
+    return true
+  })
+}
+
 export async function expireHolds(): Promise<number> {
   // findExpiredHolds excludes bookings with an active pending/processing Payment —
   // a paid-but-unconfirmed hold must survive so the late success webhook can confirm it
   const expired = await findExpiredHolds()
   let count = 0
-   for (const b of expired) {
-    const didExpire = await prisma.$transaction(async (tx: any): Promise<boolean> => {
-      // Lock the row and re-check status inside the tx: a concurrent payment confirmation
-      // (SELECT FOR UPDATE in the payment worker) may have flipped status moments ago
-      await tx.$queryRaw`SELECT "id","status","tripId","seatCount" FROM "Booking" WHERE "id"=${b.id} FOR UPDATE`
-      const fresh = await tx.booking.findUnique({ where: { id: b.id } })
-      if (!fresh || fresh.status !== "pending_payment") return false
-      await tx.booking.update({ where: { id: b.id }, data: { status: "expired" } })
-      const sa = await tx.seatAvailability.findUnique({ where: { tripId: b.tripId } })
-      if (sa && sa.seatsHeld >= b.seatCount) {
-        await tx.seatAvailability.update({ where: { tripId: b.tripId }, data: { seatsAvailable: { increment: b.seatCount }, seatsHeld: { decrement: b.seatCount } } })
-      }
-      return true
-    })
-    if (didExpire) count++
+  for (const b of expired) {
+    if (await expireHoldById(b.id)) count++
   }
   return count
 }

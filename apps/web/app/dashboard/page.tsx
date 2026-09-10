@@ -3,28 +3,26 @@ import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Dashboard } from "../../components/dashboard/Dashboard"
+import { getDashboard } from "../../lib/api/dashboard"
 import type { DashboardResponse } from "../../lib/api/dashboard"
-
-async function loadDashboard(token: string): Promise<DashboardResponse> {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
-  const res = await fetch(`${base}/api/v1/me/dashboard`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  })
-  if (!res.ok) return { upcoming: [], history: [], tickets: [] }
-  return (await res.json()) as DashboardResponse
-}
 
 async function DashboardInner() {
   const h = await headers()
   const c = await cookies()
   const token = h.get("x-cm-user-token") ?? c.get("cm_access")?.value ?? null
   if (!token) redirect("/login?next=/dashboard")
-  const data = await loadDashboard(token!)
-  return <Dashboard initialData={data} token={token!} />
+
+  let data: DashboardResponse
+  try {
+    data = await getDashboard(token)
+  } catch {
+    data = { upcoming: [], history: [], tickets: [] }
+  }
+
+  return <Dashboard initialData={data} token={token} />
 }
 
 function DashboardFallback() {
@@ -39,32 +37,13 @@ function DashboardFallback() {
 
 export default function Page() {
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
+    <SidebarProvider>
+      <AppSidebar />
       <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-              <div className="px-4 lg:px-6">
-                <h1 className="text-2xl font-bold tracking-tight">Mes voyages</h1>
-                <p className="text-sm text-muted-foreground">Retrouvez vos prochains départs et e-billets.</p>
-              </div>
-              <div className="px-4 lg:px-6">
-                <Suspense fallback={<DashboardFallback />}>
-                  <DashboardInner />
-                </Suspense>
-              </div>
-            </div>
-          </div>
-        </div>
+        <SiteHeader title="Dashboard" />
+        <Suspense fallback={<DashboardFallback />}>
+          <DashboardInner />
+        </Suspense>
       </SidebarInset>
     </SidebarProvider>
   )

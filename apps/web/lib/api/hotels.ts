@@ -97,6 +97,77 @@ export function createHotelBooking(token: string, body: CreateHotelBookingBody) 
   })
 }
 
-export function fetchMyHotelBookings(token: string) {
-  return apiFetch<HotelsResponse | { items: unknown[] }>(`/api/v1/hotels/bookings/me`, { method: "GET", token })
+export function fetchHotelBooking(token: string, id: string) {
+  return apiFetch<{
+    id: string
+    status: string
+    checkIn: string
+    checkOut: string
+    guests: number
+    totalAmount: number
+    hotel?: { id: string; name: string; city: string } | null
+    roomType?: { id: string; name: string } | null
+    payment?: { status: string } | null
+  }>(`/api/v1/hotels/bookings/${id}`, { method: "GET", token })
+}
+
+export interface MyHotelBookingsParams {
+  page?: number
+  perPage?: number
+  q?: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+// Loose response type — kept identical to the pre-pagination wrapper so other
+// consumers (insurance page, partner client) that treat the result as an
+// array keep compiling. The dashboard types its own items shape via
+// apiFetch<{ items: HotelBookingItem[]; total; page; perPage; totalPages }>.
+// At runtime the API always returns the paginated envelope.
+export function fetchMyHotelBookings(token: string, params: MyHotelBookingsParams = {}): Promise<HotelsResponse | { items: unknown[] }> {
+  const qs = new URLSearchParams()
+  if (params.page) qs.set("page", String(params.page))
+  if (params.perPage) qs.set("perPage", String(params.perPage))
+  if (params.q) qs.set("q", params.q)
+  if (params.dateFrom) qs.set("dateFrom", params.dateFrom)
+  if (params.dateTo) qs.set("dateTo", params.dateTo)
+  return apiFetch<HotelsResponse | { items: unknown[] }>(`/api/v1/hotels/bookings/me${qs.toString() ? `?${qs.toString()}` : ""}`, { method: "GET", token })
+}
+
+export function cancelHotelBooking(token: string, id: string) {
+  return apiFetch<{ id: string; status: string }>(`/api/v1/hotels/bookings/${id}/cancel`, {
+    method: "POST",
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+    token,
+  })
+}
+
+export interface HotelPaymentOpts {
+  provider: "notchpay" | "cinetpay"
+  method?: string
+  phone?: string
+  email?: string
+}
+
+export interface HotelPaymentResult {
+  payment: { id: string }
+  authorizationUrl: string | null
+  paymentUrl: string | null
+}
+
+export async function createHotelPayment(
+  token: string,
+  bookingId: string,
+  opts: HotelPaymentOpts
+): Promise<HotelPaymentResult> {
+  const res = await apiFetch<{ payment: { id: string }; authorizationUrl: string | null; paymentUrl?: string | null }>(
+    `/api/v1/hotels/bookings/${bookingId}/pay`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({ provider: opts.provider, method: opts.method, phone: opts.phone, email: opts.email }),
+      token,
+    }
+  )
+  return { payment: res.payment, authorizationUrl: res.authorizationUrl, paymentUrl: res.paymentUrl ?? res.authorizationUrl }
 }

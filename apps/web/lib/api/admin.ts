@@ -173,7 +173,7 @@ export async function listTransporters(token: string, params: Record<string, str
 }
 
 export async function reviewPartnerApplication(token: string, id: string, data: { status: string; message?: string }): Promise<PartnerApplicationItem> {
-  return apiFetch<PartnerApplicationItem>(`/api/v1/admin/partner-applications/${id}/review`, { method: "PUT", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+  return apiFetch<PartnerApplicationItem>(`/api/v1/admin/partner-applications/${id}/review`, { method: "POST", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
 }
 
 export async function listPartnerApplications(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<PartnerApplicationItem>> {
@@ -206,7 +206,7 @@ export async function listCommissions(token: string, params: Record<string, stri
 }
 
 export async function markCommissionPaid(token: string, id: string): Promise<CommissionItem> {
-  return apiFetch<CommissionItem>(`/api/v1/admin/commissions/${id}/mark-paid`, { method: "PUT", token })
+  return apiFetch<CommissionItem>(`/api/v1/admin/commissions/${id}/mark-paid`, { method: "POST", token })
 }
 
 export async function listAuditLogs(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<AuditLogItem>> {

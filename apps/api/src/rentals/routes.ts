@@ -3,9 +3,9 @@ import { z } from "zod"
 import { prisma } from "@camermove/db"
 import { AppError, ForbiddenError, NotFoundError } from "@camermove/config"
 import { loadEnv } from "@camermove/config"
-import { RentalSearchQuery, CreateRentalBookingBody, RentalBookingParams } from "./schema.js"
+import { RentalSearchQuery, CreateRentalBookingBody, RentalBookingParams, RentalBookingsListQuery } from "./schema.js"
 import { buildRentalWhere, findRentals, countRentals, findRentalById } from "./repository.js"
-import { createRentalBooking, createRentalBookingPayment } from "./service.js"
+import { createRentalBooking, createRentalBookingPayment, cancelRentalBooking } from "./service.js"
 import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
@@ -99,27 +99,28 @@ export async function rentalRoutes(app: FastifyInstance) {
 
   // GET /rentals/bookings/me — owner list with dateFrom/dateTo/q/page/limit
   app.get("/rentals/bookings/me", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const q = RentalBookingsListQuery.parse(req.query)
     const user = (req as unknown as { user: { id: string } }).user
-    const query = req.query as Record<string, unknown>
-    const page = Math.max(1, Number(query.page ?? 1))
-    const perPage = Math.min(50, Math.max(1, Number(query.perPage ?? query.limit ?? 20)))
-    const q = query.q as string | undefined
-    const dateFrom = query.dateFrom as string | undefined
-    const dateTo = query.dateTo as string | undefined
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.(
+      { ...meta, userId: user.id, page: q.page, perPage: q.perPage, q: q.q, dateFrom: q.dateFrom, dateTo: q.dateTo },
+      "rentals.bookings.me.list",
+    )
+    const pagination = buildPagination({ page: q.page, perPage: q.perPage, limit: q.limit, offset: q.offset })
     const where: Record<string, unknown> = { userId: user.id }
-    if (q) where.OR = [{ pickupCity: { contains: q, mode: "insensitive" } }, { dropoffCity: { contains: q, mode: "insensitive" } }]
-    if (dateFrom || dateTo) {
+    if (q.q) where.OR = [{ pickupCity: { contains: q.q, mode: "insensitive" } }, { dropoffCity: { contains: q.q, mode: "insensitive" } }]
+    if (q.dateFrom || q.dateTo) {
       const createdAt: Record<string, Date> = {}
-      if (dateFrom) createdAt.gte = new Date(dateFrom)
-      if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59Z")
+      if (q.dateFrom) createdAt.gte = new Date(q.dateFrom)
+      if (q.dateTo) createdAt.lte = new Date(q.dateTo + "T23:59:59Z")
       where.createdAt = createdAt
     }
-    const skip = (page - 1) * perPage
     const [items, total] = await Promise.all([
-      prisma.rentalBooking.findMany({ where: where as never, include: { vehicle: true, payment: true }, orderBy: { createdAt: "desc" }, skip, take: perPage }),
+      prisma.rentalBooking.findMany({ where: where as never, include: { vehicle: true, payment: true }, orderBy: { createdAt: "desc" }, skip: pagination.skip, take: pagination.take }),
       prisma.rentalBooking.count({ where: where as never }),
     ])
-    return { items, total, page, perPage, totalPages: Math.ceil(total / perPage) }
+    const perPage = pagination.take
+    return { items, total, page: q.page, perPage, totalPages: Math.ceil(total / perPage) }
   })
 
   // GET /rentals/bookings/export — csv/json RBAC + SEARCH_MAX_LIMIT
@@ -156,6 +157,16 @@ export async function rentalRoutes(app: FastifyInstance) {
     const isAdmin = user.role === "admin" || user.role === "super_admin"
     if (!isAdmin && (booking as unknown as { userId: string }).userId !== user.id) throw new ForbiddenError("Accès refusé")
     return booking
+  })
+
+  // POST /rentals/bookings/:id/cancel — owner or admin, pending_payment only
+  app.post("/rentals/bookings/:id/cancel", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const { id } = RentalBookingParams.parse(req.params)
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "rentals.booking.cancel")
+    await cancelRentalBooking(id, user.id, user.role)
+    return { id, status: "cancelled" }
   })
 
   // POST /rentals/bookings/:id/pay — polymorphic

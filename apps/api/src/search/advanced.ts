@@ -123,12 +123,15 @@ export async function advancedSearch(query: AdvancedSearchQuery) {
       if (!grouped[key]) grouped[key] = []
       grouped[key].push(item)
     }
-    return { grouped, pagination: { page: pagination.page, perPage: pagination.perPage, total, totalPages: Math.ceil(total / pagination.perPage) }, meta: { groupBy: query.groupBy } }
+    return { grouped, total, page: pagination.page, perPage: pagination.perPage, totalPages: Math.ceil(total / pagination.perPage), pagination: { page: pagination.page, perPage: pagination.perPage, total, totalPages: Math.ceil(total / pagination.perPage) }, meta: { groupBy: query.groupBy } }
   }
 
   return {
     items: mapped,
-    pagination: { page: pagination.page, perPage: pagination.perPage, total, totalPages: Math.ceil(total / pagination.perPage) },
+    total,
+    page: pagination.page,
+    perPage: pagination.perPage,
+    totalPages: Math.ceil(total / pagination.perPage),
     meta: { cached: false },
   }
 }

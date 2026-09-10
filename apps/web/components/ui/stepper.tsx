@@ -47,7 +47,7 @@ export function Stepper({ value, min = 1, max, onChange, label, id }: Props) {
         type="button"
         variant="outline"
         size="icon"
-        className="size-9 rounded-full border-zinc-200"
+        className="size-11 shrink-0 rounded-full border-zinc-200"
         onClick={dec}
         disabled={value <= min}
         aria-label={label ? `Diminuer ${label}` : "Diminuer"}
@@ -75,7 +75,7 @@ export function Stepper({ value, min = 1, max, onChange, label, id }: Props) {
         type="button"
         variant="outline"
         size="icon"
-        className="size-9 rounded-full border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white disabled:bg-zinc-100 disabled:text-zinc-400"
+        className="size-11 shrink-0 rounded-full border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white disabled:bg-zinc-100 disabled:text-zinc-400"
         onClick={inc}
         disabled={value >= max}
         aria-label={label ? `Augmenter ${label}` : "Augmenter"}

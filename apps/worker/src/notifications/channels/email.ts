@@ -1,9 +1,11 @@
 import nodemailer from "nodemailer"
-import type { Env } from "@camermove/config"
+import { createLogger, type Env } from "@camermove/config"
+
+const log = createLogger()
 
 /**
  * Email channel adapter — Phase 4 typed signature.
- * Falls back to console.log if NOTIF_DRIVER=stub (dev / smoke test).
+ * Falls back to structured logger (dev-only, silenced in production) if NOTIF_DRIVER=stub.
  * Uses nodemailer with SMTP env; MailHog (localhost:1025) is the default.
  */
 export interface EmailMessage {
@@ -15,7 +17,10 @@ export interface EmailMessage {
 
 export async function sendEmail(msg: EmailMessage, env?: Env): Promise<void> {
   if (env?.NODE_ENV === "test" || process.env.NOTIF_DRIVER === "stub") {
-    console.log(`[email:stub] to=${msg.to} subject=${JSON.stringify(msg.subject)} text.length=${msg.text.length}`)
+    // Dev-only visibility: silenced in production.
+    if ((env?.NODE_ENV ?? process.env.NODE_ENV) !== "production") {
+      log.info({ to: msg.to, subject: msg.subject, textLength: msg.text.length }, "email stub send")
+    }
     return
   }
   const host = env?.SMTP_HOST ?? process.env.SMTP_HOST ?? "localhost"

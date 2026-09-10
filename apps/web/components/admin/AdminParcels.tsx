@@ -110,7 +110,7 @@ export function AdminParcels() {
       a.click()
       URL.revokeObjectURL(dlUrl)
     } catch {
-      console.error("Export failed")
+      toast.error("Erreur lors de l'export")
     }
   }
 

@@ -29,7 +29,7 @@ export function Steps() {
       aria-label="Trois étapes pour réserver"
       className="border-t border-line bg-paper text-ink"
     >
-      <div className="mx-auto max-w-[1560px] px-6 py-20 sm:px-8 md:px-12 md:py-28">
+      <div className="mx-auto max-w-[1560px] px-6 py-16 sm:px-8 md:px-12 md:py-24">
         <div className="grid grid-cols-12 gap-x-6 gap-y-12">
           <div className="col-span-12 md:col-span-4">
             <motion.p
@@ -39,7 +39,7 @@ export function Steps() {
               transition={{ duration: 0.5 }}
               className="text-[11px] uppercase tracking-[0.22em] text-ink-2"
             >
-              02 — Processus
+              09 — Processus
             </motion.p>
             <motion.h2
               initial={shouldReduce ? false : { opacity: 0, y: 12 }}

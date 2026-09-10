@@ -5,7 +5,7 @@ import { AppError, ForbiddenError, NotFoundError } from "@camermove/config"
 import { loadEnv } from "@camermove/config"
 import { CreateParcelSchema, ParcelStatusUpdateSchema, ParcelSearchQuery, ParcelIdParams, ParcelTrackParams } from "./schema.js"
 import { buildParcelWhere, findParcels, countParcels, findParcelById, findParcelByTrackingNumber } from "./repository.js"
-import { createParcel, advanceParcelStatus, sanitizeParcelForTrack, createParcelPayment } from "./service.js"
+import { createParcel, advanceParcelStatus, sanitizeParcelForTrack, createParcelPayment, cancelParcel } from "./service.js"
 import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
@@ -167,6 +167,16 @@ export async function parcelRoutes(app: FastifyInstance) {
     const isAdmin = user.role === "admin" || user.role === "super_admin"
     if (!isAdmin && (parcel as unknown as { userId: string }).userId !== user.id) throw new ForbiddenError("Accès refusé")
     return parcel
+  })
+
+  // POST /parcels/:id/cancel — owner or admin, registered with no success payment only
+  app.post("/parcels/:id/cancel", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const { id } = ParcelIdParams.parse(req.params)
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "parcels.cancel")
+    await cancelParcel(id, user.id, user.role)
+    return { id, status: "cancelled" }
   })
 
   // POST /parcels/:id/pay — polymorphic via Payment bookingId null

@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
 import { SearchIcon, ChevronLeftIcon, ChevronRightIcon, DownloadIcon } from "lucide-react"
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("fr-FR")
@@ -91,7 +92,7 @@ export function AdminBookings() {
       a.click()
       URL.revokeObjectURL(dlUrl)
     } catch {
-      console.error("Export failed")
+      toast.error("Erreur lors de l'export")
     }
   }
 

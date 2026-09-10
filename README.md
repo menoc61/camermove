@@ -10,15 +10,14 @@ CamerMove réunit six services autour d'un seul compte : transport interurbain (
 
 - `apps/api` — Fastify REST API (toute la logique métier)
 - `apps/web` — Next.js 16 client web (React 19, Tailwind v4, shadcn/ui)
-- `apps/worker` — Kafka consumer + BullMQ processor
-- `apps/worker/trip-reminder` — Job CRON rappels de trajet
+- `apps/worker` — Kafka consumer + BullMQ workers (hold-expiry, reconciliation, trip reminders) + heartbeat
 - `packages/db` — Prisma + repositories (single data access layer)
 - `packages/config` — env Zod-validé (loadEnv)
 - `packages/observability` — prom-client + OpenTelemetry
 - `packages/events` — Kafka topics + producers
 - `packages/media` — MinIO / S3 object storage
 - `packages/frontend` — composants UI partagés (web)
-- `packages/shared` — math, formatters, money
+- `packages/shared` — money/commission math + BullMQ queue definitions (`/queues` subpath, server-only)
 
 ## Stack
 
@@ -41,14 +40,14 @@ bash scripts/dev-up.sh         # or: .\scripts\dev-up.cmd on PowerShell
 
 Le script (idempotent) démarre Postgres/Redis/Kafka/MinIO + lance API/worker/web, applique les migrations, et seed la base si vide. Voir [LAUNCH.md](./LAUNCH.md).
 
-## Comptes de démo (après `pnpm seed`)
+## Comptes de démo (après `pnpm seed:rich`)
 
 | Rôle | Email | Mot de passe |
 |------|-------|--------------|
-| Super admin | `super@camermove.cm` | `motdepasse123` |
-| Admin | `admin@camermove.cm` | `motdepasse123` |
-| Transporteur | `partner@camermove.cm` | `motdepasse123` |
-| Voyageur | `traveler@camermove.cm` | `motdepasse123` |
+| Super admin | `super@camermove.cm` | `Super123!` |
+| Admin | `admin@camermove.cm` | `Admin123!` |
+| Transporteur | `partner@camermove.cm` | `Partner123!` |
+| Voyageur | `user@camermove.cm` | `User123!` |
 
 Le seed couvre les six services : 4 transporteurs / 336+ trajets, 6 hôtels, 8 véhicules, 2 opérateurs colis, 5 événements, 5 polices d'assurance, plus les paiements / billets / notifications / audit logs correspondants. Voir [docs/DATABASE.md](./docs/DATABASE.md).
 
@@ -91,7 +90,9 @@ pnpm dev                    # start all
 pnpm build                  # production build
 pnpm -r typecheck           # 0 errors requis
 pnpm -r test                # tests
-pnpm seed                   # seed complet 6 services (idempotent)
+pnpm seed                   # seed minimal (transport)
+pnpm seed:rich              # seed complet 6 services (idempotent)
+pnpm seed:verify            # vérifie volumes + idempotence du seed riche
 pnpm smoke                  # smoke tests auth + search
 pnpm smoke:auth
 pnpm smoke:search

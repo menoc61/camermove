@@ -1,609 +1,442 @@
-import { prisma } from "../packages/db/src/prisma"
-import { seedCorridorStops } from "../packages/db/prisma/corridor-stops"
-import { hashPassword } from "../apps/api/src/auth/password"
+/**
+ * Rich multi-service seed for CamerMove — IDEMPOTENT (safe to re-run).
+ *
+ * Run: `pnpm seed:rich`  (pnpm --filter @camermove/api exec tsx ../../scripts/seed-rich.ts)
+ * Verify: `pnpm seed:verify`
+ *
+ * Every record is created behind an upsert / findFirst guard keyed on a
+ * unique field (emails, plates, tracking numbers, policy numbers, event
+ * names, booking references...). A second run changes nothing.
+ */
+import * as argon2 from "argon2"
+import { prisma } from "@camermove/db"
+
+const U = "https://images.unsplash.com"
+
+async function ensureUser(email: string, password: string, firstName: string, lastName: string, role: "admin" | "traveler" | "transporter_staff" | "super_admin") {
+  const existing = await prisma.user.findUnique({ where: { email } })
+  if (existing) return existing
+  return prisma.user.create({
+    data: { email, passwordHash: await argon2.hash(password), firstName, lastName, role: role as never, emailVerified: true },
+  })
+}
+
+async function ensureTransporter(email: string, companyName: string, city: string, commissionPercent: number) {
+  return prisma.transporter.upsert({
+    where: { email },
+    update: { companyName, city, commissionPercent, status: "approved" },
+    create: {
+      companyName, contactName: "Direction", email, city,
+      transportType: "bus", status: "approved", commissionPercent,
+      servedRoutes: ["Yaoundé-Douala", "Douala-Yaoundé", "Yaoundé-Bafoussam"],
+    },
+  })
+}
+
+async function ensureVehicle(transporterId: string, plateNumber: string, type: string, capacity: number) {
+  const existing = await prisma.vehicle.findFirst({ where: { plateNumber } })
+  if (existing) return existing
+  return prisma.vehicle.create({ data: { type, capacity, plateNumber, status: "active", transporterId } })
+}
+
+async function ensureRoute(transporterId: string, originCity: string, destinationCity: string) {
+  const existing = await prisma.route.findFirst({ where: { transporterId, originCity, destinationCity } })
+  if (existing) return existing
+  return prisma.route.create({ data: { originCity, destinationCity, active: true, transporterId } })
+}
 
 async function main() {
-  console.log("🌱 Rich seed start")
+  // ---------- Users ----------
+  const traveler = await ensureUser("user@camermove.cm", "User123!", "Jean", "Voyageur", "traveler")
+  await ensureUser("partner@camermove.cm", "Partner123!", "Paul", "Partenaire", "transporter_staff")
+  await ensureUser("admin@camermove.cm", "Admin123!", "Admin", "CamerMove", "admin") // KEEP role if exists
+  await ensureUser("super@camermove.cm", "Super123!", "Super", "Admin", "super_admin")
 
-  // ── Users (ensure deterministic demo accounts) ──────────────────────────
-  const demoUsers = [
-    { email: "traveler@camermove.cm", role: "traveler", firstName: "Awa", lastName: "Mbarga" },
-    { email: "admin@camermove.cm", role: "admin", firstName: "Admin", lastName: "CamerMove" },
-    { email: "super@camermove.cm", role: "super_admin", firstName: "Super", lastName: "Admin" },
-    { email: "partner@camermove.cm", role: "transporter_staff", firstName: "Paul", lastName: "Talla" },
-  ] as const
-
-  const passwordHash = await hashPassword("motdepasse123")
-  const userMap: Record<string, string> = {}
-
-  for (const u of demoUsers) {
-    const user = await prisma.user.upsert({
-      where: { email: u.email },
-      update: { role: u.role as never, passwordHash, firstName: u.firstName, lastName: u.lastName, status: "active" },
-      create: { email: u.email, role: u.role as never, passwordHash, firstName: u.firstName, lastName: u.lastName, status: "active" },
-    })
-    userMap[u.email] = user.id
-    console.log(`  user ${u.email} -> ${user.id} (${u.role})`)
-  }
-
-  // ── Transporters (4) ─────────────────────────────────────────────────────
-  const transportersData = [
-    { companyName: "CamerMove Express", email: "express@camermove.cm", city: "Douala", transportType: "bus", status: "approved" as const, commissionPercent: 10 },
-    { companyName: "Garanti Express", email: "garanti@camermove.cm", city: "Yaoundé", transportType: "bus", status: "approved" as const, commissionPercent: 8 },
-    { companyName: "Buca Voyages", email: "buca@camermove.cm", city: "Douala", transportType: "bus", status: "pending" as const },
-    { companyName: "Central Voyages", email: "central@camermove.cm", city: "Bafoussam", transportType: "minibus", status: "reviewing" as const },
+  // ---------- Transport ----------
+  const transporterDefs = [
+    { code: "CME", email: "express@camermove.cm", name: "CamerMove Express Douala", city: "Douala", commission: 10, plates: ["CE-1001-CM", "CE-1002-CM"] },
+    { code: "GAR", email: "garanti@camermove.cm", name: "Garanti Express Yaoundé", city: "Yaoundé", commission: 8, plates: ["CE-2001-CM", "CE-2002-CM"] },
+    { code: "GEN", email: "general-edea@camermove.cm", name: "Général Edéa", city: "Edéa", commission: 9, plates: ["CE-3001-CM", "CE-3002-CM"] },
   ]
+  const routePairs: Array<[string, string]> = [["Yaoundé", "Douala"], ["Douala", "Yaoundé"], ["Yaoundé", "Bafoussam"]]
+  const allRoutes: Array<{ id: string; code: string; origin: string; dest: string; transporterId: string }> = []
 
-  const transporters: Array<{ id: string; companyName: string; email: string }> = []
-  for (const t of transportersData) {
-    const tr = await prisma.transporter.upsert({
-      where: { email: t.email },
-      update: { companyName: t.companyName, city: t.city, transportType: t.transportType, status: t.status as never, commissionPercent: t.commissionPercent as never },
-      create: { companyName: t.companyName, email: t.email, city: t.city, transportType: t.transportType, status: t.status as never, commissionPercent: t.commissionPercent as never },
-    })
-    transporters.push(tr as never)
-    // link partner user to first transporter
-    if (t.email === "express@camermove.cm" && userMap["partner@camermove.cm"]) {
-      await prisma.user.update({ where: { id: userMap["partner@camermove.cm"] }, data: { transporterId: tr.id } }).catch(()=>{})
-    }
-    // vehicles
-    const vCount = await prisma.vehicle.count({ where: { transporterId: tr.id } })
-    if (vCount === 0) {
-      for (let i=1;i<=2;i++) {
-        await prisma.vehicle.create({
-          data: { transporterId: tr.id, type: i===1 ? "Autocar 55 places" : "Minibus 30 places", capacity: i===1 ? 55 : 30, plateNumber: `CE-${100+i}-${tr.companyName.slice(0,2).toUpperCase()}`, status: "active" as never },
-        })
-      }
+  for (const t of transporterDefs) {
+    const tr = await ensureTransporter(t.email, t.name, t.city, t.commission)
+    await ensureVehicle(tr.id, t.plates[0], "Autocar 55 places", 55)
+    await ensureVehicle(tr.id, t.plates[1], "Autocar VIP 40 places", 40)
+    for (const [o, d] of routePairs) {
+      const r = await ensureRoute(tr.id, o, d)
+      allRoutes.push({ id: r.id, code: t.code, origin: o, dest: d, transporterId: tr.id })
     }
   }
-  console.log(`  ${transporters.length} transporters`)
-
-  // ── Routes ───────────────────────────────────────────────────────────────
-  const routesDef = [
-    { originCity: "Yaoundé", destinationCity: "Douala" },
-    { originCity: "Douala", destinationCity: "Yaoundé" },
-    { originCity: "Yaoundé", destinationCity: "Bafoussam" },
-    { originCity: "Douala", destinationCity: "Limbe" },
-    { originCity: "Yaoundé", destinationCity: "Bamenda" },
-  ]
-  const allRoutes: Array<{ id: string; originCity: string; destinationCity: string; transporterId: string }> = []
-  for (const tr of transporters) {
-    // each transporter gets 2 routes round-robin
-    const picks = routesDef.slice(0,2)
-    for (const r of picks) {
-      const existing = await prisma.route.findFirst({ where: { originCity: r.originCity, destinationCity: r.destinationCity, transporterId: tr.id } })
-      const route = existing ?? await prisma.route.create({ data: { originCity: r.originCity, destinationCity: r.destinationCity, transporterId: tr.id, active: true } })
-      allRoutes.push(route as never)
-    }
+  // Link partner user to first transporter if not linked
+  const firstTr = await prisma.transporter.findUnique({ where: { email: "express@camermove.cm" } })
+  const partnerRow = await prisma.user.findUnique({ where: { email: "partner@camermove.cm" } })
+  if (firstTr && partnerRow && !partnerRow.transporterId) {
+    await prisma.user.update({ where: { id: partnerRow.id }, data: { transporterId: firstTr.id } })
   }
-  console.log(`  ${allRoutes.length} routes`)
 
-  // ── Trips (next 14 days, 3 per day per route, priced by transporter) ─────
-  const start = new Date(); start.setHours(0,0,0,0)
-  let tripCount = 0
-  for (const route of allRoutes) {
-    const tr = transporters.find(x=>x.id===route.transporterId)!
-    const basePrice = tr.companyName.includes("Garanti") ? 6500 : tr.companyName.includes("Buca") ? 5500 : 7000
-    for (let day=1; day<=14; day++) {
-      for (const hour of [7,13,18]) {
-        const departureAt = new Date(start.getTime() + day*86400000)
-        departureAt.setUTCHours(hour,0,0,0)
-        const exists = await prisma.trip.findFirst({ where: { routeId: route.id, departureAt } })
-        if (exists) continue
-        const vehicle = await prisma.vehicle.findFirst({ where: { transporterId: route.transporterId } })
-        await prisma.trip.create({
+  // ---------- Trips: 14 days x 3/day per route ----------
+  const midnight = new Date()
+  midnight.setUTCHours(0, 0, 0, 0)
+  let tripSeq = 0
+  const tripRefs: Array<{ id: string; ref: string; transporterId: string; price: number }> = []
+  for (const r of allRoutes) {
+    for (let day = 1; day <= 14; day++) {
+      for (const hour of [7, 13, 18]) {
+        tripSeq++
+        const departureAt = new Date(midnight.getTime() + day * 86400000)
+        departureAt.setUTCHours(hour, 0, 0, 0)
+        const inactive = tripSeq % 20 === 0 // ~5% inactive
+        const status = inactive ? "inactive" : "active"
+        const price = 5000 + day * 100 + (hour === 18 ? 500 : 0)
+        const existing = await prisma.trip.findFirst({ where: { routeId: r.id, departureAt } })
+        const trip = existing ?? (await prisma.trip.create({
           data: {
-            routeId: route.id,
-            transportId: route.transporterId,
-            vehicleId: vehicle?.id,
-            departureAt,
-            arrivalEstimateAt: new Date(departureAt.getTime()+4*3600000),
-            durationEstimate: 240,
-            price: basePrice + (day%3)*500 + (hour===7?0:hour===13?300:500),
-            totalSeats: 55,
-            departurePointInfo: route.originCity + " Gare routière",
-            vehicleTypeInfo: "Autocar climatisé",
-            conditions: "Bagage 20kg inclus",
-            cancellationPolicy: "Annulation jusqu'à 1h avant départ",
-            status: Math.random() < 0.05 ? "inactive" : "active",
-            seatAvailability: { create: { seatsAvailable: 55, seatsHeld: 0, seatsBooked: 0 } },
-          }
-        })
-        tripCount++
+            routeId: r.id, transportId: r.transporterId, departureAt,
+            arrivalEstimateAt: new Date(departureAt.getTime() + 4 * 3600000),
+            durationEstimate: 240, price, totalSeats: 55,
+            departurePointInfo: `${r.origin} — Gare centrale`, vehicleTypeInfo: "Autocar",
+            status, seatAvailability: { create: { seatsAvailable: 55, seatsHeld: 0, seatsBooked: 0 } },
+          },
+        }))
+        if (trip.status === "active") {
+          const dstr = departureAt.toISOString().slice(0, 10).replace(/-/g, "")
+          const ref = `CMR-${r.code}-${r.origin.slice(0, 3).toUpperCase()}-${dstr}-${hour}`
+          tripRefs.push({ id: trip.id, ref, transporterId: r.transporterId, price: trip.price })
+        }
       }
     }
   }
-  console.log(`  +${tripCount} trips (total ${await prisma.trip.count()})`)
 
-  // ── Bookings + Payments + Tickets + Commissions ─────────────────────────
-  const travelerId = userMap["traveler@camermove.cm"]!
-  const trips = await prisma.trip.findMany({ where: { status: "active", departureAt: { gt: new Date() } }, take: 20, include: { seatAvailability: true } })
-  let bookingCount = 0
-  for (let i=0;i<trips.length && i<12;i++) {
-    const trip = trips[i]!
-    const seatCount = (i%3)+1
-    const ref = `CM-RICH-${Date.now().toString(36).toUpperCase()}-${i}`
-    const status = i<4 ? "confirmed" : i<8 ? "pending_payment" : i<10 ? "cancelled" : "expired"
-    // skip if already booked same trip by traveler
-    const exists = await prisma.booking.findFirst({ where: { tripId: trip.id, userId: travelerId, seatCount } })
-    if (exists) continue
-    // ensure seats
-    if ((trip.seatAvailability?.seatsAvailable ?? 55) < seatCount) continue
-
-    const booking = await prisma.booking.create({
-      data: {
-        reference: ref,
-        tripId: trip.id,
-        userId: travelerId,
-        seatCount,
-        totalAmount: trip.price * seatCount,
-        status: status as never,
-        passengers: { create: Array.from({length: seatCount}).map((_,idx)=>({ fullName: `Passager ${idx+1} Rich`, phone: `69900000${i}${idx}` })) },
-        holdExpiresAt: status==="pending_payment" ? new Date(Date.now()+15*60000) : null,
-      }
-    })
-    // update seat availability
-    if (status==="confirmed") {
-      await prisma.seatAvailability.update({ where: { tripId: trip.id }, data: { seatsAvailable: { decrement: seatCount }, seatsBooked: { increment: seatCount } } }).catch(()=>{})
-    } else if (status==="pending_payment") {
-      await prisma.seatAvailability.update({ where: { tripId: trip.id }, data: { seatsAvailable: { decrement: seatCount }, seatsHeld: { increment: seatCount } } }).catch(()=>{})
-    }
-
-    if (status==="confirmed" || status==="pending_payment") {
-      const payStatus = status==="confirmed" ? "success" : "pending"
-      const payment = await prisma.payment.create({
-        data: { bookingId: booking.id, provider: "notchpay" as never, providerRef: `NP-${ref}`, amount: booking.totalAmount, status: payStatus as never, method: "mobile_money" as never },
+  // ---------- Traveler bookings on first 12 active trips ----------
+  const statusCycle = ["confirmed", "confirmed", "pending_payment", "cancelled", "confirmed", "expired"] as const
+  const bookingTargets = tripRefs.slice(0, 12)
+  let bi = 0
+  for (const t of bookingTargets) {
+    const status = statusCycle[bi % statusCycle.length]
+    const seatCount = (bi % 3) + 1
+    const reference = `${t.ref}-B${bi + 1}`
+    bi++
+    let booking = await prisma.booking.findUnique({ where: { reference } })
+    if (!booking) {
+      const totalAmount = t.price * seatCount
+      booking = await prisma.booking.create({
+        data: {
+          reference, tripId: t.id, userId: traveler.id, seatCount, totalAmount,
+          status: status as never,
+          holdExpiresAt: status === "pending_payment" ? new Date(Date.now() + 15 * 60 * 1000) : null,
+          passengers: { create: Array.from({ length: seatCount }, (_, i) => ({ fullName: `Passager ${bi}-${i + 1}`, phone: `+2376900000${String(bi * 3 + i).padStart(2, "0").slice(-2)}` })) },
+        },
       })
-      if (status==="confirmed") {
-        const pct = 10
-        const commissionAmount = Math.round(booking.totalAmount * pct / 100)
-        await prisma.commission.create({
-          data: { bookingId: booking.id, grossAmount: booking.totalAmount, commissionAmount, netAmount: booking.totalAmount - commissionAmount, percentApplied: pct, payoutStatus: i%2===0 ? "pending" : "paid" },
-        }).catch(()=>{})
-        const verificationCode = `VK-${ref.slice(-6)}-${Math.random().toString(36).slice(2,6).toUpperCase()}`
-        await prisma.ticket.create({
-          data: { bookingId: booking.id, verificationCode, qrCode: verificationCode, status: "valid" as never, qrDataUrl: `data:image/png;base64,${Buffer.from(verificationCode).toString('base64')}` },
-        }).catch(()=>{})
-        // notification
-        await prisma.notification.create({
-          data: { userId: travelerId, channel: "email" as never, type: "booking.confirmed", status: "sent" as never, payload: { reference: ref, bookingId: booking.id } as never, sentAt: new Date() },
-        }).catch(()=>{})
+      // seat decrements (only on first creation → idempotent)
+      const avail = await prisma.seatAvailability.findUnique({ where: { tripId: t.id } })
+      if (avail) {
+        if (status === "confirmed") {
+          await prisma.seatAvailability.update({ where: { tripId: t.id }, data: { seatsAvailable: avail.seatsAvailable - seatCount, seatsBooked: avail.seatsBooked + seatCount } })
+        } else if (status === "pending_payment") {
+          await prisma.seatAvailability.update({ where: { tripId: t.id }, data: { seatsAvailable: avail.seatsAvailable - seatCount, seatsHeld: avail.seatsHeld + seatCount } })
+        }
       }
+      // payment (notchpay)
+      const payStatus = status === "confirmed" ? "success" : status === "pending_payment" ? "pending" : status === "cancelled" ? "refunded" : "expired"
+      await prisma.payment.create({
+        data: {
+          bookingId: booking.id, provider: "notchpay", providerRef: `seed-${reference}`,
+          amount: totalAmount, currency: "XAF", method: "mobile_money", status: payStatus as never,
+          webhookPayload: { seed: true, reference },
+        },
+      })
+      // 10% commission + ticket for confirmed
+      if (status === "confirmed") {
+        const fee = Math.round(totalAmount * 0.1)
+        await prisma.commission.create({ data: { bookingId: booking.id, grossAmount: totalAmount, commissionAmount: fee, netAmount: totalAmount - fee, percentApplied: 10 } })
+        await prisma.ticket.create({ data: { bookingId: booking.id, qrCode: `QR-${reference}`, verificationCode: `VRF-${reference}`, status: "valid" } })
+      }
+      // notification + audit log (guarded: created only with the booking)
+      await prisma.notification.create({
+        data: { userId: traveler.id, channel: "email", type: `booking.${status}`, status: "sent", payload: { bookingId: booking.id, reference }, sentAt: new Date() },
+      })
+      await prisma.auditLog.create({
+        data: {
+          actorId: traveler.id, action: "booking.create", entityType: "Booking", entityId: booking.id,
+          metadata: { tripId: t.id, seatCount, totalAmount, reference, ip: "127.0.0.1", os: "seed", browser: "seed", device: "seed", userId: traveler.id },
+        },
+      })
     }
-    // audit log
-    await prisma.auditLog.create({
-      data: { actorId: travelerId, action: "booking.create", entityType: "Booking", entityId: booking.id, metadata: { tripId: trip.id, seatCount, status } as never },
-    }).catch(()=>{})
-    bookingCount++
   }
-  console.log(`  ${bookingCount} bookings created`)
 
-  // ── Partner applications (various statuses) ──────────────────────────────
-  const apps = [
-    { companyName: "Save Express", email: "save@demo.cm", city: "Douala", status: "received" as const, contactName: "Jean Save", phone: "677000001", routesServed: ["Yaoundé-Douala"] },
-    { companyName: "Touristique Express", email: "touristique@demo.cm", city: "Yaoundé", status: "reviewing" as const, contactName: "Marie Touri", phone: "677000002", routesServed: ["Yaoundé-Bafoussam","Douala-Limbe"] },
-    { companyName: "Alliance Voyages", email: "alliance@demo.cm", city: "Bafoussam", status: "rejected" as const, contactName: "Pierre Alliance", phone: "677000003", routesServed: ["Yaoundé-Bamenda"] },
+  // ---------- Hotels ----------
+  const hotelDefs = [
+    { name: "Mont Fébé Yaoundé", city: "Yaoundé", stars: 5, status: "approved", rooms: [["Chambre Classique", 45000], ["Suite Panoramique", 120000], ["Chambre Deluxe", 75000]] },
+    { name: "Akwa Palace Douala", city: "Douala", stars: 5, status: "approved", rooms: [["Chambre Standard", 55000], ["Suite Exécutive", 150000], ["Chambre Familiale", 95000]] },
+    { name: "Résidence Bonapriso Douala", city: "Douala", stars: 4, status: "approved", rooms: [["Studio", 35000], ["Appartement 2 chambres", 80000]] },
+    { name: "Hôtel du Centre Bafoussam", city: "Bafoussam", stars: 3, status: "approved", rooms: [["Chambre Simple", 18000], ["Chambre Double", 28000]] },
+    { name: "Sawa Beach Limbé", city: "Limbé", stars: 4, status: "approved", rooms: [["Chambre Vue Mer", 60000], ["Bungalow Plage", 110000], ["Chambre Jardin", 40000]] },
+    { name: "Auberge du Mont Bamenda", city: "Bamenda", stars: 3, status: "pending", rooms: [["Chambre Simple", 20000], ["Chambre Double", 32000]] },
   ]
-  for (const a of apps) {
-    const exists = await prisma.partnerApplication.findFirst({ where: { companyName: a.companyName } })
-    if (exists) continue
-    await prisma.partnerApplication.create({
-      data: { companyName: a.companyName, contactName: a.contactName, phone: a.phone, email: a.email, city: a.city, status: a.status as never, routesServed: a.routesServed, message: `Candidature démo ${a.status}` },
-    })
-  }
-  console.log(`  partner applications seeded`)
-
-  // ── AppSettings ensure ───────────────────────────────────────────────────
-  await prisma.appSettings.upsert({
-    where: { id: "global" },
-    update: {},
-    create: { id: "global", commissionPercent: 10, holdExpiryMinutes: 15, cancellationPolicy: "Annulation jusqu'à 1h avant départ", smtpFrom: "no-reply@camermove.cm" },
-  })
-
-  // Corridor stops for the Yaoundé ⇄ Douala axis (terminus Mimboman + en-route dépôts)
-  const stopCount = await seedCorridorStops(prisma)
-  console.log(`  Corridor stops upserted: ${stopCount}`)
-
-  // ── Hotels & apartments ──────────────────────────────────────────────────
-  const hotelsData = [
-    {
-      name: "Hôtel Mont Febe", city: "Yaoundé", region: "Centre", address: "Route de Nkolbisson",
-      starRating: 5, partnerStatus: "approved",
-      description: "Hôtel 5 étoiles perché sur les collines de Yaoundé, vue panoramique sur la ville, piscine, spa et trois restaurants.",
-      amenities: ["wifi", "pool", "spa", "parking", "restaurant", "gym", "air_conditioning", "bar"],
-      photos: [
-        "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&q=80",
-        "https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=1200&q=80",
-        "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200&q=80",
-      ],
-      rooms: [
-        { name: "Chambre Standard", capacity: 2, bedType: "Queen", pricePerNight: 45000, quantity: 30, amenities: ["wifi", "tv", "air_conditioning"] },
-        { name: "Suite Junior", capacity: 3, bedType: "King", pricePerNight: 85000, quantity: 12, amenities: ["wifi", "tv", "air_conditioning", "balcony", "minibar"] },
-        { name: "Suite Présidentielle", capacity: 4, bedType: "King", pricePerNight: 220000, quantity: 3, amenities: ["wifi", "tv", "air_conditioning", "balcony", "minibar", "jacuzzi", "lounge"] },
-      ],
-    },
-    {
-      name: "Akwa Palace", city: "Douala", region: "Littoral", address: "Rue Joss, Bonanjo",
-      starRating: 5, partnerStatus: "approved",
-      description: "Au cœur du quartier d'affaires de Douala, à 5 min de l'aéroport. Chambres insonorisées, business center, salle de conférence.",
-      amenities: ["wifi", "pool", "parking", "restaurant", "gym", "air_conditioning", "bar", "business_center"],
-      photos: [
-        "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1200&q=80",
-        "https://images.unsplash.com/photo-1455587734955-081b22074882?w=1200&q=80",
-      ],
-      rooms: [
-        { name: "Chambre Business", capacity: 2, bedType: "Queen", pricePerNight: 65000, quantity: 40, amenities: ["wifi", "tv", "air_conditioning", "desk"] },
-        { name: "Suite Exécutive", capacity: 2, bedType: "King", pricePerNight: 120000, quantity: 15, amenities: ["wifi", "tv", "air_conditioning", "balcony", "lounge", "desk"] },
-      ],
-    },
-    {
-      name: "Residence Bonapriso", city: "Douala", region: "Littoral", address: "Rue Drouot, Bonapriso",
-      starRating: 4, partnerStatus: "approved",
-      description: "Appartements meublés tout équipés, kitchenette, idéal pour séjours d'affaires prolongés.",
-      amenities: ["wifi", "parking", "kitchenette", "air_conditioning", "tv", "workspace"],
-      photos: [
-        "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200&q=80",
-        "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&q=80",
-      ],
-      rooms: [
-        { name: "Studio", capacity: 2, bedType: "Double", pricePerNight: 28000, quantity: 18, amenities: ["wifi", "kitchenette", "air_conditioning"] },
-        { name: "Appartement 2 pièces", capacity: 4, bedType: "Queen + sofa", pricePerNight: 48000, quantity: 10, amenities: ["wifi", "kitchenette", "air_conditioning", "balcony", "washing_machine"] },
-        { name: "Appartement 3 pièces", capacity: 6, bedType: "King + Queen", pricePerNight: 75000, quantity: 6, amenities: ["wifi", "kitchenette", "air_conditioning", "balcony", "washing_machine", "parking"] },
-      ],
-    },
-    {
-      name: "Hôtel du Centre", city: "Bafoussam", region: "Ouest", address: "Avenue de l'Indépendance",
-      starRating: 3, partnerStatus: "approved",
-      description: "Hôtel confortable en centre-ville, idéal pour les voyageurs d'affaires. Restaurant local réputé.",
-      amenities: ["wifi", "parking", "restaurant", "air_conditioning"],
-      photos: [
-        "https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=1200&q=80",
-      ],
-      rooms: [
-        { name: "Chambre Confort", capacity: 2, bedType: "Double", pricePerNight: 22000, quantity: 25, amenities: ["wifi", "tv", "air_conditioning"] },
-        { name: "Suite Familiale", capacity: 4, bedType: "Double + lits simples", pricePerNight: 38000, quantity: 8, amenities: ["wifi", "tv", "air_conditioning", "balcony"] },
-      ],
-    },
-    {
-      name: "Sawa Beach Hotel", city: "Limbe", region: "Sud-Ouest", address: "Down Beach",
-      starRating: 4, partnerStatus: "approved",
-      description: "Face à l'océan Atlantique et au Mont Cameroun, hôtel de charme avec plage privée.",
-      amenities: ["wifi", "beach", "pool", "restaurant", "air_conditioning", "parking", "bar"],
-      photos: [
-        "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=1200&q=80",
-        "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200&q=80",
-      ],
-      rooms: [
-        { name: "Chambre Vue Mer", capacity: 2, bedType: "King", pricePerNight: 55000, quantity: 20, amenities: ["wifi", "tv", "air_conditioning", "balcony", "sea_view"] },
-        { name: "Bungalow Jardin", capacity: 3, bedType: "King", pricePerNight: 95000, quantity: 8, amenities: ["wifi", "tv", "air_conditioning", "terrace", "garden_view"] },
-      ],
-    },
-    {
-      name: "Auberge du Mont", city: "Bamenda", region: "Nord-Ouest", address: "Commercial Avenue",
-      starRating: 3, partnerStatus: "pending",
-      description: "Auberge chaleureuse, point de départ idéal pour explorer les grassfields.",
-      amenities: ["wifi", "restaurant", "parking"],
-      photos: ["https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1200&q=80"],
-      rooms: [
-        { name: "Chambre Standard", capacity: 2, bedType: "Double", pricePerNight: 18000, quantity: 15, amenities: ["wifi"] },
-      ],
-    },
-  ]
-
-  let hotelCount = 0
-  let hotelBookingCount = 0
-  for (const h of hotelsData) {
-    const existing = await prisma.hotel.findFirst({ where: { name: h.name, city: h.city } })
-    let hotel = existing
+  for (const h of hotelDefs) {
+    let hotel = await prisma.hotel.findFirst({ where: { name: h.name } })
     if (!hotel) {
       hotel = await prisma.hotel.create({
         data: {
-          name: h.name, city: h.city, region: h.region, address: h.address, country: "Cameroun",
-          starRating: h.starRating, description: h.description, amenities: h.amenities,
-          photos: h.photos, status: "active", partnerStatus: h.partnerStatus,
-        } as never,
+          name: h.name, description: `${h.name} — établissement partenaire CamerMove.`, address: "Centre-ville",
+          city: h.city, region: h.city, country: "Cameroun", starRating: h.stars,
+          amenities: ["wifi", "piscine", "restaurant", "parking"], photos: [`${U}/photo-1566073771259-6a8506099945?w=800`],
+          status: "active", partnerStatus: h.status,
+        },
       })
     }
-    if (hotel) {
-      // Rooms
-      const existingRooms = await prisma.hotelRoom.count({ where: { hotelId: hotel.id } })
-      if (existingRooms === 0) {
-        for (const r of h.rooms) {
-          await prisma.hotelRoom.create({
+    for (const [roomName, price] of h.rooms as Array<[string, number]>) {
+      const existingRoom = await prisma.hotelRoom.findFirst({ where: { hotelId: hotel.id, name: roomName } })
+      if (!existingRoom) {
+        await prisma.hotelRoom.create({
+          data: {
+            hotelId: hotel.id, name: roomName, description: `${roomName} — ${h.name}`, capacity: 2,
+            bedType: "double", amenities: ["wifi", "climatisation", "tv"], photos: [`${U}/photo-1611892440504-42a792e24d32?w=800`],
+            pricePerNight: price, currency: "XAF", quantity: 5, status: "available",
+          },
+        })
+      }
+    }
+    // 1 confirmed booking per approved hotel
+    if (h.status === "approved") {
+      const room = await prisma.hotelRoom.findFirst({ where: { hotelId: hotel.id }, orderBy: { pricePerNight: "asc" } })
+      if (room) {
+        const checkIn = new Date(midnight.getTime() + 7 * 86400000)
+        const checkOut = new Date(midnight.getTime() + 9 * 86400000)
+        const existingB = await prisma.hotelBooking.findFirst({ where: { hotelId: hotel.id, userId: traveler.id, checkInDate: checkIn } })
+        if (!existingB) {
+          const total = room.pricePerNight * 2
+          const pay = await prisma.payment.create({
+            data: { provider: "notchpay", providerRef: `seed-hotel-${hotel.id.slice(-6)}`, amount: total, currency: "XAF", method: "mobile_money", status: "success", webhookPayload: { seed: true, hotel: h.name } },
+          })
+          await prisma.hotelBooking.create({
             data: {
-              hotelId: hotel.id, name: r.name, capacity: r.capacity, bedType: r.bedType,
-              pricePerNight: r.pricePerNight, quantity: r.quantity, amenities: r.amenities, status: "available",
-            } as never,
+              hotelId: hotel.id, roomTypeId: room.id, userId: traveler.id,
+              checkInDate: checkIn, checkOutDate: checkOut, guestCount: 2,
+              totalAmount: total, currency: "XAF", status: "confirmed",
+              guestNames: ["Jean Voyageur", "Marie Voyageur"], paymentId: pay.id,
+            },
           })
-        }
-      }
-      hotelCount++
-
-      // Sample booking for the traveler
-      if (h.partnerStatus === "approved") {
-        const room = await prisma.hotelRoom.findFirst({ where: { hotelId: hotel.id } })
-        if (room && travelerId) {
-          const checkIn = new Date(); checkIn.setDate(checkIn.getDate() + 7); checkIn.setHours(0,0,0,0)
-          const checkOut = new Date(checkIn); checkOut.setDate(checkOut.getDate() + 2)
-          const nights = 2
-          const total = room.pricePerNight * nights
-          const existing = await prisma.hotelBooking.findFirst({ where: { userId: travelerId, hotelId: hotel.id } })
-          if (!existing) {
-            const booking = await prisma.hotelBooking.create({
-              data: {
-                hotelId: hotel.id, roomTypeId: room.id, userId: travelerId,
-                checkInDate: checkIn, checkOutDate: checkOut, guestCount: 2,
-                totalAmount: total, currency: "XAF", status: "confirmed",
-                guestNames: ["Awa Mbarga", "Hôte"],
-              } as never,
-            })
-            await prisma.payment.create({
-              data: { hotelBookingId: booking.id, provider: "notchpay" as never, providerRef: `NP-HT-${booking.id.slice(-6)}`, amount: total, status: "success" as never, method: "mobile_money" as never },
-            })
-            hotelBookingCount++
-          }
         }
       }
     }
   }
-  console.log(`  ${hotelCount} hotels (with rooms); ${hotelBookingCount} hotel bookings`)
 
-  // ── Rental vehicles ───────────────────────────────────────────────────────
-  const rentalsData = [
-    { make: "Toyota", model: "Corolla", year: 2023, category: "sedan", capacity: 5, transmission: "automatic", fuelType: "essence", hasDriver: false, pricePerUnit: 25000, pickupCity: "Douala", pickupAddress: "Aéroport International", amenities: ["air_conditioning", "bluetooth", "gps"] },
-    { make: "Toyota", model: "RAV4", year: 2024, category: "suv", capacity: 5, transmission: "automatic", fuelType: "hybride", hasDriver: false, pricePerUnit: 45000, pickupCity: "Yaoundé", pickupAddress: "Hôtel Mont Febe", amenities: ["air_conditioning", "bluetooth", "gps", "4wd", "camera"] },
-    { make: "Mercedes", model: "Classe C", year: 2023, category: "luxury", capacity: 5, transmission: "automatic", fuelType: "diesel", hasDriver: true, pricePerUnit: 85000, pickupCity: "Douala", pickupAddress: "Akwa Palace", amenities: ["air_conditioning", "bluetooth", "gps", "leather", "premium_audio"] },
-    { make: "Hyundai", model: "H1", year: 2022, category: "minibus", capacity: 9, transmission: "manual", fuelType: "diesel", hasDriver: true, pricePerUnit: 55000, pickupCity: "Yaoundé", pickupAddress: "Carrefour Bastos", amenities: ["air_conditioning", "bluetooth"] },
-    { make: "Renault", model: "Logan", year: 2022, category: "sedan", capacity: 5, transmission: "manual", fuelType: "essence", hasDriver: false, pricePerUnit: 18000, pickupCity: "Bafoussam", pickupAddress: "Gare Routière", amenities: ["air_conditioning"] },
-    { make: "Toyota", model: "Hilux", year: 2024, category: "pickup", capacity: 5, transmission: "automatic", fuelType: "diesel", hasDriver: false, pricePerUnit: 60000, pickupCity: "Yaoundé", pickupAddress: "Mvan", amenities: ["air_conditioning", "bluetooth", "4wd"] },
-    { make: "Peugeot", model: "208", year: 2023, category: "city", capacity: 5, transmission: "manual", fuelType: "essence", hasDriver: false, pricePerUnit: 16000, pickupCity: "Douala", pickupAddress: "Bonapriso", amenities: ["air_conditioning", "bluetooth"] },
-    { make: "Toyota", model: "Land Cruiser", year: 2024, category: "suv", capacity: 7, transmission: "automatic", fuelType: "diesel", hasDriver: true, pricePerUnit: 120000, pickupCity: "Yaoundé", pickupAddress: "Nsimeyong", amenities: ["air_conditioning", "bluetooth", "gps", "4wd", "leather"] },
+  // ---------- Rentals: 8 vehicles ----------
+  const rentalDefs = [
+    { plate: "LT-0101-CM", cat: "citadine", make: "Toyota", model: "Yaris", city: "Douala", price: 16000, driver: false },
+    { plate: "LT-0102-CM", cat: "berline", make: "Toyota", model: "Corolla", city: "Douala", price: 25000, driver: true },
+    { plate: "LT-0103-CM", cat: "SUV", make: "Toyota", model: "RAV4", city: "Yaoundé", price: 45000, driver: true },
+    { plate: "LT-0104-CM", cat: "SUV", make: "Nissan", model: "Patrol", city: "Yaoundé", price: 60000, driver: true },
+    { plate: "LT-0105-CM", cat: "minibus", make: "Toyota", model: "Hiace", city: "Yaoundé", price: 55000, driver: true },
+    { plate: "LT-0106-CM", cat: "pickup", make: "Ford", model: "Ranger", city: "Bafoussam", price: 50000, driver: false },
+    { plate: "LT-0107-CM", cat: "berline", make: "Honda", model: "Accord", city: "Douala", price: 35000, driver: false },
+    { plate: "LT-0108-CM", cat: "SUV", make: "Range Rover", model: "Evoque", city: "Douala", price: 120000, driver: true },
   ]
-  const vehiclePhotos = [
-    "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=1200&q=80",
-    "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=80",
-    "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=1200&q=80",
-  ]
-  let rentalCount = 0
-  let rentalBookingCount = 0
-  for (let i = 0; i < rentalsData.length; i++) {
-    const v = rentalsData[i]!
-    const existing = await prisma.rentalVehicle.findFirst({ where: { make: v.make, model: v.model, pickupCity: v.pickupCity } })
-    let rv = existing
-    if (!rv) {
-      rv = await prisma.rentalVehicle.create({
-        data: {
-          category: v.category, make: v.make, model: v.model, year: v.year,
-          licensePlate: `LT-${1000 + i}-CM`,
-          capacity: v.capacity, transmission: v.transmission, fuelType: v.fuelType,
-          hasDriver: v.hasDriver, pricePerUnit: v.pricePerUnit, durationUnit: "day" as never,
-          currency: "XAF", pickupCity: v.pickupCity, pickupAddress: v.pickupAddress,
-          photos: [vehiclePhotos[i % vehiclePhotos.length]!],
-          amenities: v.amenities, status: "available" as never, partnerStatus: "approved" as never,
-        } as never,
-      })
-    }
-    if (rv) {
-      rentalCount++
-      // Sample rental booking
-      if (i < 3 && travelerId) {
-        const existing = await prisma.rentalBooking.findFirst({ where: { userId: travelerId, rentalVehicleId: rv.id } })
-        if (!existing) {
-          const start = new Date(); start.setDate(start.getDate() + 10); start.setHours(9,0,0,0)
-          const end = new Date(start); end.setDate(end.getDate() + 2)
-          const booking = await prisma.rentalBooking.create({
-            data: {
-              rentalVehicleId: rv.id, userId: travelerId, startDate: start, endDate: end,
-              duration: 2, durationUnit: "day" as never, totalAmount: v.pricePerUnit * 2,
-              currency: "XAF", status: "pending_payment" as never,
-              pickupCity: v.pickupCity, pickupAddress: v.pickupAddress,
-            } as never,
-          })
-          await prisma.payment.create({
-            data: { rentalBookingId: booking.id, provider: "notchpay" as never, providerRef: `NP-RV-${booking.id.slice(-6)}`, amount: v.pricePerUnit * 2, status: "pending" as never, method: "mobile_money" as never },
-          })
-          rentalBookingCount++
-        }
-      }
-    }
-  }
-  console.log(`  ${rentalCount} rental vehicles; ${rentalBookingCount} rental bookings`)
-
-  // ── Parcel operators + parcels ───────────────────────────────────────────
-  const parcelOps = [
-    { companyName: "ColiExpress", email: "coli@camermove.cm", contactName: "Jean Coli", phone: "677001001", citiesServed: ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Limbe"] },
-    { companyName: "CitySend", email: "citysend@camermove.cm", contactName: "Marie Send", phone: "677001002", citiesServed: ["Yaoundé", "Douala", "Limbe"] },
-  ]
-  for (const op of parcelOps) {
-    await prisma.parcelOperator.upsert({
-      where: { email: op.email },
-      update: {},
-      create: { companyName: op.companyName, email: op.email, contactName: op.contactName, phone: op.phone, citiesServed: op.citiesServed, status: "active", partnerStatus: "approved" },
-    })
-  }
-  const allOps = await prisma.parcelOperator.findMany()
-  const parcelRoutes: Array<[string, string]> = [
-    ["Yaoundé", "Douala"], ["Douala", "Yaoundé"], ["Yaoundé", "Bafoussam"],
-    ["Douala", "Limbe"], ["Yaoundé", "Bamenda"], ["Douala", "Bafoussam"],
-  ]
-  let parcelCount = 0
-  for (let i = 0; i < 8 && travelerId; i++) {
-    const [origin, dest] = parcelRoutes[i % parcelRoutes.length]!
-    const op = allOps[i % allOps.length]!
-    const trackingNumber = `CM${Date.now().toString(36).toUpperCase()}${i.toString().padStart(2, "0")}`
-    const existing = await prisma.parcel.findUnique({ where: { trackingNumber } })
-    if (existing) continue
-    const weight = 1 + (i % 8)
-    const cost = 1500 + (i % 4) * 500
-    const status = i < 4 ? "delivered" : i < 6 ? "in_transit" : i < 7 ? "picked_up" : "registered"
-    const parcel = await prisma.parcel.create({
+  const rentalVehicles: Array<{ id: string; price: number }> = []
+  for (const v of rentalDefs) {
+    const existing = await prisma.rentalVehicle.findUnique({ where: { licensePlate: v.plate } })
+    const rv = existing ?? (await prisma.rentalVehicle.create({
       data: {
-        trackingNumber, operatorId: op.id, userId: travelerId,
-        senderName: "Awa Mbarga", senderPhone: "699000100", senderCity: origin,
-        recipientName: `Destinataire ${i + 1}`, recipientPhone: `69900020${i}`,
-        recipientCity: dest, recipientAddress: `Quartier Central, ${dest}`,
-        parcelType: i % 3 === 0 ? "documents" : i % 3 === 1 ? "vetements" : "electronique",
-        weightKg: weight, dimensionsCm: "30x20x15", declaredValue: 5000 + i * 1000,
-        shippingCost: cost, currency: "XAF", status: status as never,
-        currentLocation: status === "delivered" ? dest : status === "in_transit" ? "En route" : origin,
-      } as never,
-    })
-    // Status history
-    const sequence: Array<{ status: string; location: string; note: string }> = [
-      { status: "registered", location: origin, note: "Colis enregistré" },
-      { status: "picked_up", location: origin, note: "Pris en charge par le transporteur" },
-      { status: "in_transit", location: "En route", note: "En cours de livraison" },
-      { status: "arrived", location: dest, note: "Arrivé au centre de tri" },
-      { status: "available", location: dest, note: "Disponible au point de retrait" },
-      { status: "delivered", location: dest, note: "Remis au destinataire" },
-    ]
-    const stopAt = status === "delivered" ? 6 : status === "in_transit" ? 3 : status === "picked_up" ? 2 : 1
-    for (let s = 0; s < stopAt; s++) {
-      const step = sequence[s]!
-      await prisma.parcelStatusLog.create({
-        data: { parcelId: parcel.id, status: step.status as never, location: step.location, note: step.note, createdAt: new Date(Date.now() - (stopAt - s) * 3600 * 1000) } as never,
+        category: v.cat, make: v.make, model: v.model, year: 2022, licensePlate: v.plate,
+        capacity: v.cat === "minibus" ? 14 : 5, transmission: "automatique", fuelType: "diesel",
+        hasDriver: v.driver, pricePerUnit: v.price, durationUnit: "day", currency: "XAF",
+        pickupCity: v.city, pickupAddress: "Agence centrale", photos: [`${U}/photo-1503376780353-7e6692767b70?w=800`],
+        amenities: ["climatisation", "gps"], status: "available", partnerStatus: "approved",
+      },
+    }))
+    rentalVehicles.push({ id: rv.id, price: rv.pricePerUnit })
+  }
+  // 3 pending_payment bookings on first 3
+  for (let i = 0; i < 3; i++) {
+    const rv = rentalVehicles[i]
+    const start = new Date(midnight.getTime() + (i + 2) * 86400000)
+    const end = new Date(midnight.getTime() + (i + 4) * 86400000)
+    const existingB = await prisma.rentalBooking.findFirst({ where: { rentalVehicleId: rv.id, userId: traveler.id, startDate: start } })
+    if (!existingB) {
+      const total = rv.price * 2
+      const pay = await prisma.payment.create({
+        data: { provider: "notchpay", providerRef: `seed-rental-${i}`, amount: total, currency: "XAF", method: "mobile_money", status: "pending", webhookPayload: { seed: true } },
       })
-    }
-    parcelCount++
-  }
-  console.log(`  ${allOps.length} parcel operators; ${parcelCount} parcels`)
-
-  // ── Insurance policies ────────────────────────────────────────────────────
-  const insuranceDestinations = ["Europe", "Asie", "Amérique du Nord", "Afrique de l'Ouest", "Moyen-Orient"]
-  let insuranceCount = 0
-  for (let i = 0; i < 5 && travelerId; i++) {
-    const existing = await prisma.insurancePolicy.findFirst({ where: { userId: travelerId, destination: insuranceDestinations[i] } })
-    if (existing) continue
-    const start = new Date(); start.setDate(start.getDate() + 30)
-    const end = new Date(start); end.setDate(end.getDate() + 14)
-    const premium = 25000 + i * 8000
-    await prisma.insurancePolicy.create({
-      data: {
-        userId: travelerId, providerName: i % 2 === 0 ? "AXA Cameroun" : "Allianz Africa",
-        coverageType: (i % 2 === 0 ? "basic" : "premium") as never,
-        destination: insuranceDestinations[i]!,
-        startDate: start, endDate: end, travelers: 1 + (i % 3),
-        premium, currency: "XAF", status: i < 2 ? "confirmed" : "pending_payment",
-        policyNumber: `POL-${Date.now().toString(36).toUpperCase()}-${i}`,
-      } as never,
-    })
-    insuranceCount++
-  }
-  console.log(`  ${insuranceCount} insurance policies`)
-
-  // ── Events + ticket categories + bookings ─────────────────────────────────
-  const eventsData = [
-    {
-      name: "Festival MASA 2026", eventType: "festival" as const,
-      description: "Marché des Arts du Spectacle Africain — six jours de danse, musique, théâtre, conte et arts visuels.",
-      venue: "Palais des Sports", city: "Yaoundé",
-      startOffsetDays: 45, durationDays: 6,
-      ticketCategories: [
-        { name: "Pass 1 jour", price: 8000, quantity: 2000, sold: 1240 },
-        { name: "Pass Festival 6 jours", price: 35000, quantity: 500, sold: 380 },
-        { name: "VIP", price: 75000, quantity: 100, sold: 92 },
-      ],
-    },
-    {
-      name: "Concert Magic System", eventType: "concert" as const,
-      description: "Le groupe ivoirien débarque à Douala pour un concert exceptionnel.",
-      venue: "Stade de la Réunification", city: "Douala",
-      startOffsetDays: 20, durationDays: 1,
-      ticketCategories: [
-        { name: "Carré Or", price: 25000, quantity: 1000, sold: 850 },
-        { name: "Tribune", price: 15000, quantity: 3000, sold: 2400 },
-        { name: "Pelouse", price: 5000, quantity: 5000, sold: 4100 },
-      ],
-    },
-    {
-      name: "Cameroun vs Nigeria — Éliminatoires CAN", eventType: "sport" as const,
-      description: "Match décisif des éliminatoires de la Coupe d'Afrique des Nations.",
-      venue: "Stade Omnisports Ahmadou Ahidjo", city: "Yaoundé",
-      startOffsetDays: 14, durationDays: 1,
-      ticketCategories: [
-        { name: "Catégorie 1", price: 10000, quantity: 5000, sold: 4800 },
-        { name: "Catégorie 2", price: 5000, quantity: 10000, sold: 7200 },
-        { name: "Catégorie 3", price: 2000, quantity: 25000, sold: 22000 },
-      ],
-    },
-    {
-      name: "Salon International de l'Artisanat de Yaoundé", eventType: "exhibition" as const,
-      description: "Plus de 300 exposants venus de toute l'Afrique centrale.",
-      venue: "Palais des Congrès", city: "Yaoundé",
-      startOffsetDays: 60, durationDays: 10,
-      ticketCategories: [
-        { name: "Entrée journée", price: 3000, quantity: 5000, sold: 1200 },
-        { name: "Pass Pro 10 jours", price: 25000, quantity: 500, sold: 180 },
-      ],
-    },
-    {
-      name: "Conférence TEDx Yaoundé", eventType: "conference" as const,
-      description: "Une journée de talks inspirants autour du thème 'Réinventer l'Afrique'.",
-      venue: "Hôtel Hilton", city: "Yaoundé",
-      startOffsetDays: 30, durationDays: 1,
-      ticketCategories: [
-        { name: "Early Bird", price: 15000, quantity: 200, sold: 200 },
-        { name: "Standard", price: 25000, quantity: 300, sold: 240 },
-        { name: "Patron", price: 100000, quantity: 30, sold: 22 },
-      ],
-    },
-  ]
-  let eventCount = 0
-  let eventBookingCount = 0
-  for (const e of eventsData) {
-    const start = new Date(); start.setDate(start.getDate() + e.startOffsetDays); start.setHours(19,0,0,0)
-    const end = e.durationDays > 1 ? new Date(start.getTime() + e.durationDays * 86400000) : null
-    const existing = await prisma.event.findFirst({ where: { name: e.name } })
-    let ev = existing
-    if (!ev) {
-      ev = await prisma.event.create({
+      await prisma.rentalBooking.create({
         data: {
-          name: e.name, description: e.description, eventType: e.eventType as never,
-          venue: e.venue, city: e.city, startDate: start, endDate: end,
-          status: "on_sale" as never, partnerStatus: "approved" as never,
-          posterUrl: `https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200&q=80`,
-        } as never,
+          rentalVehicleId: rv.id, userId: traveler.id, startDate: start, endDate: end,
+          duration: 2, durationUnit: "day", totalAmount: total, currency: "XAF",
+          status: "pending_payment", pickupCity: rentalDefs[i].city, paymentId: pay.id,
+        },
       })
     }
-    if (ev) {
-      eventCount++
-      const existingCats = await prisma.ticketCategory.count({ where: { eventId: ev.id } })
-      if (existingCats === 0) {
-        for (const c of e.ticketCategories) {
-          await prisma.ticketCategory.create({
-            data: { eventId: ev.id, name: c.name, price: c.price, quantity: c.quantity, sold: c.sold, currency: "XAF", status: "on_sale" as never } as never,
-          })
-        }
-      }
-      // Sample booking
-      if (travelerId) {
-        const cats = await prisma.ticketCategory.findMany({ where: { eventId: ev.id }, orderBy: { price: "asc" } })
-        const cat = cats[0]
-        if (cat) {
-          const existing = await prisma.eventBooking.findFirst({ where: { userId: travelerId, eventId: ev.id } })
-          if (!existing) {
-            const qty = 2
-            const booking = await prisma.eventBooking.create({
-              data: {
-                eventId: ev.id, ticketCategoryId: cat.id, userId: travelerId,
-                quantity: qty, totalAmount: cat.price * qty, currency: "XAF",
-                status: "confirmed" as never, ticketNumber: `TIX-${Date.now().toString(36).toUpperCase()}`,
-                qrCode: `TIX-${Date.now().toString(36).toUpperCase()}`,
-              } as never,
-            })
-            await prisma.payment.create({
-              data: { eventBookingId: booking.id, provider: "notchpay" as never, providerRef: `NP-EV-${booking.id.slice(-6)}`, amount: cat.price * qty, status: "success" as never, method: "mobile_money" as never },
-            })
-            eventBookingCount++
-          }
-        }
+  }
+
+  // ---------- Parcels: 2 operators, 8 parcels ----------
+  const opA = await prisma.parcelOperator.upsert({
+    where: { email: "colis@coliexpress.cm" },
+    update: { citiesServed: ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Limbé"] },
+    create: { companyName: "ColiExpress", contactName: "Service Colis", email: "colis@coliexpress.cm", citiesServed: ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Limbé"], status: "active", partnerStatus: "approved" },
+  })
+  const opB = await prisma.parcelOperator.upsert({
+    where: { email: "contact@citysend.cm" },
+    update: { citiesServed: ["Yaoundé", "Douala", "Kribi"] },
+    create: { companyName: "CitySend", contactName: "Service Envois", email: "contact@citysend.cm", citiesServed: ["Yaoundé", "Douala", "Kribi"], status: "active", partnerStatus: "approved" },
+  })
+  const parcelDefs: Array<{ tn: string; op: string; from: string; to: string; weight: number; cost: number; status: "delivered" | "in_transit" | "picked_up" | "registered" }> = [
+    { tn: "CM-2026-0001", op: opA.id, from: "Yaoundé", to: "Douala", weight: 2.5, cost: 3000, status: "delivered" },
+    { tn: "CM-2026-0002", op: opA.id, from: "Douala", to: "Yaoundé", weight: 5.0, cost: 5000, status: "delivered" },
+    { tn: "CM-2026-0003", op: opA.id, from: "Yaoundé", to: "Bafoussam", weight: 1.2, cost: 2500, status: "delivered" },
+    { tn: "CM-2026-0004", op: opB.id, from: "Bamenda", to: "Yaoundé", weight: 3.0, cost: 4000, status: "delivered" },
+    { tn: "CM-2026-0005", op: opA.id, from: "Yaoundé", to: "Douala", weight: 0.8, cost: 2000, status: "in_transit" },
+    { tn: "CM-2026-0006", op: opB.id, from: "Douala", to: "Limbé", weight: 4.5, cost: 3500, status: "in_transit" },
+    { tn: "CM-2026-0007", op: opA.id, from: "Bafoussam", to: "Douala", weight: 2.0, cost: 3000, status: "picked_up" },
+    { tn: "CM-2026-0008", op: opB.id, from: "Yaoundé", to: "Bamenda", weight: 1.5, cost: 4500, status: "registered" },
+  ]
+  const fullChain = ["registered", "picked_up", "in_transit", "arrived", "available_for_pickup", "delivered"] as const
+  for (const p of parcelDefs) {
+    let parcel = await prisma.parcel.findUnique({ where: { trackingNumber: p.tn } })
+    if (!parcel) {
+      parcel = await prisma.parcel.create({
+        data: {
+          trackingNumber: p.tn, operatorId: p.op, userId: traveler.id,
+          senderName: "Jean Voyageur", senderPhone: "+237690000001", senderCity: p.from,
+          recipientName: "Marie Voyageur", recipientPhone: "+237690000002", recipientCity: p.to,
+          parcelType: "colis", weightKg: p.weight, description: `Colis ${p.tn}`,
+          shippingCost: p.cost, currency: "XAF", status: p.status as never, currentLocation: p.status === "delivered" ? p.to : p.from,
+        },
+      })
+    }
+    const logCount = await prisma.parcelStatusLog.count({ where: { parcelId: parcel.id } })
+    if (logCount === 0) {
+      const chain = p.status === "delivered" ? fullChain : p.status === "in_transit" ? (["registered", "picked_up", "in_transit"] as const) : p.status === "picked_up" ? (["registered", "picked_up"] as const) : (["registered"] as const)
+      for (const s of chain) {
+        await prisma.parcelStatusLog.create({ data: { parcelId: parcel.id, status: s as never, location: s === "registered" ? p.from : undefined, note: `seed: ${s}` } })
       }
     }
   }
-  console.log(`  ${eventCount} events; ${eventBookingCount} event bookings`)
 
-  console.log("✅ Rich seed complete")
-  console.log(`  Accounts: traveler@ / admin@ / super@ / partner@  → password: motdepasse123`)
+  // ---------- Insurance: 5 policies ----------
+  const policyDefs = [
+    { num: "POL-2026-0001", dest: "Europe", cov: "premium", premium: 75000, status: "confirmed" },
+    { num: "POL-2026-0002", dest: "Asie", cov: "standard", premium: 45000, status: "confirmed" },
+    { num: "POL-2026-0003", dest: "Amérique du Nord", cov: "premium", premium: 85000, status: "pending_payment" },
+    { num: "POL-2026-0004", dest: "Afrique de l'Ouest", cov: "basic", premium: 15000, status: "pending_payment" },
+    { num: "POL-2026-0005", dest: "Moyen-Orient", cov: "standard", premium: 50000, status: "pending_payment" },
+  ]
+  for (const p of policyDefs) {
+    const existing = await prisma.insurancePolicy.findUnique({ where: { policyNumber: p.num } })
+    if (!existing) {
+      const pay = await prisma.payment.create({
+        data: { provider: "notchpay", providerRef: `seed-${p.num}`, amount: p.premium, currency: "XAF", method: "mobile_money", status: p.status === "confirmed" ? "success" : "pending", webhookPayload: { seed: true } },
+      })
+      await prisma.insurancePolicy.create({
+        data: {
+          userId: traveler.id, providerName: "CamerMove Assurance", coverageType: p.cov as never,
+          destination: p.dest, startDate: new Date(midnight.getTime() + 10 * 86400000),
+          endDate: new Date(midnight.getTime() + 40 * 86400000), travelers: 2,
+          premium: p.premium, currency: "XAF", status: p.status as never, policyNumber: p.num, paymentId: pay.id,
+        },
+      })
+    }
+  }
+
+  // ---------- Events: 5 events, 2-3 categories each, 1 confirmed booking each ----------
+  const eventDefs = [
+    { name: "Concert Makossa Night", type: "concert", city: "Douala", venue: "Palais des Sports", inDays: 20, durDays: 1, cats: [["Standard", 5000, 500], ["VIP", 25000, 100], ["VVIP", 75000, 20]] as Array<[string, number, number]> },
+    { name: "Match Coton Sport vs Canon", type: "sport", city: "Yaoundé", venue: "Stade Ahmadou Ahidjo", inDays: 14, durDays: 1, cats: [["Tribune", 2000, 1000], ["VIP", 15000, 200]] as Array<[string, number, number]> },
+    { name: "Conférence Tech Yaoundé", type: "conference", city: "Yaoundé", venue: "Palais des Congrès", inDays: 30, durDays: 2, cats: [["Early Bird", 10000, 300], ["Régulier", 20000, 500]] as Array<[string, number, number]> },
+    { name: "Festival Ngondo", type: "festival", city: "Douala", venue: "Berges du Wouri", inDays: 45, durDays: 6, cats: [["Pass Jour", 3000, 2000], ["Pass Festival", 12000, 800], ["Premium", 30000, 150]] as Array<[string, number, number]> },
+    { name: "Salon Promote", type: "other", city: "Yaoundé", venue: "Parc des Expositions", inDays: 60, durDays: 10, cats: [["Visiteur", 2500, 5000], ["Exposant", 50000, 300]] as Array<[string, number, number]> },
+  ]
+  for (const e of eventDefs) {
+    let event = await prisma.event.findFirst({ where: { name: e.name } })
+    if (!event) {
+      event = await prisma.event.create({
+        data: {
+          name: e.name, description: `${e.name} — événement partenaire CamerMove.`,
+          eventType: e.type as never, posterUrl: `${U}/photo-1470229722913-7c0e2dbbafd3?w=800`,
+          venue: e.venue, city: e.city,
+          startDate: new Date(midnight.getTime() + e.inDays * 86400000),
+          endDate: new Date(midnight.getTime() + (e.inDays + e.durDays) * 86400000),
+          status: "on_sale", partnerStatus: "approved",
+        },
+      })
+    }
+    for (const [catName, price, qty] of e.cats) {
+      const existingCat = await prisma.ticketCategory.findFirst({ where: { eventId: event.id, name: catName } })
+      if (!existingCat) {
+        await prisma.ticketCategory.create({
+          data: { eventId: event.id, name: catName, description: `${catName} — ${e.name}`, price, currency: "XAF", quantity: qty, sold: Math.min(10, Math.floor(qty / 10)), status: "on_sale" },
+        })
+      }
+    }
+    // 1 confirmed booking: cheapest category x2
+    const cheapest = await prisma.ticketCategory.findFirst({ where: { eventId: event.id }, orderBy: { price: "asc" } })
+    if (cheapest) {
+      const ticketNumber = `EVT-${event.id.slice(-6).toUpperCase()}-01`
+      const existingB = await prisma.eventBooking.findUnique({ where: { ticketNumber } })
+      if (!existingB) {
+        const total = cheapest.price * 2
+        const pay = await prisma.payment.create({
+          data: { provider: "notchpay", providerRef: `seed-${ticketNumber}`, amount: total, currency: "XAF", method: "mobile_money", status: "success", webhookPayload: { seed: true } },
+        })
+        await prisma.eventBooking.create({
+          data: {
+            eventId: event.id, ticketCategoryId: cheapest.id, userId: traveler.id,
+            quantity: 2, totalAmount: total, currency: "XAF", status: "confirmed",
+            ticketNumber, qrCode: `QR-${ticketNumber}`, paymentId: pay.id,
+          },
+        })
+      }
+    }
+  }
+
+  // ---------- PartnerApplications: 3 ----------
+  const appDefs = [
+    { email: "candidat1@transport.cm", company: "Trans Ouest", status: "received" },
+    { email: "candidat2@transport.cm", company: "Sahel Voyages", status: "reviewing" },
+    { email: "candidat3@transport.cm", company: "Forêt Express", status: "rejected" },
+  ]
+  for (const a of appDefs) {
+    const existing = await prisma.partnerApplication.findFirst({ where: { email: a.email } })
+    if (!existing) {
+      await prisma.partnerApplication.create({
+        data: {
+          companyName: a.company, contactName: "Candidat", phone: "+237690000010",
+          email: a.email, city: "Yaoundé", transportType: "bus", vehicleCount: 3,
+          routesServed: ["Yaoundé-Douala"], message: "Candidature seed", status: a.status as never,
+        },
+      })
+    }
+  }
+
+  // ---------- AppSettings ----------
+  await prisma.appSettings.upsert({
+    where: { id: "global" },
+    update: {},
+    create: {
+      id: "global", commissionPercent: 10, holdExpiryMinutes: 15,
+      cancellationPolicy: "Annulation possible jusqu'à 1h avant le départ. Remboursement sous 72h.",
+    },
+  })
+
+  const counts = {
+    users: await prisma.user.count(),
+    transporters: await prisma.transporter.count(),
+    trips: await prisma.trip.count(),
+    bookings: await prisma.booking.count(),
+    hotels: await prisma.hotel.count(),
+    hotelRooms: await prisma.hotelRoom.count(),
+    rentalVehicles: await prisma.rentalVehicle.count(),
+    parcels: await prisma.parcel.count(),
+    policies: await prisma.insurancePolicy.count(),
+    events: await prisma.event.count(),
+    ticketCategories: await prisma.ticketCategory.count(),
+    payments: await prisma.payment.count(),
+  }
+  console.log("seed:rich complete", JSON.stringify(counts))
 }
 
-main().catch(e=>{console.error(e); process.exit(1)}).finally(async()=>{await prisma.$disconnect()})
+main()
+  .catch((e) => { console.error(e); process.exit(1) })
+  .finally(async () => { await prisma.$disconnect() })

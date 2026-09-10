@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { useLiveSeats } from "@/hooks/useLiveSeats"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
@@ -54,24 +55,43 @@ function buildSeats(totalSeats: number, seatsAvailable: number | null) {
   return seats
 }
 
-function Seat({ seat, onClick }: { seat: { label: number; status: string }; onClick?: () => void }) {
+function Seat({ seat, selected, onClick }: { seat: { label: number; status: string }; selected?: boolean; onClick?: () => void }) {
   const map: Record<string, { bg: string; border: string; color: string }> = {
     available: { bg: "white", border: "#D8DCE3", color: NAVY },
     taken: { bg: TAKEN, border: TAKEN, color: "white" },
     held: { bg: OCHRE, border: OCHRE, color: NAVY },
   }
   const s = (map[seat.status] ?? map["available"]!)!
+  const disabled = seat.status === "taken"
+  const label =
+    seat.status === "taken"
+      ? `Siège ${seat.label} occupé`
+      : selected || seat.status === "held"
+        ? `Siège ${seat.label} sélectionné`
+        : `Siège ${seat.label} libre — choisir`
   return (
-    <div
-      onClick={seat.status === "available" ? onClick : undefined}
+    <button
+      type="button"
+      onClick={seat.status === "available" || selected ? onClick : undefined}
+      disabled={disabled}
+      aria-pressed={selected || seat.status === "held"}
+      aria-label={label}
       style={{
-        width: 32, height: 32, borderRadius: 6, border: `1.5px solid ${s.border}`, background: s.bg, color: s.color,
-        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700,
-        cursor: seat.status === "available" ? "pointer" : "not-allowed",
+        minWidth: 44, minHeight: 44, padding: 6, border: 0, background: "transparent",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: disabled ? "not-allowed" : "pointer",
       }}
     >
-      {seat.label}
-    </div>
+      <span
+        aria-hidden
+        style={{
+          width: 32, height: 32, borderRadius: 6, border: `1.5px solid ${s.border}`, background: s.bg, color: s.color,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700,
+        }}
+      >
+        {seat.label}
+      </span>
+    </button>
   )
 }
 
@@ -178,12 +198,12 @@ export default function TripDetailPage() {
           <p className="text-center text-[10px] tracking-wide font-semibold mb-3" style={{ color: "#9AA2AF" }}>AVANT — chauffeur</p>
           <div className="flex flex-col gap-1.5 items-center">
             {displayRows.map((row, i) => (
-              <div key={i} className="flex gap-2">
-                {row[0] ? <Seat seat={row[0]} onClick={() => pick(row[0]!.id)} /> : <div style={{ width: 32, height: 32 }} />}
-                {row[1] ? <Seat seat={row[1]} onClick={() => pick(row[1]!.id)} /> : <div style={{ width: 32, height: 32 }} />}
-                <div style={{ width: 18 }} />
-                {row[2] ? <Seat seat={row[2]} onClick={() => pick(row[2]!.id)} /> : <div style={{ width: 32, height: 32 }} />}
-                {row[3] ? <Seat seat={row[3]} onClick={() => pick(row[3]!.id)} /> : <div style={{ width: 32, height: 32 }} />}
+              <div key={i} className="flex items-center gap-1">
+                {row[0] ? <Seat seat={row[0]} selected={row[0].id === seatId} onClick={() => pick(row[0]!.id)} /> : <div style={{ width: 44, height: 44 }} aria-hidden />}
+                {row[1] ? <Seat seat={row[1]} selected={row[1].id === seatId} onClick={() => pick(row[1]!.id)} /> : <div style={{ width: 44, height: 44 }} aria-hidden />}
+                <div style={{ width: 18 }} aria-hidden />
+                {row[2] ? <Seat seat={row[2]} selected={row[2].id === seatId} onClick={() => pick(row[2]!.id)} /> : <div style={{ width: 44, height: 44 }} aria-hidden />}
+                {row[3] ? <Seat seat={row[3]} selected={row[3].id === seatId} onClick={() => pick(row[3]!.id)} /> : <div style={{ width: 44, height: 44 }} aria-hidden />}
               </div>
             ))}
           </div>
@@ -199,14 +219,20 @@ export default function TripDetailPage() {
         <Card>
           <CardContent className="p-4 space-y-3">
             <p className="text-xs font-bold" style={{ color: NAVY }}>Informations voyageur — Siège {seatLabel}</p>
-            <input placeholder="Nom complet" value={passenger.name} onChange={(e) => setPassenger({ ...passenger, name: e.target.value })} className="w-full border rounded-lg px-3 py-2.5 text-sm" style={{ borderColor: BORDER, color: NAVY }} />
-            <input placeholder="Numéro de téléphone" value={passenger.phone} onChange={(e) => setPassenger({ ...passenger, phone: e.target.value })} className="w-full border rounded-lg px-3 py-2.5 text-sm" style={{ borderColor: BORDER, color: NAVY }} />
+            <div className="space-y-1.5">
+              <label htmlFor="passenger-name" className="text-xs font-medium" style={{ color: NAVY }}>Nom complet</label>
+              <Input id="passenger-name" name="passengerName" autoComplete="name" placeholder="Nom complet" value={passenger.name} onChange={(e) => setPassenger({ ...passenger, name: e.target.value })} className="rounded-lg" />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="passenger-phone" className="text-xs font-medium" style={{ color: NAVY }}>Numéro de téléphone</label>
+              <Input id="passenger-phone" name="passengerPhone" type="tel" autoComplete="tel" inputMode="tel" placeholder="Numéro de téléphone" value={passenger.phone} onChange={(e) => setPassenger({ ...passenger, phone: e.target.value })} className="rounded-lg" />
+            </div>
           </CardContent>
         </Card>
       )}
 
       {/* BottomBar like reference */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t flex items-center justify-between gap-3 p-3 max-w-md mx-auto" style={{ borderColor: BORDER }}>
+      <div className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-md flex-wrap items-center justify-between gap-3 border-t bg-white p-3" style={{ borderColor: BORDER }}>
         <div>
           <p className="text-[10px]" style={{ color: "#5A6474" }}>{picked ? `Siège ${seatLabel}` : "Choisissez un siège"}</p>
           <p className="font-bold text-sm" style={{ color: NAVY }}>{new Intl.NumberFormat("fr-CM").format(trip.price)} XAF</p>

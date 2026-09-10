@@ -1,6 +1,38 @@
 import { prisma } from "@camermove/db"
-import { BadRequestError, ConflictError, NotFoundError, loadEnv } from "@camermove/config"
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, loadEnv } from "@camermove/config"
 import { invalidateCache } from "../lib/cache.js"
+
+export function rentalBookingReference(id: string): string {
+  return `RENTAL-${id.slice(0, 8).toUpperCase()}`
+}
+
+async function publishRentalConfirmedNotification(typedEvent: Record<string, unknown>, key: string) {
+  try {
+    const env = loadEnv() as unknown as Record<string, unknown>
+    const { createKafkaClient, EVENT_TOPICS } = await import("@camermove/events")
+    const kafka = createKafkaClient(env as never)
+    const producer = kafka.producer({ idempotent: true })
+    await producer.connect().catch(() => {})
+    await producer
+      .send({
+        topic: (EVENT_TOPICS as unknown as Record<string, string>).rentalBookingConfirmed ?? "camermove.rental.booking.confirmed",
+        messages: [
+          {
+            key,
+            value: JSON.stringify({
+              id: `rental-booking-confirmed-${key}`,
+              type: "rental.booking.confirmed",
+              ts: new Date().toISOString(),
+              aggregateId: key,
+              data: typedEvent,
+            }),
+          },
+        ],
+      })
+      .catch(() => {})
+    await producer.disconnect().catch(() => {})
+  } catch {}
+}
 
 export type DurationUnit = "hour" | "day" | "week" | "month"
 
@@ -169,8 +201,8 @@ export async function createRentalBookingPayment(input: {
   const amount = (rb as unknown as { totalAmount: number }).totalAmount
   if (input.provider === "cinetpay" && amount % 5 !== 0) throw new BadRequestError("Montant doit être multiple de 5 (XAF)")
 
-  const env = loadEnv() as Record<string, unknown>
-  const reference = `RENTAL-${input.rentalBookingId.slice(0, 8).toUpperCase()}`
+  const env = loadEnv()
+  const reference = rentalBookingReference(input.rentalBookingId)
   const baseUrl = env.API_URL as string | undefined
   const frontendUrl = env.FRONTEND_URL as string | undefined
   const callbackBase = (frontendUrl ?? baseUrl ?? "https://camermove.cm") as string
@@ -213,7 +245,7 @@ export async function createRentalBookingPayment(input: {
         currency: "XAF",
         method: (input.method as never) ?? "mobile_money",
         status: "pending" as never,
-        webhookPayload: { ...((result.rawResponse as Record<string, unknown>) ?? {}), authorizationUrl: result.authorizationUrl } as never,
+        webhookPayload: { ...((result.rawResponse as Record<string, unknown>) ?? {}), authorizationUrl: result.authorizationUrl, bookingReference: reference, entityKind: "rental" } as never,
       },
     })
     await tx.rentalBooking.update({ where: { id: input.rentalBookingId }, data: { paymentId: created.id } as never })
@@ -245,4 +277,162 @@ export async function createRentalBookingPayment(input: {
   } catch {}
 
   return { payment, authorizationUrl: result.authorizationUrl }
+}
+
+/**
+ * Confirm a rental booking after payment success (webhook / reconciliation).
+ * ACID: status flip inside $transaction with SELECT ... FOR UPDATE row locks.
+ * Idempotent: replay returns { confirmed: false } without re-executing, but
+ * still re-publishes the typed notification event for fan-out safety.
+ */
+export async function confirmRentalPaymentSuccess(paymentId: string, event: unknown): Promise<{ confirmed: boolean; bookingId: string }> {
+  const link = (await prisma.rentalBooking.findFirst({ where: { paymentId } })) as unknown as {
+    id: string
+    userId: string
+    status: string
+    totalAmount: number
+    pickupCity: string
+    dropoffCity: string | null
+    startDate: Date
+    endDate: Date
+  } | null
+  if (!link) throw new NotFoundError("Réservation location introuvable pour ce paiement")
+
+  let wasNew = false
+  await prisma.$transaction(async (tx: any) => {
+    await tx.$queryRaw`SELECT "id" FROM "RentalBooking" WHERE "id"=${link.id} FOR UPDATE`
+    await tx.$queryRaw`SELECT "id" FROM "Payment" WHERE "id"=${paymentId} FOR UPDATE`
+    const freshPayment = await tx.payment.findUnique({ where: { id: paymentId } })
+    const freshBooking = await tx.rentalBooking.findUnique({ where: { id: link.id } })
+    if (!freshPayment || !freshBooking) return
+    if (freshPayment.status === "success") return
+    if (["failed", "expired", "refunded"].includes(freshPayment.status as string)) return
+    if (freshBooking.status !== "pending_payment") return
+    await tx.payment.update({ where: { id: paymentId }, data: { status: "success", webhookPayload: event as never } })
+    await tx.rentalBooking.update({ where: { id: link.id }, data: { status: "confirmed" } })
+    try {
+      await tx.auditLog.create({
+        data: {
+          actorId: "system",
+          action: "payment.success",
+          entityType: "Payment",
+          entityId: paymentId,
+          metadata: { provider: freshPayment.provider, rentalBookingId: link.id, deliveryId: (event as Record<string, unknown>)?.id ?? null } as never,
+        },
+      })
+    } catch {}
+    wasNew = true
+  })
+
+  const typedEvent = {
+    type: "rental.booking.confirmed",
+    userId: link.userId,
+    payload: {
+      bookingId: link.id,
+      reference: rentalBookingReference(link.id),
+      amount: link.totalAmount,
+      pickupCity: link.pickupCity,
+      dropoffCity: link.dropoffCity ?? link.pickupCity,
+      startDate: link.startDate instanceof Date ? link.startDate.toISOString().slice(0, 10) : String(link.startDate),
+      endDate: link.endDate instanceof Date ? link.endDate.toISOString().slice(0, 10) : String(link.endDate),
+    },
+  }
+  await publishRentalConfirmedNotification(typedEvent, link.id)
+  return { confirmed: wasNew, bookingId: link.id }
+}
+
+async function publishRentalStatusChanged(typedEvent: Record<string, unknown>, key: string) {
+  try {
+    const env = loadEnv() as unknown as Record<string, unknown>
+    const { createKafkaClient, EVENT_TOPICS } = await import("@camermove/events")
+    const kafka = createKafkaClient(env as never)
+    const producer = kafka.producer({ idempotent: true })
+    await producer.connect().catch(() => {})
+    await producer
+      .send({
+        topic: (EVENT_TOPICS as unknown as Record<string, string>).bookingStatusChanged ?? "camermove.booking.status.changed",
+        messages: [
+          {
+            key,
+            value: JSON.stringify({
+              id: `booking-status-changed-${key}`,
+              type: "booking.status.changed",
+              ts: new Date().toISOString(),
+              aggregateId: key,
+              data: typedEvent,
+            }),
+          },
+        ],
+      })
+      .catch(() => {})
+    await producer.disconnect().catch(() => {})
+  } catch {}
+}
+
+/**
+ * User cancellation for a rental booking. Cancellable only from pending_payment —
+ * a confirmed (paid) booking must go through support (409).
+ * ACID: status flip inside $transaction with SELECT ... FOR UPDATE row lock.
+ * No inventory to restore: the overlap guard counts pending_payment/confirmed/active
+ * only, so flipping to cancelled frees the vehicle period.
+ */
+export async function cancelRentalBooking(id: string, actorId: string, actorRole = "traveler") {
+  const rb = (await prisma.rentalBooking.findUnique({ where: { id }, include: { vehicle: true } })) as unknown as {
+    id: string
+    userId: string
+    status: string
+    totalAmount: number
+    pickupCity: string
+    dropoffCity: string | null
+    vehicle: { make: string; model: string } | null
+  } | null
+  if (!rb) throw new NotFoundError("Réservation location introuvable")
+  const isAdmin = actorRole === "admin" || actorRole === "super_admin"
+  if (!isAdmin && rb.userId !== actorId) throw new ForbiddenError("Accès refusé")
+  if (rb.status !== "pending_payment") {
+    if (rb.status === "confirmed" || rb.status === "active") throw new ConflictError("Réservation déjà confirmée et payée — contactez le support pour toute annulation")
+    throw new ConflictError(`Réservation non annulable — statut: ${rb.status}`)
+  }
+
+  const updated = await prisma.$transaction(async (tx: any) => {
+    await tx.$queryRaw`SELECT "id" FROM "RentalBooking" WHERE "id"=${id} FOR UPDATE`
+    const fresh = await tx.rentalBooking.findUnique({ where: { id } })
+    if (!fresh) throw new NotFoundError("Réservation location introuvable")
+    if (fresh.status !== "pending_payment") {
+      if (fresh.status === "confirmed" || fresh.status === "active") throw new ConflictError("Réservation déjà confirmée et payée — contactez le support pour toute annulation")
+      throw new ConflictError(`Réservation non annulable — statut: ${fresh.status}`)
+    }
+    return tx.rentalBooking.update({ where: { id }, data: { status: "cancelled" } })
+  })
+
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actorId,
+        action: "rental.booking.cancel",
+        entityType: "RentalBooking",
+        entityId: id,
+        metadata: { userId: rb.userId, status: "cancelled", totalAmount: rb.totalAmount } as never,
+      },
+    })
+  } catch {}
+  await publishRentalStatusChanged(
+    {
+      type: "booking.status.changed",
+      userId: rb.userId,
+      payload: {
+        bookingId: id,
+        reference: rentalBookingReference(id),
+        amount: rb.totalAmount,
+        serviceLabel: "Location",
+        entityLabel: rb.vehicle ? `${rb.vehicle.make} ${rb.vehicle.model}` : undefined,
+        pickupCity: rb.pickupCity,
+        dropoffCity: rb.dropoffCity ?? rb.pickupCity,
+        newStatus: "cancelled",
+        status: "cancelled",
+      },
+    },
+    id,
+  )
+  return updated
 }

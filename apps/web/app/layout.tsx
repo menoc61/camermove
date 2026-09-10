@@ -1,30 +1,33 @@
-import type { Metadata, Viewport } from "next"
-import dynamic from "next/dynamic"
-import { Toaster } from "sonner"
-import "./globals.css"
-import "../components/yolo/yolo.css"
-import { QueryProvider } from "../components/providers"
-import { RouteAwareNav } from "../components/route-aware-nav"
-import { PageTransition } from "../components/page-transition"
-import { BackToTop } from "../components/back-to-top"
-import { ServiceWorkerRegister } from "../components/service-worker-register"
-import { YoloHeader } from "../components/yolo/Header"
-import { Navigation } from "../components/yolo/Navigation"
+import type { Metadata, Viewport } from "next";
+import dynamic from "next/dynamic";
+import { Toaster } from "sonner";
+import "./globals.css";
+
+import { RouteAwareNav } from "../components/route-aware-nav";
+import { PageTransition } from "../components/page-transition";
+import { BackToTop } from "../components/back-to-top";
+import { ServiceWorkerRegister } from "../components/service-worker-register";
+import { QueryProvider } from "../components/providers";
+import { TooltipProvider } from "@/components/ui/tooltip";
+
 import { Inter } from "next/font/google";
 
 const SmoothScroll = dynamic(
   () => import("@/components/smooth-scroll").then((m) => m.SmoothScroll),
-  { ssr: true }
-)
+  { ssr: true },
+);
 
-/* Helvetica-first stack via Inter as a close web analogue */
+/* Helvetica-first stack via Inter as a close web analogue.
+   Only the weights actually used by the codebase (400/500/600/700) are
+   loaded — requesting extras makes Next.js preload their woff2 files,
+   which the browser then warns about when they go unused. */
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-body",
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002"
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -64,14 +67,14 @@ export const metadata: Metadata = {
     title: "CamerMove",
     statusBarStyle: "black-translucent",
   },
-}
+};
 
 export const viewport: Viewport = {
   themeColor: "#0E0E0E",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-}
+};
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -80,9 +83,13 @@ const jsonLd = {
   url: SITE_URL,
   areaServed: "CM",
   slogan: "Réinventons la mobilité africaine",
-}
+};
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="fr" suppressHydrationWarning className={inter.variable}>
       <body className="font-body antialiased">
@@ -90,20 +97,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <YoloHeader />
-        <Navigation />
-        <div className="App">
-          <SmoothScroll>
-            <QueryProvider>
-              <RouteAwareNav />
-              <PageTransition>{children}</PageTransition>
-              <BackToTop />
-            </QueryProvider>
-          </SmoothScroll>
-        </div>
-        <ServiceWorkerRegister />
-        <Toaster theme="dark" position="top-center" />
+        <TooltipProvider>
+          <div className="App">
+            <SmoothScroll>
+              <QueryProvider>
+                <RouteAwareNav />
+                <PageTransition>{children}</PageTransition>
+                <BackToTop />
+              </QueryProvider>
+            </SmoothScroll>
+          </div>
+          <ServiceWorkerRegister />
+          <Toaster theme="dark" position="top-center" />
+        </TooltipProvider>
       </body>
     </html>
-  )
+  );
 }

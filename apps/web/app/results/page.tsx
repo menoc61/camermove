@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchSearch, type SearchParams, type SearchResultItem } from "../../lib/api/search"
 import { TripCard } from "../../components/search/trip-card"
 
-type SearchResult = { items: SearchResultItem[]; pagination: { page: number; perPage: number; total: number; totalPages: number } }
+type SearchResult = { items: SearchResultItem[]; total: number; page: number; perPage: number; totalPages: number; meta?: Record<string, unknown> }
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent } from "@/components/ui/card"
@@ -273,22 +273,22 @@ function ResultsInner() {
 
   // Safe refs — only accessed when hasResults is true
   const tripData = hasResults ? data! : null
-  const totalPages = tripData?.pagination.totalPages ?? 1
+  const totalPages = tripData?.totalPages ?? 1
 
   return (
     <main className="mx-auto max-w-[1560px] space-y-8 px-6 pb-12 pt-32 sm:px-8 md:px-12">
       {/* Header */}
       <div className="border-b border-line pb-6">
         <p className="eyebrow">Recherche · Transport interurbain</p>
-        <div className="mt-3 flex items-end justify-between gap-4">
-          <h1 className="text-3xl font-medium tracking-[-0.02em] text-ink sm:text-4xl">
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+          <h1 className="min-w-0 flex-1 truncate text-3xl font-medium tracking-[-0.02em] text-ink sm:text-4xl">
             {hasResults && tripData!.items.length > 0
               ? `${tripData!.items.length} trajet${tripData!.items.length > 1 ? "s" : ""} · ${params.origin} → ${params.destination}`
               : `Résultats · ${params.origin} → ${params.destination}`}
           </h1>
-          {hasResults && tripData!.pagination.total > 0 && (
-            <span className="border border-ink px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.22em] text-ink num-tabular">
-              {tripData!.pagination.total} total
+          {hasResults && tripData!.total > 0 && (
+            <span className="shrink-0 border border-ink px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.22em] text-ink num-tabular">
+              {tripData!.total} total
             </span>
           )}
         </div>

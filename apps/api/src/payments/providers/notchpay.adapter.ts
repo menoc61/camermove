@@ -1,4 +1,4 @@
-import { BadRequestError } from "@camermove/config"
+import { AppError, BadRequestError } from "@camermove/config"
 import { verifyNotchSignature } from "../webhooks/verify.js"
 import type {
   CreatePaymentInput,
@@ -38,7 +38,7 @@ export class NotchPayAdapter implements PaymentProvider {
       })
       if (!res.ok) {
         const text = await res.text().catch(() => "")
-        throw new Error(`NotchPay create failed ${res.status}: ${text}`)
+        throw new AppError(502, "PROVIDER_ERROR", `NotchPay create failed ${res.status}: ${text}`)
       }
       const json = (await res.json()) as {
         transaction: { id: string }
@@ -79,7 +79,7 @@ export class NotchPayAdapter implements PaymentProvider {
       })
       if (!res.ok) {
         const text = await res.text().catch(() => "")
-        throw new Error(`NotchPay verify failed ${res.status}: ${text}`)
+        throw new AppError(502, "PROVIDER_ERROR", `NotchPay verify failed ${res.status}: ${text}`)
       }
       const json = (await res.json()) as {
         transaction: { status: string; amount: number; currency: string }

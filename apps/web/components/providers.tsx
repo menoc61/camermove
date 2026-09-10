@@ -1,7 +1,7 @@
 "use client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
-import { useAuthStore } from "@camermove/frontend"
+import { useAuthStore, configureAuthApiBaseUrl } from "@camermove/frontend"
 
 const CM_ACCESS_COOKIE = "cm_access"
 const CM_ACCESS_MAX_AGE_SECONDS = 900 // 15 min — matches JWT access-token TTL
@@ -31,12 +31,20 @@ function AuthCookieSync() {
   // asynchronously on hydration; this effect runs once after that.
   const initial = useAuthStore.getState().accessToken
   useEffect(() => {
+    configureAuthApiBaseUrl(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000")
     writeAccessCookie(initial)
     // Subscribe to future changes (login / logout).
     const unsub = useAuthStore.subscribe((state) => {
       writeAccessCookie(state.accessToken)
     })
-    return unsub
+    // Proactive access-token refresh (15m TTL): try every 5 minutes.
+    const timer = setInterval(() => {
+      void useAuthStore.getState().refreshIfNeeded()
+    }, 5 * 60 * 1000)
+    return () => {
+      unsub()
+      clearInterval(timer)
+    }
   }, [initial])
   return null
 }

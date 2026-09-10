@@ -1,6 +1,3 @@
-export const I18N_DEFAULT = "fr" as const
-export type Locale = typeof I18N_DEFAULT
-
 const dict: Record<string, string> = {
   "nav.home": "Accueil",
   "nav.tickets": "Billets",

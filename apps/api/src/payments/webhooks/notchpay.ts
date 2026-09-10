@@ -23,12 +23,12 @@ export async function notchpayWebhookRoutes(app: FastifyInstance) {
       // rawBody captured by rawBodyPlugin (global). Must be raw JSON string, fail 400 if missing.
       const rawBody = (req as unknown as { rawBody?: string }).rawBody
       if (typeof rawBody !== "string" || rawBody.length === 0) {
-        return reply.code(400).send({ error: "rawBody required — check rawBody plugin registration" })
+        return reply.code(400).send({ error: "BAD_REQUEST", message: "rawBody required — check rawBody plugin registration" })
       }
 
       const sig = req.headers["x-notch-signature"] as string | undefined
       if (!sig) {
-        return reply.code(401).send({ error: "missing signature" })
+        return reply.code(401).send({ error: "UNAUTHORIZED", message: "missing signature" })
       }
 
       let hashKey: string
@@ -36,23 +36,23 @@ export async function notchpayWebhookRoutes(app: FastifyInstance) {
         hashKey = loadEnv().NOTCHPAY_HASH_KEY
       } catch {
         req.log.error("NOTCHPAY_HASH_KEY not configured")
-        return reply.code(503).send({ error: "notchpay not configured" })
+        return reply.code(503).send({ error: "SERVICE_UNAVAILABLE", message: "notchpay not configured" })
       }
 
       if (!verifyNotchSignature(rawBody, sig, hashKey)) {
         req.log.warn({ sigLen: sig.length }, "notchpay webhook signature invalid")
-        return reply.code(403).send({ error: "invalid signature" })
+        return reply.code(403).send({ error: "FORBIDDEN", message: "invalid signature" })
       }
 
       let event: { id: string; type: string; data: { id: string; reference: string; amount?: number } }
       try {
         event = JSON.parse(rawBody) as typeof event
       } catch {
-        return reply.code(400).send({ error: "invalid JSON" })
+        return reply.code(400).send({ error: "BAD_REQUEST", message: "invalid JSON" })
       }
 
       if (!event?.id || !event?.data?.reference) {
-        return reply.code(400).send({ error: "missing id or reference" })
+        return reply.code(400).send({ error: "BAD_REQUEST", message: "missing id or reference" })
       }
 
       const deliveryId = event.id // evt_xxx globally unique (T-03-13)
@@ -79,7 +79,7 @@ export async function notchpayWebhookRoutes(app: FastifyInstance) {
 
       if (isDuplicate) {
         req.log.info({ deliveryId }, "webhook duplicate, ack 200")
-        return reply.code(200).send({ status: "duplicate" })
+        return reply.code(200).send({ id: deliveryId, status: "duplicate" })
       }
 
       // Enqueue to Kafka payment.webhook.received — canonical path
@@ -110,7 +110,7 @@ export async function notchpayWebhookRoutes(app: FastifyInstance) {
           await redis.lpush("payment-webhooks", JSON.stringify(domainEvent))
         } catch {
           // Enqueue failed — let provider retry: do NOT delete NX key, return 500 so provider retries (per threat T-03-17)
-          return reply.code(500).send({ error: "enqueue failed, retry" })
+          return reply.code(500).send({ error: "INTERNAL", message: "enqueue failed, retry" })
         }
       }
 
@@ -120,7 +120,7 @@ export async function notchpayWebhookRoutes(app: FastifyInstance) {
         "webhook enqueued",
       )
 
-      return reply.code(200).send({ status: "received" })
+      return reply.code(200).send({ id: deliveryId, status: "received" })
     },
   )
 }

@@ -1,13 +1,15 @@
 "use client"
 import { useEffect, useState } from "react"
 import { listVehicles, createVehicle, deleteVehicle } from "@/lib/api/transporter"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export function VehiclesClient({ token }: { token: string }) {
   const [items, setItems] = useState<{ id: string; type: string; capacity: number; plateNumber: string | null; status: string }[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ type: "", capacity: 30, plateNumber: "" })
 
-  const refresh = () => listVehicles(token).then(setItems as never).catch((e) => setError(e.message))
+  const refresh = () => { setLoading(true); return listVehicles(token).then(setItems as never).catch((e) => setError(e.message)).finally(() => setLoading(false)) }
   useEffect(() => { refresh() }, [token])
 
   async function onCreate(e: React.FormEvent) {
@@ -26,13 +28,22 @@ export function VehiclesClient({ token }: { token: string }) {
         <button className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Ajouter</button>
       </form>
       <ul className="divide-y rounded-2xl border">
-        {items.map((v) => (
+        {loading && Array.from({ length: 3 }).map((_, i) => (
+          <li key={`sk-${i}`} className="flex items-center justify-between p-4">
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+            <Skeleton className="h-4 w-16" />
+          </li>
+        ))}
+        {!loading && items.map((v) => (
           <li key={v.id} className="flex items-center justify-between p-4">
             <div><div className="font-medium">{v.type} — {v.capacity} places</div><div className="text-xs text-muted-foreground">{v.plateNumber ?? "—"} · {v.status}</div></div>
             <button onClick={async () => { try { await deleteVehicle(token, v.id); refresh() } catch (err) { setError((err as Error).message) }}} className="text-sm text-destructive">Supprimer</button>
           </li>
         ))}
-        {items.length === 0 && <li className="p-6 text-sm text-muted-foreground">Aucun véhicule.</li>}
+        {!loading && items.length === 0 && <li className="p-6 text-sm text-muted-foreground">Aucun véhicule.</li>}
       </ul>
     </div>
   )

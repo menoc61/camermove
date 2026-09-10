@@ -1,10 +1,7 @@
-"use client"
-
-import * as React from "react"
+import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
-import { motion, type HTMLMotionProps } from "motion/react"
-import { cn } from "@/lib/utils"
-import { spring, tapScale } from "@/lib/animations"
+import { Loader2 } from "lucide-react"
+import { cn } from "cn"
 
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-4xl border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -41,41 +38,33 @@ const buttonVariants = cva(
   }
 )
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  loading?: boolean
+type ButtonProps = ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & {
+    loading?: boolean
+  }
+
+function Button({
+  className,
+  variant = "default",
+  size = "default",
+  loading = false,
+  disabled,
+  children,
+  ...props
+}: ButtonProps) {
+  return (
+    <ButtonPrimitive
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      {...props}
+    >
+      {loading ? <Loader2 data-icon="inline-start" aria-hidden className="animate-spin" /> : null}
+      {children}
+    </ButtonPrimitive>
+  )
 }
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, loading, children, disabled, ...props }, ref) => {
-    return (
-      <motion.button
-        data-slot="button"
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        disabled={disabled || loading}
-        whileHover={disabled || loading ? undefined : { y: -1, transition: spring }}
-        whileTap={disabled || loading ? undefined : tapScale}
-        {...(props as HTMLMotionProps<"button">)}
-      >
-        {loading && (
-          <svg
-            className="animate-spin -ml-1 mr-1 h-4 w-4"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            aria-hidden
-          >
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        )}
-        {children}
-      </motion.button>
-    )
-  }
-)
-Button.displayName = "Button"
-
 export { Button, buttonVariants }
+export type { ButtonProps }

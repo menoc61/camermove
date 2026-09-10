@@ -3,7 +3,8 @@ import { useState } from "react"
 import Link from "next/link"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { useAuthStore } from "@camermove/frontend"
-import { fetchParcels, createParcel, trackParcel } from "@/lib/api/parcels"
+import { fetchParcels, createParcel, fetchParcel, createParcelPayment, trackParcel } from "@/lib/api/parcels"
+import { PaymentStep } from "@/components/booking/PaymentStep"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -24,7 +25,7 @@ interface SendFormValues {
   recipientCity: string
   parcelType: string
   weightKg?: number
-  dimensionsCm?: number
+  dimensionsCm?: string
   description?: string
 }
 
@@ -62,9 +63,10 @@ export default function ParcelsPage() {
     recipientCity: "",
     parcelType: "colis",
   })
-  const [createdTracking, setCreatedTracking] = useState<string | null>(null)
+  const [createdParcel, setCreatedParcel] = useState<{ id: string; trackingNumber: string } | null>(null)
   const [trackInput, setTrackInput] = useState("")
   const [trackingNumber, setTrackingNumber] = useState<string | null>(null)
+  const [paid, setPaid] = useState(false)
 
   const { data: myParcelsData, isLoading, error } = useQuery({
     queryKey: ["my-parcels", token],
@@ -84,8 +86,15 @@ export default function ParcelsPage() {
       return createParcel(token, sendForm, crypto.randomUUID())
     },
     onSuccess: (parcel) => {
-      setCreatedTracking(parcel.trackingNumber)
+      setCreatedParcel(parcel)
+      setPaid(false)
     },
+  })
+
+  const { data: createdDetail } = useQuery({
+    queryKey: ["parcel-detail", createdParcel?.id],
+    queryFn: () => fetchParcel(createdParcel!.id, token!),
+    enabled: !!createdParcel && !!token,
   })
 
   const myParcels = myParcelsData?.items
@@ -95,10 +104,10 @@ export default function ParcelsPage() {
       <h1 className="text-2xl font-bold tracking-tight">Transport de colis</h1>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabName)}>
-        <TabsList className="w-full max-w-xl">
-          <TabsTrigger value="send" className="flex-1">Envoyer un colis</TabsTrigger>
-          <TabsTrigger value="my-parcels" className="flex-1">Mes colis</TabsTrigger>
-          <TabsTrigger value="track" className="flex-1">Suivi public</TabsTrigger>
+        <TabsList className="w-full max-w-xl overflow-x-auto">
+          <TabsTrigger value="send" className="flex-1 whitespace-nowrap min-h-[44px]">Envoyer un colis</TabsTrigger>
+          <TabsTrigger value="my-parcels" className="flex-1 whitespace-nowrap min-h-[44px]">Mes colis</TabsTrigger>
+          <TabsTrigger value="track" className="flex-1 whitespace-nowrap min-h-[44px]">Suivi public</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -166,7 +175,7 @@ export default function ParcelsPage() {
               </div>
               <div>
                 <label className="text-sm text-muted-foreground">Dimensions (cm)</label>
-                <Input type="number" placeholder="40" value={sendForm.dimensionsCm ?? ""} onChange={(e) => setSendForm({ ...sendForm, dimensionsCm: e.target.value ? Number(e.target.value) : undefined })} />
+                <Input placeholder="40x30x20" value={sendForm.dimensionsCm ?? ""} onChange={(e) => setSendForm({ ...sendForm, dimensionsCm: e.target.value || undefined })} />
               </div>
             </div>
             <div>
@@ -184,12 +193,23 @@ export default function ParcelsPage() {
             {create.isError && (
               <Alert variant="destructive"><TriangleAlert /><AlertTitle>Erreur</AlertTitle><AlertDescription>Impossible de créer le colis — vérifiez les champs et réessayez.</AlertDescription></Alert>
             )}
-            {createdTracking && (
+            {createdParcel && !paid && token && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Colis créé — n° de suivi <span className="font-mono">{createdParcel.trackingNumber}</span></p>
+                <p className="text-sm text-muted-foreground">Procédez au paiement des frais d&apos;expédition.</p>
+                <PaymentStep
+                  amount={createdDetail?.shippingCost ?? 0}
+                  createPayment={(provider) => createParcelPayment(createdParcel.id, token, provider)}
+                  onPaymentCreated={() => setPaid(true)}
+                />
+              </div>
+            )}
+            {createdParcel && paid && (
               <Alert>
                 <Package />
-                <AlertTitle>Colis créé — n° de suivi {createdTracking}</AlertTitle>
+                <AlertTitle>Colis enregistré — n° de suivi {createdParcel.trackingNumber}</AlertTitle>
                 <AlertDescription>
-                  <Link href={`/parcels/track/${createdTracking}`} className="underline">Suivre le colis</Link>
+                  <Link href={`/parcels/success?tracking=${createdParcel.trackingNumber}`} className="underline">Voir le reçu et le suivi</Link>
                 </AlertDescription>
               </Alert>
             )}

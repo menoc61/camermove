@@ -1,5 +1,5 @@
-import { prisma } from "@camermove/db"
 import { cacheKey, getCached, setCached } from "../lib/cache"
+import { findApprovedTransportersByCity } from "./repository"
 
 export interface Agency {
   id: string
@@ -27,38 +27,12 @@ function cityFallback(city: string): { lat: number; lon: number } | null {
   return CITY_COORDS[city.toLowerCase()] ?? null
 }
 
-export async function listAgencies(query: { city: string }): Promise<{ agencies: Agency[] }> {
+export async function listAgencies(query: { city: string }): Promise<{ items: Agency[]; total: number }> {
   const key = cacheKey("agencies", { city: query.city })
-  const cached = await getCached<{ agencies: Agency[] }>(key)
+  const cached = await getCached<{ items: Agency[]; total: number }>(key)
   if (cached) return cached
 
-  const rows = await prisma.transporter.findMany({
-    where: {
-      status: "approved",
-      trips: {
-        some: {
-          route: {
-            originCity: { equals: query.city, mode: "insensitive" },
-          },
-        },
-      },
-    },
-    include: {
-      trips: {
-        where: {
-          route: {
-            originCity: { equals: query.city, mode: "insensitive" },
-          },
-          status: "active",
-        },
-        select: {
-          departurePointInfo: true,
-          route: { select: { originCity: true } },
-        },
-        take: 1,
-      },
-    },
-  })
+  const rows = await findApprovedTransportersByCity(query.city)
 
   const fallback = cityFallback(query.city)
 
@@ -71,7 +45,7 @@ export async function listAgencies(query: { city: string }): Promise<{ agencies:
     departurePointInfo: r.trips[0]?.departurePointInfo ?? null,
   }))
 
-  const result = { agencies }
+  const result = { items: agencies, total: agencies.length }
   await setCached(key, result, 300)
   return result
 }

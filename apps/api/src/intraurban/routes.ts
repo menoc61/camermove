@@ -1,14 +1,6 @@
 import type { FastifyInstance } from "fastify"
-import { z } from "zod"
 import { listUrbanLines, urbanSchedule } from "./service"
-
-const ScheduleQuery = z.object({
-  origin: z.string().optional(),
-  dest: z.string().optional(),
-  destination: z.string().optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  pax: z.coerce.number().int().min(1).default(1),
-})
+import { ScheduleQuery } from "./schema"
 
 export async function intraurbanRoutes(app: FastifyInstance) {
   // Public — no auth, like /search

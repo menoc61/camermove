@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
 
@@ -60,7 +61,13 @@ export function AdminRentals() {
         <Table>
           <TableHeader><TableRow><TableHead>Véhicule</TableHead><TableHead>Catégorie</TableHead><TableHead>Ville</TableHead><TableHead>Statut</TableHead><TableHead>Partner</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={6}>Chargement…</TableCell></TableRow>}
+            {isLoading && Array.from({ length: 6 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 6 }).map((__, j) => (
+                  <TableCell key={j}><Skeleton className="h-4 w-24" /></TableCell>
+                ))}
+              </TableRow>
+            ))}
             {data?.items.map((v) => (
               <TableRow key={v.id}>
                 <TableCell className="font-medium">{v.make} {v.model}</TableCell>

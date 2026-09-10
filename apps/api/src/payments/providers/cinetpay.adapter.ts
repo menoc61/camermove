@@ -1,4 +1,4 @@
-import { BadRequestError } from "@camermove/config"
+import { AppError, BadRequestError } from "@camermove/config"
 import { verifyCinetToken } from "../webhooks/verify.js"
 import type {
   CreatePaymentInput,
@@ -73,7 +73,7 @@ export class CinetPayAdapter implements PaymentProvider {
         }
       }
 
-      throw new Error(`CinetPay create failed code=${json.code} message=${json.message ?? json.description ?? "unknown"}`)
+      throw new AppError(502, "PROVIDER_ERROR", `CinetPay create failed code=${json.code} message=${json.message ?? json.description ?? "unknown"}`)
     } catch (err) {
       if (err instanceof BadRequestError) throw err
       if ((err as Error).name === "AbortError") {

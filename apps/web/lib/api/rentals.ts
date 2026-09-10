@@ -91,6 +91,74 @@ export function createRentalBooking(token: string, body: CreateRentalBookingBody
   })
 }
 
-export function fetchMyRentalBookings(token: string) {
-  return apiFetch<{ items: unknown[] }>(`/api/v1/rentals/bookings/me`, { method: "GET", token })
+export function fetchRentalBooking(token: string, id: string) {
+  return apiFetch<{
+    id: string
+    status: string
+    startDate: string
+    endDate: string
+    pickupCity: string
+    totalAmount: number
+    vehicle?: { id: string; make: string; model: string; category: string } | null
+    payment?: { status: string } | null
+  }>(`/api/v1/rentals/bookings/${id}`, { method: "GET", token })
+}
+
+export interface MyRentalBookingsParams {
+  page?: number
+  perPage?: number
+  q?: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+// Loose response type — kept identical to the pre-pagination wrapper so
+// external consumers (transporter dashboard, etc.) keep compiling. The
+// dashboard types its own items shape via apiFetch<{ items: RentalBookingItem[]; ... }>.
+export function fetchMyRentalBookings(token: string, params: MyRentalBookingsParams = {}): Promise<{ items: unknown[]; total: number; page: number; perPage: number; totalPages: number }> {
+  const qs = new URLSearchParams()
+  if (params.page) qs.set("page", String(params.page))
+  if (params.perPage) qs.set("perPage", String(params.perPage))
+  if (params.q) qs.set("q", params.q)
+  if (params.dateFrom) qs.set("dateFrom", params.dateFrom)
+  if (params.dateTo) qs.set("dateTo", params.dateTo)
+  return apiFetch<{ items: unknown[]; total: number; page: number; perPage: number; totalPages: number }>(`/api/v1/rentals/bookings/me${qs.toString() ? `?${qs.toString()}` : ""}`, { method: "GET", token })
+}
+
+export function cancelRentalBooking(token: string, id: string) {
+  return apiFetch<{ id: string; status: string }>(`/api/v1/rentals/bookings/${id}/cancel`, {
+    method: "POST",
+    headers: { "Idempotency-Key": crypto.randomUUID() },
+    token,
+  })
+}
+
+export interface RentalPaymentOpts {
+  provider: "notchpay" | "cinetpay"
+  method?: string
+  phone?: string
+  email?: string
+}
+
+export interface RentalPaymentResult {
+  payment: { id: string }
+  authorizationUrl: string | null
+  paymentUrl: string | null
+}
+
+export async function createRentalPayment(
+  token: string,
+  bookingId: string,
+  opts: RentalPaymentOpts
+): Promise<RentalPaymentResult> {
+  const res = await apiFetch<{ payment: { id: string }; authorizationUrl: string | null; paymentUrl?: string | null }>(
+    `/api/v1/rentals/bookings/${bookingId}/pay`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({ provider: opts.provider, method: opts.method, phone: opts.phone, email: opts.email }),
+      token,
+    }
+  )
+  return { payment: res.payment, authorizationUrl: res.authorizationUrl, paymentUrl: res.paymentUrl ?? res.authorizationUrl }
 }

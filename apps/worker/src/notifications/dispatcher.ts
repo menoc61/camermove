@@ -8,11 +8,11 @@
  * the notifications.failed Kafka topic (added in this plan).
  */
 import { prisma } from "@camermove/db"
-import type { Env } from "@camermove/config"
+import { createLogger, type Env } from "@camermove/config"
 import { sendEmail } from "./channels/email"
 import { sendWhatsApp } from "./channels/whatsapp"
 import { sendPush } from "./channels/push"
-import { renderBookingConfirmed, renderPaymentConfirmed, renderTicketIssued, renderTripReminder24h } from "./templates/index.js"
+import { renderBookingConfirmed, renderPaymentConfirmed, renderTicketIssued, renderTripReminder24h, renderHotelBookingConfirmed, renderRentalBookingConfirmed, renderParcelStatusChanged, renderInsurancePolicyIssued, renderEventBookingConfirmed, renderBookingStatusChanged } from "./templates/index.js"
 import { createKafkaClient } from "@camermove/events"
 import type { NotificationEvent, NotificationEventPayload } from "@camermove/shared"
 
@@ -23,6 +23,8 @@ type Rendered = {
 }
 
 const RETRY_DELAYS_MS = [1000, 4000, 16000] // exponential backoff x3
+
+const log = createLogger()
 
 function ntfyTopicForUser(userId: string): string {
   // ntfy topic rules: [a-zA-Z0-9_-], max 64 chars, no leading underscore.
@@ -59,7 +61,7 @@ export function createNotificationDispatcher(env: Env) {
         select: { id: true, email: true, phone: true, firstName: true, lastName: true },
       })
       if (!user) {
-        console.warn(`[dispatcher] user not found: ${event.userId}`)
+        log.warn({ userId: event.userId, eventType: event.type }, "dispatcher user not found")
         return { userId: event.userId, eventType: event.type, channelResults: [] }
       }
 
@@ -205,6 +207,18 @@ function pickRenderer(type: NotificationEvent["type"]): (data: NotificationEvent
       return renderTicketIssued as never
     case "trip.reminder.24h":
       return renderTripReminder24h as never
+    case "hotel.booking.confirmed":
+      return renderHotelBookingConfirmed as never
+    case "rental.booking.confirmed":
+      return renderRentalBookingConfirmed as never
+    case "parcel.status.changed":
+      return renderParcelStatusChanged as never
+    case "insurance.policy.issued":
+      return renderInsurancePolicyIssued as never
+    case "event.booking.confirmed":
+      return renderEventBookingConfirmed as never
+    case "booking.status.changed":
+      return renderBookingStatusChanged as never
     default:
       return () => ({}) as never
   }

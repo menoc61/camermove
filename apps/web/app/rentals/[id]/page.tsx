@@ -2,8 +2,9 @@
 import { useState, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { fetchRental, createRentalBooking } from "@/lib/api/rentals"
+import { fetchRental, createRentalBooking, createRentalPayment } from "@/lib/api/rentals"
 import { useAuthStore } from "@camermove/frontend"
+import { PaymentStep } from "@/components/booking/PaymentStep"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,6 +42,7 @@ export default function RentalDetailPage() {
   const [driverName, setDriverName] = useState("")
   const [driverPhone, setDriverPhone] = useState("")
   const [loading, setLoading] = useState(false)
+  const [rentalBookingId, setRentalBookingId] = useState<string | null>(null)
 
   const duration = useMemo(() => calcDuration(startDate, endDate, vehicle?.durationUnit ?? "day"), [startDate, endDate, vehicle?.durationUnit])
   const total = vehicle && duration ? vehicle.pricePerUnit * duration : 0
@@ -52,7 +54,7 @@ export default function RentalDetailPage() {
     if (!pickupCity) { toast.error("Ville de retrait requise"); return }
     setLoading(true)
     try {
-      await createRentalBooking(token, {
+      const booking = await createRentalBooking(token, {
         rentalVehicleId: vehicle.id,
         startDate,
         endDate,
@@ -63,8 +65,8 @@ export default function RentalDetailPage() {
         driverName: driverName || undefined,
         driverPhone: driverPhone || undefined,
       })
-      toast.success("Réservation créée")
-      router.push("/dashboard?tab=rentals")
+      setRentalBookingId(booking.id)
+      toast.success("Réservation créée — procédez au paiement")
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec réservation")
     } finally { setLoading(false) }
@@ -109,7 +111,18 @@ export default function RentalDetailPage() {
               </>
             )}
             {duration > 0 && <Alert><AlertDescription>{duration} {vehicle.durationUnit}(s) × {new Intl.NumberFormat("fr-CM").format(vehicle.pricePerUnit)} = <b>{new Intl.NumberFormat("fr-CM").format(total)} XAF</b></AlertDescription></Alert>}
-            <Button className="w-full" onClick={handleBook} disabled={loading || duration < 1}>{loading ? "Réservation..." : `Payer ${total ? new Intl.NumberFormat("fr-CM").format(total) + " XAF" : ""}`}</Button>
+            {!rentalBookingId && (
+              <Button className="w-full" onClick={handleBook} disabled={loading || duration < 1}>{loading ? "Réservation..." : `Payer ${total ? new Intl.NumberFormat("fr-CM").format(total) + " XAF" : ""}`}</Button>
+            )}
+            {rentalBookingId && token && (
+              <PaymentStep
+                amount={total}
+                createPayment={(provider, opts) =>
+                  createRentalPayment(token, rentalBookingId, { provider, method: opts.method, phone: opts.phone })
+                }
+                onPaymentCreated={() => router.push("/dashboard?tab=rentals")}
+              />
+            )}
           </CardContent>
         </Card>
       </div>

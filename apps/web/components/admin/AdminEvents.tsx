@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
+import { toast } from "sonner"
 import { Calendar, Download, TriangleAlert } from "lucide-react"
 
 interface EventAdmin {
@@ -62,7 +63,7 @@ export function AdminEvents() {
     enabled: !!token,
   })
 
-  const { data: bookings } = useQuery<{ items: EventBookingAdmin[]; total: number }>({
+  const { data: bookings, isLoading: bookingsLoading } = useQuery<{ items: EventBookingAdmin[]; total: number }>({
     queryKey: ["admin-event-bookings"],
     queryFn: () => apiFetch("/api/v1/admin/event-bookings?perPage=20", { method: "GET", token: token! }),
     enabled: !!token,
@@ -89,7 +90,7 @@ export function AdminEvents() {
       a.click()
       URL.revokeObjectURL(dlUrl)
     } catch {
-      console.error("Export failed")
+      toast.error("Erreur lors de l'export")
     }
   }
 
@@ -205,6 +206,12 @@ export function AdminEvents() {
       {/* Bookings section */}
       <Separator />
       <h2 className="text-xl font-bold tracking-tight">Réservations</h2>
+
+      {bookingsLoading && (
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 rounded-md" />)}
+        </div>
+      )}
 
       {bookings && bookings.items.length > 0 && (
         <div className="overflow-x-auto">

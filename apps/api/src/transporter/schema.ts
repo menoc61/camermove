@@ -61,6 +61,8 @@ export const TripUpdateInput = z.object({
 
 export const TripParams = z.object({ id: z.string().cuid() })
 
+export const BookingIdParams = z.object({ id: z.string().cuid() })
+
 export const TransporterProfileUpdate = z.object({
   companyName: z.string().min(1).max(200).optional(),
   contactName: z.string().max(100).optional().nullable(),

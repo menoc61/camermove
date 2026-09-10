@@ -1,12 +1,15 @@
 import type { FastifyInstance } from "fastify"
-import { CreateBookingBody, BookingParams } from "./schema"
+import { CreateBookingBody, BookingParams, MyBookingsListQuery, MyTicketsListQuery } from "./schema"
 import { createBooking, cancelBooking } from "./service"
-import { BulkActionSchema } from "../lib/query"
-import { ForbiddenError } from "@camermove/config"
+import { BulkActionSchema, buildPagination } from "../lib/query"
+import { ForbiddenError, NotFoundError } from "@camermove/config"
 import { loadEnv } from "@camermove/config"
 import { parseExportQuery, sendExport } from "../lib/export"
 import { z } from "zod"
 import { observeBooking } from "@camermove/observability"
+import { prisma } from "@camermove/db"
+import { countMyBookings, findMyBookings, countMyTickets, findMyTickets } from "./repository"
+import type { Booking, Ticket } from "@camermove/db"
 
 export async function bookingRoutes(app: FastifyInstance) {
   const env = loadEnv()
@@ -84,7 +87,6 @@ export async function bookingRoutes(app: FastifyInstance) {
     const user = (req as unknown as { user: { id: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, userId: user.id, dateFrom, dateTo, format }, "bookings.export")
-    const { prisma } = await import("@camermove/db")
     const where: Record<string, unknown> = { userId: user.id }
     if (dateFrom || dateTo) {
       const createdAt: Record<string, Date> = {}
@@ -96,4 +98,83 @@ export async function bookingRoutes(app: FastifyInstance) {
     const columns = ["id", "reference", "tripId", "seatCount", "totalAmount", "status", "createdAt"]
     return sendExport(reply, "bookings", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
+
+  // GET /me/bookings — owner-scoped paginated bookings, canonical envelope.
+  // Powers the dashboard "Voyages" tab. `scope` separates upcoming/history
+  // using the same semantics as /me/dashboard so the existing UI keeps working.
+  app.get("/me/bookings", { preHandler: app.requireAuth() }, async (req) => {
+    const q = MyBookingsListQuery.parse(req.query)
+    const user = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, userId: user.id, scope: q.scope, page: q.page, perPage: q.perPage }, "me.bookings.list")
+    const pagination = buildPagination({ page: q.page, perPage: q.perPage })
+    const [items, total] = await Promise.all([
+      findMyBookings(user.id, q.scope, pagination.skip, pagination.take),
+      countMyBookings(user.id, q.scope),
+    ])
+    const perPage = pagination.take
+    return {
+      items: items.map(toDashboardItem),
+      total,
+      page: q.page,
+      perPage,
+      totalPages: Math.ceil(total / perPage),
+    }
+  })
+
+  // GET /tickets/me — owner-scoped paginated tickets, canonical envelope.
+  // Powers the dashboard "Billets" section. Mirrors the shape returned by
+  // /me/dashboard#tickets so TicketCard renders unchanged.
+  app.get("/tickets/me", { preHandler: app.requireAuth() }, async (req) => {
+    const q = MyTicketsListQuery.parse(req.query)
+    const user = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, userId: user.id, page: q.page, perPage: q.perPage }, "tickets.me.list")
+    const pagination = buildPagination({ page: q.page, perPage: q.perPage })
+    const [rows, total] = await Promise.all([
+      findMyTickets(user.id, pagination.skip, pagination.take),
+      countMyTickets(user.id),
+    ])
+    const perPage = pagination.take
+    return {
+      items: rows.map(toTicketItem),
+      total,
+      page: q.page,
+      perPage,
+      totalPages: Math.ceil(total / perPage),
+    }
+  })
+}
+
+type BookingWithTrip = Booking & {
+  trip: { departureAt: Date; route: { originCity: string; destinationCity: string } }
+  tickets: Array<{ id: string }>
+}
+
+type TicketWithBooking = Ticket & {
+  booking: { trip: { departureAt: Date; route: { originCity: string; destinationCity: string } } }
+}
+
+function toDashboardItem(b: BookingWithTrip) {
+  return {
+    id: b.id,
+    reference: b.reference,
+    origin: b.trip.route.originCity,
+    destination: b.trip.route.destinationCity,
+    departureAt: b.trip.departureAt.toISOString(),
+    totalAmount: b.totalAmount,
+    status: b.status,
+    ticketId: b.tickets[0]?.id ?? null,
+  }
+}
+
+function toTicketItem(t: TicketWithBooking) {
+  return {
+    id: t.id,
+    verificationCode: t.verificationCode,
+    origin: t.booking.trip.route.originCity,
+    destination: t.booking.trip.route.destinationCity,
+    departureAt: t.booking.trip.departureAt.toISOString(),
+    status: t.status,
+  }
 }

@@ -18,7 +18,6 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
-// import { FieldError } from "@/components/ui/field" // unused import removed
 import { PasswordInput } from "./PasswordInput"
 import { PasswordStrengthMeter } from "./PasswordStrengthMeter"
 import { GoogleButton } from "./GoogleButton"
@@ -96,7 +95,7 @@ export function AuthForm({ mode, next }: Props) {
               firstName: firstName || undefined,
               lastName: lastName || undefined,
             })
-      setAuth({ accessToken: res.accessToken, user: res.user })
+      setAuth({ accessToken: res.accessToken, refreshToken: res.refreshToken, user: res.user })
       toast.success(mode === "login" ? "Connexion réussie !" : "Compte créé !")
       router.push(next && next.startsWith("/") ? next : "/dashboard")
     } catch (err) {

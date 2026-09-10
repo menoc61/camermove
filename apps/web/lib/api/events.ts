@@ -130,7 +130,7 @@ export async function createEventBooking(
 export async function fetchMyEventBookings(
   token: string,
   params?: { dateFrom?: string; dateTo?: string; q?: string; page?: number; perPage?: number }
-): Promise<{ items: EventBooking[]; total: number }> {
+): Promise<{ items: EventBooking[]; total: number; page: number; perPage: number; totalPages: number }> {
   const url = new URL(`${apiBase()}/api/v1/events/bookings/me`)
   const searchParams = new URLSearchParams()
   if (params?.dateFrom) searchParams.append("dateFrom", params.dateFrom)
@@ -155,6 +155,18 @@ export async function fetchEventBooking(id: string, token: string): Promise<Even
   const res = await fetch(`${apiBase()}/api/v1/events/bookings/${id}`, {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function cancelEventBooking(token: string, id: string): Promise<{ id: string; status: string }> {
+  const res = await fetch(`${apiBase()}/api/v1/events/bookings/${id}/cancel`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
   })
   if (!res.ok) {
     const text = await res.text()

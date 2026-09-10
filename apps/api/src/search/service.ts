@@ -46,6 +46,9 @@ export async function searchTrips(query: SearchQuery) {
       companyName: (t as unknown as { transport: { companyName: string } }).transport.companyName,
       vehicleTypeInfo: t.vehicleTypeInfo,
     })),
-    pagination: { page: query.page, perPage: query.perPage, total, totalPages: Math.ceil(total / query.perPage) },
+    total,
+    page: query.page,
+    perPage: query.perPage,
+    totalPages: Math.ceil(total / query.perPage),
   }
 }

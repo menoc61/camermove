@@ -28,6 +28,6 @@ export async function contactRoutes(app: FastifyInstance) {
         } as never,
       },
     })
-    return reply.code(201).send({ ok: true })
+    return reply.code(201).send({ status: "received" })
   })
 }

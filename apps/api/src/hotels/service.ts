@@ -1,23 +1,13 @@
 import { prisma } from "@camermove/db"
-import { ConflictError, NotFoundError, BadRequestError, loadEnv } from "@camermove/config"
-import { getCached, setCached, invalidateCache } from "../lib/cache.js"
-
-const SETTINGS_CACHE_KEY = "appsettings:global"
-const SETTINGS_TTL = 30
+import { getAppSettingsCached } from "@camermove/db"
+import { AppError, ConflictError, NotFoundError, BadRequestError, ForbiddenError, loadEnv } from "@camermove/config"
+import { invalidateCache } from "../lib/cache.js"
 
 async function getHoldExpiryMinutes(): Promise<number> {
   try {
-    const cached = await getCached<Record<string, unknown>>(SETTINGS_CACHE_KEY)
-    if (cached && typeof (cached as { holdExpiryMinutes?: unknown }).holdExpiryMinutes === "number") {
-      return Number((cached as { holdExpiryMinutes: number }).holdExpiryMinutes)
-    }
-  } catch {}
-  try {
-    const s = await prisma.appSettings.findUnique({ where: { id: "global" } })
-    if (s) {
-      await setCached(SETTINGS_CACHE_KEY, s as unknown as Record<string, unknown>, SETTINGS_TTL).catch(() => {})
-      return Number((s as unknown as { holdExpiryMinutes: number }).holdExpiryMinutes ?? 15)
-    }
+    const s = await getAppSettingsCached()
+    const v = Number((s as unknown as { holdExpiryMinutes?: unknown }).holdExpiryMinutes ?? 15)
+    return Number.isFinite(v) && v > 0 ? v : 15
   } catch {}
   return 15
 }
@@ -38,6 +28,38 @@ async function publishHotelBookingCreated(data: Record<string, unknown>) {
       .send({
         topic: "hotel.booking.created" as never,
         messages: [{ key: String(data.id ?? ""), value: JSON.stringify({ type: "hotel.booking.created", ts: new Date().toISOString(), data }) }],
+      })
+      .catch(() => {})
+    await producer.disconnect().catch(() => {})
+  } catch {}
+}
+
+export function hotelBookingReference(id: string): string {
+  return `HOTEL-${id.slice(0, 8).toUpperCase()}`
+}
+
+async function publishHotelConfirmedNotification(typedEvent: Record<string, unknown>, key: string) {
+  try {
+    const env = loadEnv() as unknown as Record<string, unknown>
+    const { createKafkaClient, EVENT_TOPICS } = await import("@camermove/events")
+    const kafka = createKafkaClient(env as never)
+    const producer = kafka.producer({ idempotent: true })
+    await producer.connect().catch(() => {})
+    await producer
+      .send({
+        topic: (EVENT_TOPICS as unknown as Record<string, string>).hotelBookingConfirmed ?? "camermove.hotel.booking.confirmed",
+        messages: [
+          {
+            key,
+            value: JSON.stringify({
+              id: `hotel-booking-confirmed-${key}`,
+              type: "hotel.booking.confirmed",
+              ts: new Date().toISOString(),
+              aggregateId: key,
+              data: typedEvent,
+            }),
+          },
+        ],
       })
       .catch(() => {})
     await producer.disconnect().catch(() => {})
@@ -153,6 +175,29 @@ export async function createHotelBookingPayment(input: {
   method?: string
   meta?: Record<string, unknown>
 }) {
+  // Defensive input validation — every failure here is a 4xx (caller's fault),
+  // not a 500. Without this, an unknown provider or a malformed method value
+  // would surface as a Prisma enum error → 500.
+  if (!input.hotelBookingId || typeof input.hotelBookingId !== "string") {
+    throw new BadRequestError("Identifiant de réservation manquant")
+  }
+  if (input.provider !== "notchpay" && input.provider !== "cinetpay") {
+    throw new BadRequestError(`Provider de paiement inconnu: ${String(input.provider)}`)
+  }
+  if (input.method && !["mobile_money", "card", "bank_transfer"].includes(input.method)) {
+    throw new BadRequestError(`Méthode de paiement inconnue: ${input.method}`)
+  }
+  // Guard against a misconfigured provider (missing env keys) before we burn
+  // a transaction opening + a network round-trip.
+  const envCheck = loadEnv() as unknown as Record<string, string | undefined>
+  if (input.provider === "notchpay" && !envCheck.NOTCHPAY_PUBLIC_KEY) {
+    throw new AppError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "NotchPay n'est pas configuré sur ce serveur")
+  }
+  if (input.provider === "cinetpay" && (!envCheck.CINETPAY_APIKEY || !envCheck.CINETPAY_SITE_ID)) {
+    throw new AppError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "CinetPay n'est pas configuré sur ce serveur")
+  }
+
+  try {
   const hb = await prisma.hotelBooking.findUnique({ where: { id: input.hotelBookingId } })
   if (!hb) throw new NotFoundError("Réservation hôtel introuvable")
   if ((hb as unknown as { userId: string }).userId !== input.userId) {
@@ -166,7 +211,7 @@ export async function createHotelBookingPayment(input: {
     where: { id: (hb as unknown as { paymentId: string | null }).paymentId ?? undefined } as never,
   }).catch(() => null)
   // one-pending guard via paymentId linked payment check (if already linked and pending)
-  if (existing && (existing as unknown as { status: string }).status in ["pending", "processing"]) {
+  if (existing && ["pending", "processing"].includes((existing as unknown as { status: string }).status)) {
     const authUrl = ((existing as unknown as { webhookPayload: Record<string, unknown> | null }).webhookPayload)?.authorizationUrl as string | undefined
     return { payment: existing, authorizationUrl: authUrl ?? null }
   }
@@ -174,8 +219,8 @@ export async function createHotelBookingPayment(input: {
   const amount = (hb as unknown as { totalAmount: number }).totalAmount
   if (input.provider === "cinetpay" && amount % 5 !== 0) throw new BadRequestError("Montant doit être multiple de 5 (XAF)")
 
-  const env = loadEnv() as Record<string, unknown>
-  const reference = `HOTEL-${input.hotelBookingId.slice(0, 8).toUpperCase()}`
+  const env = loadEnv()
+  const reference = hotelBookingReference(input.hotelBookingId)
   const baseUrl = env.API_URL as string | undefined
   const frontendUrl = env.FRONTEND_URL as string | undefined
   const callbackBase = (frontendUrl ?? baseUrl ?? "https://camermove.cm") as string
@@ -219,7 +264,7 @@ export async function createHotelBookingPayment(input: {
         currency: "XAF",
         method: (input.method as never) ?? "mobile_money",
         status: "pending" as never,
-        webhookPayload: { ...((result.rawResponse as Record<string, unknown>) ?? {}), authorizationUrl: result.authorizationUrl } as never,
+        webhookPayload: { ...((result.rawResponse as Record<string, unknown>) ?? {}), authorizationUrl: result.authorizationUrl, bookingReference: reference, entityKind: "hotel" } as never,
       },
     })
     await tx.hotelBooking.update({ where: { id: input.hotelBookingId }, data: { paymentId: created.id } as never })
@@ -251,6 +296,180 @@ export async function createHotelBookingPayment(input: {
   } catch {}
 
   return { payment, authorizationUrl: result.authorizationUrl }
+  } catch (err) {
+    // Surface 4xx errors as-is; everything else becomes a 500 with a
+    // structured log line so the next payment failure is diagnosable from
+    // the server log alone (without having to reproduce client-side).
+    if (err instanceof AppError) throw err
+    console.error("[hotels.payment] createHotelBookingPayment failed", {
+      hotelBookingId: input.hotelBookingId,
+      userId: input.userId,
+      provider: input.provider,
+      method: input.method,
+      errName: (err as Error)?.name,
+      errMessage: (err as Error)?.message,
+    })
+    throw new AppError(500, "PAYMENT_INIT_FAILED", "Impossible d'initialiser le paiement — réessayez ou contactez le support")
+  }
 }
 
 export { calcNights, getHoldExpiryMinutes }
+
+/**
+ * Confirm a hotel booking after payment success (webhook / reconciliation).
+ * ACID: status flip inside $transaction with SELECT ... FOR UPDATE row locks.
+ * Idempotent: replay returns { confirmed: false } without re-executing, but
+ * still re-publishes the typed notification event for fan-out safety.
+ */
+export async function confirmHotelPaymentSuccess(paymentId: string, event: unknown): Promise<{ confirmed: boolean; bookingId: string }> {
+  const link = (await prisma.hotelBooking.findFirst({
+    where: { paymentId },
+    include: { hotel: true, roomType: true },
+  })) as unknown as {
+    id: string
+    userId: string
+    status: string
+    totalAmount: number
+    checkInDate: Date
+    checkOutDate: Date
+    hotel: { name: string }
+    roomType: { name: string }
+  } | null
+  if (!link) throw new NotFoundError("Réservation hôtel introuvable pour ce paiement")
+
+  let wasNew = false
+  await prisma.$transaction(async (tx: any) => {
+    await tx.$queryRaw`SELECT "id" FROM "HotelBooking" WHERE "id"=${link.id} FOR UPDATE`
+    await tx.$queryRaw`SELECT "id" FROM "Payment" WHERE "id"=${paymentId} FOR UPDATE`
+    const freshPayment = await tx.payment.findUnique({ where: { id: paymentId } })
+    const freshBooking = await tx.hotelBooking.findUnique({ where: { id: link.id } })
+    if (!freshPayment || !freshBooking) return
+    if (freshPayment.status === "success") return
+    if (["failed", "expired", "refunded"].includes(freshPayment.status as string)) return
+    if (freshBooking.status !== "pending_payment") return
+    await tx.payment.update({ where: { id: paymentId }, data: { status: "success", webhookPayload: event as never } })
+    await tx.hotelBooking.update({ where: { id: link.id }, data: { status: "confirmed" } })
+    try {
+      await tx.auditLog.create({
+        data: {
+          actorId: "system",
+          action: "payment.success",
+          entityType: "Payment",
+          entityId: paymentId,
+          metadata: { provider: freshPayment.provider, hotelBookingId: link.id, deliveryId: (event as Record<string, unknown>)?.id ?? null } as never,
+        },
+      })
+    } catch {}
+    wasNew = true
+  })
+
+  const typedEvent = {
+    type: "hotel.booking.confirmed",
+    userId: link.userId,
+    payload: {
+      bookingId: link.id,
+      reference: hotelBookingReference(link.id),
+      amount: link.totalAmount,
+      hotelName: link.hotel?.name,
+      roomName: link.roomType?.name,
+      checkInDate: link.checkInDate instanceof Date ? link.checkInDate.toISOString().slice(0, 10) : String(link.checkInDate),
+      checkOutDate: link.checkOutDate instanceof Date ? link.checkOutDate.toISOString().slice(0, 10) : String(link.checkOutDate),
+    },
+  }
+  await publishHotelConfirmedNotification(typedEvent, link.id)
+  return { confirmed: wasNew, bookingId: link.id }
+}
+
+async function publishHotelStatusChanged(typedEvent: Record<string, unknown>, key: string) {
+  try {
+    const env = loadEnv() as unknown as Record<string, unknown>
+    const { createKafkaClient, EVENT_TOPICS } = await import("@camermove/events")
+    const kafka = createKafkaClient(env as never)
+    const producer = kafka.producer({ idempotent: true })
+    await producer.connect().catch(() => {})
+    await producer
+      .send({
+        topic: (EVENT_TOPICS as unknown as Record<string, string>).bookingStatusChanged ?? "camermove.booking.status.changed",
+        messages: [
+          {
+            key,
+            value: JSON.stringify({
+              id: `booking-status-changed-${key}`,
+              type: "booking.status.changed",
+              ts: new Date().toISOString(),
+              aggregateId: key,
+              data: typedEvent,
+            }),
+          },
+        ],
+      })
+      .catch(() => {})
+    await producer.disconnect().catch(() => {})
+  } catch {}
+}
+
+/**
+ * User cancellation for a hotel booking. Cancellable only from pending_payment —
+ * a confirmed (paid) booking must go through support (409).
+ * ACID: status flip inside $transaction with SELECT ... FOR UPDATE row lock.
+ * No inventory to restore: availability is computed via overlap count over
+ * pending_payment/confirmed only, so flipping to cancelled frees the room.
+ */
+export async function cancelHotelBooking(id: string, actorId: string, actorRole = "traveler") {
+  const hb = (await prisma.hotelBooking.findUnique({ where: { id }, include: { hotel: true, roomType: true } })) as unknown as {
+    id: string
+    userId: string
+    status: string
+    totalAmount: number
+    hotel: { name: string } | null
+    roomType: { name: string } | null
+  } | null
+  if (!hb) throw new NotFoundError("Réservation hôtel introuvable")
+  const isAdmin = actorRole === "admin" || actorRole === "super_admin"
+  if (!isAdmin && hb.userId !== actorId) throw new ForbiddenError("Accès refusé")
+  if (hb.status !== "pending_payment") {
+    if (hb.status === "confirmed") throw new ConflictError("Réservation déjà confirmée et payée — contactez le support pour toute annulation")
+    throw new ConflictError(`Réservation non annulable — statut: ${hb.status}`)
+  }
+
+  const updated = await prisma.$transaction(async (tx: any) => {
+    await tx.$queryRaw`SELECT "id" FROM "HotelBooking" WHERE "id"=${id} FOR UPDATE`
+    const fresh = await tx.hotelBooking.findUnique({ where: { id } })
+    if (!fresh) throw new NotFoundError("Réservation hôtel introuvable")
+    if (fresh.status !== "pending_payment") {
+      if (fresh.status === "confirmed") throw new ConflictError("Réservation déjà confirmée et payée — contactez le support pour toute annulation")
+      throw new ConflictError(`Réservation non annulable — statut: ${fresh.status}`)
+    }
+    return tx.hotelBooking.update({ where: { id }, data: { status: "cancelled" } })
+  })
+
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actorId,
+        action: "hotel.booking.cancel",
+        entityType: "HotelBooking",
+        entityId: id,
+        metadata: { userId: hb.userId, status: "cancelled", totalAmount: hb.totalAmount } as never,
+      },
+    })
+  } catch {}
+  await publishHotelStatusChanged(
+    {
+      type: "booking.status.changed",
+      userId: hb.userId,
+      payload: {
+        bookingId: id,
+        reference: hotelBookingReference(id),
+        amount: hb.totalAmount,
+        serviceLabel: "Hôtel",
+        entityLabel: hb.hotel?.name,
+        roomName: hb.roomType?.name,
+        newStatus: "cancelled",
+        status: "cancelled",
+      },
+    },
+    id,
+  )
+  return updated
+}

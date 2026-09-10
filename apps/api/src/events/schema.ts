@@ -25,5 +25,19 @@ export const EventBookingParams = z.object({ id: z.string().cuid() })
 
 export const EventIdParams = z.object({ id: z.string().cuid() })
 
+// Owner-scoped paginated event bookings — powers the dashboard "Événements" tab.
+// Per AGENTS.md §1/§6: page+perPage (default 20, max 100) returns the
+// canonical { items, total, page, perPage, totalPages } envelope.
+export const EventBookingsListQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  perPage: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  q: z.string().optional(),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+})
+
 export type EventSearchQuery = z.infer<typeof EventSearchQuery>
 export type CreateEventBookingInput = z.infer<typeof CreateEventBookingSchema>
+export type EventBookingsListQuery = z.infer<typeof EventBookingsListQuery>

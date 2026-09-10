@@ -20,7 +20,7 @@ export interface SearchParams {
   perPage?: number
   vehicleType?: string
 }
-export async function fetchSearch(params: SearchParams): Promise<{ items: SearchResultItem[]; pagination: { page: number; perPage: number; total: number; totalPages: number } }> {
+export async function fetchSearch(params: SearchParams): Promise<{ items: SearchResultItem[]; total: number; page: number; perPage: number; totalPages: number; meta?: Record<string, unknown> }> {
   const qs = new URLSearchParams({ origin: params.origin, destination: params.destination, date: params.date, pax: String(params.pax), sortBy: params.sortBy ?? "price_asc", page: String(params.page ?? 1), perPage: String(params.perPage ?? 20) })
   if (params.minPrice != null) qs.set("minPrice", String(params.minPrice))
   if (params.maxPrice != null) qs.set("maxPrice", String(params.maxPrice))

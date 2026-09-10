@@ -3,20 +3,11 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useAuthStore } from "@camermove/frontend"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar"
-import "./yolo/yolo.css"
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 
-// Yolo exact sidebar — desktop-first, name Navigation, animation as Yolo-web 425295e
-// We keep Sidebar shell for SidebarProvider compatibility but render Yolo nav-columns inside
-// Desktop-first tokens: yellow #fff3d8, black #000, container 1560->1280->1080
+
+// Removed Yolo specific comments and custom styles – using shadcn default styling.
+
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const user = useAuthStore((s) => s.user)
@@ -24,18 +15,18 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const isActive = (href: string) => pathname === href
 
   return (
-    <Sidebar collapsible="offcanvas" {...props} className="yolo-sidebar">
+    <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton render={<Link href="/" />}>
-              <span className="text-base font-semibold tracking-[0.5rem]" style={{ fontFamily: "Josefin Sans, sans-serif" }}>CamerMove</span>
+              <span className="text-base font-semibold tracking-[0.5rem]">CamerMove</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="yolo-nav" style={{ position: "static", display: "block", height: "auto", background: "var(--yolo-yellow, #fff3d8)", overflow: "visible" } as React.CSSProperties}>
+      <SidebarContent>
         <div className="nav-columns" style={{ transform: "none", padding: "24px 0 24px 16px", flexDirection: "column", gap: "32px" }}>
           <div className="nav-column" style={{ width: "100%" }}>
             <div className="nav-label">Menu</div>
@@ -73,11 +64,11 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         </div>
       </SidebarContent>
 
-      <SidebarFooter>
-        <div className="px-3 py-2 text-xs" style={{ color: "#000", fontFamily: "Josefin Sans, sans-serif" }}>
-          © 2026 CamerMove
-        </div>
-      </SidebarFooter>
-    </Sidebar>
+<SidebarFooter>
+  <div className="px-3 py-2 text-xs" style={{ color: "#000" }}>
+    © 2026 CamerMove
+  </div>
+</SidebarFooter>
+</Sidebar>
   )
 }

@@ -62,3 +62,44 @@ export const BulkActionBody = z.object({
 export const CommissionParams = z.object({ id: z.string().cuid() })
 
 export const AuditLogParams = z.object({ id: z.string().cuid() })
+
+export const HotelParams = z.object({ id: z.string().cuid() })
+
+export const HotelAdminUpdateBody = z.object({
+  name: z.string().max(200).optional(),
+  description: z.string().max(5000).optional().nullable(),
+  address: z.string().max(300).optional().nullable(),
+  city: z.string().max(120).optional(),
+  region: z.string().max(120).optional().nullable(),
+  country: z.string().max(120).optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional().nullable(),
+  longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
+  starRating: z.coerce.number().int().min(0).max(5).optional().nullable(),
+  amenities: z.array(z.string().max(100)).optional(),
+  photos: z.array(z.string().url().max(2000)).optional(),
+  status: z.string().max(50).optional(),
+  partnerStatus: z.string().max(50).optional(),
+})
+
+export const RentalParams = z.object({ id: z.string().cuid() })
+
+export const RentalAdminUpdateBody = z.object({
+  category: z.string().max(100).optional(),
+  make: z.string().max(100).optional(),
+  model: z.string().max(100).optional(),
+  year: z.coerce.number().int().min(1900).max(2100).optional().nullable(),
+  licensePlate: z.string().max(30).optional().nullable(),
+  capacity: z.coerce.number().int().min(1).max(200).optional(),
+  transmission: z.string().max(50).optional().nullable(),
+  fuelType: z.string().max(50).optional().nullable(),
+  hasDriver: z.coerce.boolean().optional(),
+  pricePerUnit: z.coerce.number().int().min(1).optional(),
+  durationUnit: z.enum(["hour", "day", "week", "month"]).optional(),
+  currency: z.string().max(10).optional(),
+  pickupCity: z.string().max(120).optional(),
+  pickupAddress: z.string().max(300).optional().nullable(),
+  photos: z.array(z.string().url().max(2000)).optional(),
+  amenities: z.array(z.string().max(100)).optional(),
+  status: z.enum(["available", "rented", "maintenance", "inactive"]).optional(),
+  partnerStatus: z.string().max(50).optional(),
+})

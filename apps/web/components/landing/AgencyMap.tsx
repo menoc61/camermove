@@ -53,7 +53,7 @@ interface AgencyMapProps {
   agencies: Agency[]
 }
 
-export function AgencyMapInner({ city, lat, lon, agencies }: AgencyMapProps) {
+function AgencyMapInner({ city, lat, lon, agencies }: AgencyMapProps) {
   const markerIcon = useMarkerIcon()
   const center: [number, number] =
     lat != null && lon != null ? [lat, lon] : DEFAULT_CENTER

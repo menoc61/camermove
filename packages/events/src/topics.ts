@@ -13,6 +13,13 @@ export const EVENT_TOPICS = {
   bookingConfirmed: "camermove.booking.confirmed",
   paymentConfirmed: "camermove.payment.confirmed",
   tripReminder24h: "camermove.trip.reminder.24h",
+  // Non-transport services (hotels, rentals, parcels, insurance, events)
+  hotelBookingConfirmed: "camermove.hotel.booking.confirmed",
+  rentalBookingConfirmed: "camermove.rental.booking.confirmed",
+  parcelStatusChanged: "camermove.parcel.status.changed",
+  insurancePolicyIssued: "camermove.insurance.policy.issued",
+  eventBookingConfirmed: "camermove.event.booking.confirmed",
+  bookingStatusChanged: "camermove.booking.status.changed",
 } as const
 
 export type EventTopic = (typeof EVENT_TOPICS)[keyof typeof EVENT_TOPICS]

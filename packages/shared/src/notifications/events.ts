@@ -11,6 +11,12 @@ export type NotificationEventType =
   | "payment.confirmed"
   | "ticket.issued"
   | "trip.reminder.24h"
+  | "hotel.booking.confirmed"
+  | "rental.booking.confirmed"
+  | "parcel.status.changed"
+  | "insurance.policy.issued"
+  | "event.booking.confirmed"
+  | "booking.status.changed"
 
 /** Per-event payload — every field optional, dispatcher only renders what's present. */
 export interface NotificationEventPayload {
@@ -38,6 +44,50 @@ export interface NotificationEventPayload {
   transporter?: string
   /** Number of seats — present for booking.confirmed. */
   seatCount?: number
+  /** Hotel name — present for hotel.booking.confirmed. */
+  hotelName?: string
+  /** Room name — present for hotel.booking.confirmed. */
+  roomName?: string
+  /** Check-in ISO date — present for hotel.booking.confirmed. */
+  checkInDate?: string
+  /** Check-out ISO date — present for hotel.booking.confirmed. */
+  checkOutDate?: string
+  /** Pickup city — present for rental.booking.confirmed. */
+  pickupCity?: string
+  /** Dropoff city — present for rental.booking.confirmed. */
+  dropoffCity?: string
+  /** Rental start ISO date — present for rental.booking.confirmed. */
+  startDate?: string
+  /** Rental end ISO date — present for rental.booking.confirmed. */
+  endDate?: string
+  /** Parcel id (cuid) — present for parcel.status.changed. */
+  parcelId?: string
+  /** Parcel tracking number (CM-XXXX-XXXX) — present for parcel.status.changed. */
+  trackingNumber?: string
+  /** New parcel status — present for parcel.status.changed. */
+  status?: string
+  /** Parcel current location — present for parcel.status.changed. */
+  location?: string
+  /** Policy id (cuid) — present for insurance.policy.issued. */
+  policyId?: string
+  /** Policy number (INS-XXXXXX-XXXXXXXX) — present for insurance.policy.issued. */
+  policyNumber?: string
+  /** Coverage type (basic|standard|premium|family) — present for insurance.policy.issued. */
+  coverageType?: string
+  /** Event name — present for event.booking.confirmed. */
+  eventName?: string
+  /** Event venue — present for event.booking.confirmed. */
+  venue?: string
+  /** EventBooking ticket number (EVT-XXXX-XXXX) — present for event.booking.confirmed. */
+  ticketNumber?: string
+  /** Number of event tickets — present for event.booking.confirmed. */
+  quantity?: number
+  /** Service label (e.g. "Hôtel", "Location", "Événement", "Assurance", "Colis") — present for booking.status.changed. */
+  serviceLabel?: string
+  /** Entity label (hotel/vehicle/event name, destination, tracking number) — present for booking.status.changed. */
+  entityLabel?: string
+  /** New booking status (e.g. "cancelled") — present for booking.status.changed. */
+  newStatus?: string
 }
 
 export interface NotificationEvent {

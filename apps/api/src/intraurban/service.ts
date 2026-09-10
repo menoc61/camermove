@@ -1,4 +1,5 @@
-import { prisma } from "@camermove/db"
+import type { Prisma } from "@camermove/db"
+import { countActiveTripsForRoute, findFirstTripPrice, findUrbanRoutes, findUrbanSchedule } from "./repository"
 
 /**
  * Intraurban service — typical city bus system.
@@ -18,10 +19,7 @@ export interface Line {
 }
 
 export async function listUrbanLines(): Promise<Line[]> {
-  const routes = await prisma.route.findMany({
-    where: { transporter: { email: "urban@camermove.cm" } },
-    include: { transporter: { select: { id: true, companyName: true } } },
-  })
+  const routes = await findUrbanRoutes()
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const tomorrow = new Date(today.getTime() + 86400000)
@@ -29,8 +27,8 @@ export async function listUrbanLines(): Promise<Line[]> {
   const remainingFrom = now > today ? now : today // count only departures still catchable
   const lines: Line[] = []
   for (const r of routes) {
-    const priceRow = await prisma.trip.findFirst({ where: { routeId: r.id }, select: { price: true } })
-    const count = await prisma.trip.count({ where: { routeId: r.id, departureAt: { gte: remainingFrom, lt: tomorrow }, status: "active" } })
+    const priceRow = await findFirstTripPrice(r.id)
+    const count = await countActiveTripsForRoute(r.id, remainingFrom, tomorrow)
     lines.push({
       origin: r.originCity,
       dest: r.destinationCity,
@@ -59,12 +57,7 @@ export async function urbanSchedule(input: { origin?: string; dest?: string; dat
     },
   }
   if (input.pax) (where as Record<string, unknown>).seatAvailability = { seatsAvailable: { gte: input.pax } }
-  const trips = await prisma.trip.findMany({
-    where: where as never,
-    orderBy: { departureAt: "asc" },
-    take: 100,
-    include: { route: true, transport: { select: { companyName: true } }, seatAvailability: true },
-  })
+  const trips = await findUrbanSchedule(where as Prisma.TripWhereInput)
   return trips.map((t: any) => ({
     id: t.id,
     origin: t.route.originCity,

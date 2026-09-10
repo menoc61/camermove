@@ -33,7 +33,7 @@ export async function listUsers(params: {
     prisma.user.findMany({ where, skip, take, orderBy: { createdAt: "desc" }, select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, status: true, createdAt: true, _count: { select: { bookings: true } } } }),
     prisma.user.count({ where }),
   ])
-  return { items, total, page: params.page, totalPages: Math.ceil(total / take) }
+  return { items, total, page: params.page, perPage: take, totalPages: Math.ceil(total / take) }
 }
 
 export async function getUser(id: string) {
@@ -97,7 +97,7 @@ export async function listTransporters(params: {
     }),
     prisma.transporter.count({ where }),
   ])
-  return { items, total, page: params.page, totalPages: Math.ceil(total / take) }
+  return { items, total, page: params.page, perPage: take, totalPages: Math.ceil(total / take) }
 }
 
 export async function getTransporter(id: string) {
@@ -121,7 +121,7 @@ export async function updateTransporter(id: string, actorId: string, data: { sta
 
 // ─── Partner Applications ──────────────────────────────────────────────────
 
-export async function listPartnerApplications(params: { page: number; limit: number; q?: string; status?: string }) {
+export async function listPartnerApplications(params: { page: number; limit: number; q?: string; status?: string; dateFrom?: string; dateTo?: string }) {
   const take = params.limit
   const skip = (params.page - 1) * take
   const where: Prisma.PartnerApplicationWhereInput = {}
@@ -132,6 +132,11 @@ export async function listPartnerApplications(params: { page: number; limit: num
     ]
   }
   if (params.status) where.status = params.status as Prisma.EnumPartnerApplicationStatusFilter["equals"]
+  if (params.dateFrom || params.dateTo) {
+    where.createdAt = {}
+    if (params.dateFrom) where.createdAt.gte = new Date(params.dateFrom)
+    if (params.dateTo) where.createdAt.lte = new Date(params.dateTo + "T23:59:59Z")
+  }
 
   const [items, total] = await Promise.all([
     prisma.partnerApplication.findMany({
@@ -140,7 +145,7 @@ export async function listPartnerApplications(params: { page: number; limit: num
     }),
     prisma.partnerApplication.count({ where }),
   ])
-  return { items, total, page: params.page, totalPages: Math.ceil(total / take) }
+  return { items, total, page: params.page, perPage: take, totalPages: Math.ceil(total / take) }
 }
 
 export async function reviewPartnerApplication(id: string, actorId: string, data: { status: string; message?: string }) {
@@ -213,7 +218,7 @@ export async function listTrips(params: {
     }),
     prisma.trip.count({ where }),
   ])
-  return { items, total, page: params.page, totalPages: Math.ceil(total / take) }
+  return { items, total, page: params.page, perPage: take, totalPages: Math.ceil(total / take) }
 }
 
 export async function updateTrip(id: string, actorId: string, data: { price?: number; totalSeats?: number; status?: string; departurePointInfo?: string | null; conditions?: string | null; cancellationPolicy?: string | null }) {
@@ -229,6 +234,9 @@ export async function updateTrip(id: string, actorId: string, data: { price?: nu
 export async function deleteTrip(id: string, actorId: string) {
   const trip = await prisma.trip.findUnique({ where: { id } })
   if (!trip) throw new NotFoundError("Trajet introuvable")
+  // Mirror transporter guard (transporter/service.ts deleteTrip): an active trip
+  // must be cancelled/deactivated first — never hard-delete a sellable trip.
+  if (trip.status === "active") throw new ConflictError("Annulez d'abord le trajet avant de le supprimer")
   await prisma.auditLog.create({
     data: { actorId, action: "admin.trip.delete", entityType: "Trip", entityId: id },
   }).catch(() => {})
@@ -266,7 +274,7 @@ export async function listBookings(params: {
     }),
     prisma.booking.count({ where }),
   ])
-  return { items, total, page: params.page, totalPages: Math.ceil(total / take) }
+  return { items, total, page: params.page, perPage: take, totalPages: Math.ceil(total / take) }
 }
 
 // ─── Payments ───────────────────────────────────────────────────────────────
@@ -299,7 +307,7 @@ export async function listPayments(params: {
     }),
     prisma.payment.count({ where }),
   ])
-  return { items, total, page: params.page, totalPages: Math.ceil(total / take) }
+  return { items, total, page: params.page, perPage: take, totalPages: Math.ceil(total / take) }
 }
 
 // ─── Commissions ────────────────────────────────────────────────────────────
@@ -365,7 +373,7 @@ export async function listAuditLogs(params: { page: number; limit: number; q?: s
     }),
     prisma.auditLog.count({ where }),
   ])
-  return { items, total, page: params.page, totalPages: Math.ceil(total / take) }
+  return { items, total, page: params.page, perPage: take, totalPages: Math.ceil(total / take) }
 }
 
 // ─── Stats ──────────────────────────────────────────────────────────────────

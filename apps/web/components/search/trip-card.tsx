@@ -75,7 +75,7 @@ export function TripCard({ trip, highlight = null }: TripCardProps) {
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -2 }}
     >
-      <Card className="group relative overflow-hidden border border-line bg-surface-1 transition-colors hover:bg-surface-2">
+      <Card data-test-id="trip-card" className="group relative overflow-hidden border border-line bg-surface-1 transition-colors hover:bg-surface-2">
         <CardContent className="p-0">
           <Link
             href={`/trips/${trip.id}`}

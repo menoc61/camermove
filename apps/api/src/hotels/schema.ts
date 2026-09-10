@@ -28,5 +28,19 @@ export const HotelSearchQuery = z.object({
   groupBy: z.string().optional(),
 })
 
+// Owner-scoped paginated hotel bookings — powers the dashboard "Hôtels" tab.
+// Per AGENTS.md §1/§6: page+perPage (default 20, max 100) returns the
+// canonical { items, total, page, perPage, totalPages } envelope.
+export const HotelBookingsListQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  perPage: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  q: z.string().optional(),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+})
+
 export type CreateHotelBookingBody = z.infer<typeof CreateHotelBookingBody>
 export type HotelSearchQuery = z.infer<typeof HotelSearchQuery>
+export type HotelBookingsListQuery = z.infer<typeof HotelBookingsListQuery>

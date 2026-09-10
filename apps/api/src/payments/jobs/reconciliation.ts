@@ -5,6 +5,7 @@
  * to serialize against expireHolds (T-03-16, T-03-20).
  */
 import { prisma } from "@camermove/db"
+import { createLogger } from "@camermove/config"
 import { getProvider } from "../providers/index.js"
 import type { SupportedProvider } from "../providers/types.js"
 import { computeCommission } from "../commission.js"
@@ -18,6 +19,8 @@ class UnrecoverableError extends Error {
     this.name = "UnrecoverableError"
   }
 }
+
+const log = createLogger()
 
 /** Extract booking reference from DomainEvent that wraps NotchPay or CinetPay webhook. */
 function extractReference(event: { aggregateId?: string; data: unknown }): string {
@@ -63,6 +66,138 @@ async function mustVerifyProvider(payment: { provider: string; providerRef: stri
   return { status: verified.status, verified }
 }
 
+/** Non-transport payment routing (hotels, rentals, parcels, insurance, events).
+ * These services create Payment rows with bookingId=null linked via the
+ * entity's paymentId, and use derived references (HOTEL-XXXXXXXX, ...).
+ * There is no reference column on those tables, so we reverse the reference
+ * by prefix-scan on the id prefix and verify the recomputed reference matches.
+ */
+type NonTripKind = "hotel" | "rental" | "parcel" | "insurance" | "event"
+interface NonTripTarget {
+  kind: NonTripKind
+  payment: { id: string; bookingId: string | null; provider: string; providerRef: string | null; status: string; amount: number }
+  expectedAmount: number
+}
+
+const NON_TRIP_PREFIXES: Array<{ prefix: string; kind: NonTripKind }> = [
+  { prefix: "HOTEL-", kind: "hotel" },
+  { prefix: "RENTAL-", kind: "rental" },
+  { prefix: "PARCEL-", kind: "parcel" },
+  { prefix: "INS-", kind: "insurance" },
+  { prefix: "EVENT-", kind: "event" },
+]
+
+async function findEntityByDerivedReference(kind: NonTripKind, reference: string): Promise<{ id: string; paymentId: string | null; total: number } | null> {
+  const entry = NON_TRIP_PREFIXES.find((p) => p.kind === kind)
+  if (!entry || !reference.startsWith(entry.prefix)) return null
+  const suffix = reference.slice(entry.prefix.length)
+  if (!/^[A-Za-z0-9]{8}$/.test(suffix)) return null
+  const idPrefix = suffix.toLowerCase()
+  if (kind === "hotel") {
+    const { hotelBookingReference } = await import("../../hotels/service.js")
+    const rows = await prisma.hotelBooking.findMany({ where: { id: { startsWith: idPrefix } }, take: 5 })
+    const hit = rows.find((r) => hotelBookingReference(r.id) === reference) as unknown as { id: string; paymentId: string | null; totalAmount: number } | undefined
+    return hit ? { id: hit.id, paymentId: hit.paymentId, total: hit.totalAmount } : null
+  }
+  if (kind === "rental") {
+    const { rentalBookingReference } = await import("../../rentals/service.js")
+    const rows = await prisma.rentalBooking.findMany({ where: { id: { startsWith: idPrefix } }, take: 5 })
+    const hit = rows.find((r) => rentalBookingReference(r.id) === reference) as unknown as { id: string; paymentId: string | null; totalAmount: number } | undefined
+    return hit ? { id: hit.id, paymentId: hit.paymentId, total: hit.totalAmount } : null
+  }
+  if (kind === "parcel") {
+    const { parcelPaymentReference } = await import("../../parcels/service.js")
+    const rows = await prisma.parcel.findMany({ where: { id: { startsWith: idPrefix } }, take: 5 })
+    const hit = rows.find((r) => parcelPaymentReference(r.id) === reference) as unknown as { id: string; paymentId: string | null; shippingCost: number } | undefined
+    return hit ? { id: hit.id, paymentId: hit.paymentId, total: hit.shippingCost } : null
+  }
+  if (kind === "insurance") {
+    const { insurancePaymentReference } = await import("../../insurance/service.js")
+    const rows = await prisma.insurancePolicy.findMany({ where: { id: { startsWith: idPrefix } }, take: 5 })
+    const hit = rows.find((r) => insurancePaymentReference(r.id) === reference) as unknown as { id: string; paymentId: string | null; premium: number } | undefined
+    return hit ? { id: hit.id, paymentId: hit.paymentId, total: hit.premium } : null
+  }
+  const { eventBookingPaymentReference } = await import("../../events/service.js")
+  const rows = await prisma.eventBooking.findMany({ where: { id: { startsWith: idPrefix } }, take: 5 })
+  const hit = rows.find((r) => eventBookingPaymentReference(r.id) === reference) as unknown as { id: string; paymentId: string | null; totalAmount: number } | undefined
+  return hit ? { id: hit.id, paymentId: hit.paymentId, total: hit.totalAmount } : null
+}
+
+async function resolveNonTripPayment(reference: string): Promise<NonTripTarget | null> {
+  for (const { kind } of NON_TRIP_PREFIXES) {
+    const entity = await findEntityByDerivedReference(kind, reference)
+    if (!entity?.paymentId) continue
+    const pay = await prisma.payment.findUnique({ where: { id: entity.paymentId } })
+    if (!pay) continue
+    return {
+      kind,
+      payment: pay as unknown as NonTripTarget["payment"],
+      expectedAmount: entity.total,
+    }
+  }
+  return null
+}
+
+async function resolveNonTripPaymentByPaymentId(paymentId: string): Promise<NonTripTarget | null> {
+  const pay = await prisma.payment.findUnique({ where: { id: paymentId } })
+  if (!pay) return null
+  const p = pay as unknown as NonTripTarget["payment"]
+  const hb = (await prisma.hotelBooking.findFirst({ where: { paymentId } })) as unknown as { totalAmount: number } | null
+  if (hb) return { kind: "hotel", payment: p, expectedAmount: hb.totalAmount }
+  const rb = (await prisma.rentalBooking.findFirst({ where: { paymentId } })) as unknown as { totalAmount: number } | null
+  if (rb) return { kind: "rental", payment: p, expectedAmount: rb.totalAmount }
+  const parcel = (await prisma.parcel.findFirst({ where: { paymentId } })) as unknown as { shippingCost: number } | null
+  if (parcel) return { kind: "parcel", payment: p, expectedAmount: parcel.shippingCost }
+  const policy = (await prisma.insurancePolicy.findFirst({ where: { paymentId } })) as unknown as { premium: number } | null
+  if (policy) return { kind: "insurance", payment: p, expectedAmount: policy.premium }
+  const eb = (await prisma.eventBooking.findFirst({ where: { paymentId } })) as unknown as { totalAmount: number } | null
+  if (eb) return { kind: "event", payment: p, expectedAmount: eb.totalAmount }
+  return null
+}
+
+async function confirmNonTripPayment(target: NonTripTarget, event: unknown): Promise<void> {
+  if (target.kind === "hotel") {
+    const { confirmHotelPaymentSuccess } = await import("../../hotels/service.js")
+    await confirmHotelPaymentSuccess(target.payment.id, event)
+  } else if (target.kind === "rental") {
+    const { confirmRentalPaymentSuccess } = await import("../../rentals/service.js")
+    await confirmRentalPaymentSuccess(target.payment.id, event)
+  } else if (target.kind === "parcel") {
+    const { confirmParcelPaymentSuccess } = await import("../../parcels/service.js")
+    await confirmParcelPaymentSuccess(target.payment.id, event)
+  } else if (target.kind === "insurance") {
+    const { confirmInsurancePaymentSuccess } = await import("../../insurance/service.js")
+    await confirmInsurancePaymentSuccess(target.payment.id, event)
+  } else {
+    const { confirmEventPaymentSuccess } = await import("../../events/service.js")
+    await confirmEventPaymentSuccess(target.payment.id, event)
+  }
+}
+
+async function failNonTripPayment(target: NonTripTarget, event: unknown, targetStatus: "failed" | "expired" = "failed"): Promise<void> {
+  const pay = target.payment
+  await prisma.$transaction(async (tx: unknown) => {
+    const t = tx as typeof prisma
+    await (t as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Payment" WHERE "id"=${pay.id} FOR UPDATE`
+    const fresh = await t.payment.findUnique({ where: { id: pay.id } })
+    if (!fresh) return
+    if (["success", "refunded"].includes(fresh.status as string)) return
+    if (fresh.status === targetStatus) return
+    await t.payment.update({ where: { id: pay.id }, data: { status: targetStatus, webhookPayload: event as never } })
+    try {
+      await t.auditLog.create({
+        data: {
+          actorId: "system",
+          action: `payment.${targetStatus}`,
+          entityType: "Payment",
+          entityId: pay.id,
+          metadata: { provider: pay.provider, entityKind: target.kind, deliveryId: (event as Record<string, unknown>)?.id ?? null } as never,
+        },
+      })
+    } catch {}
+  })
+}
+
 export async function confirmPaymentSuccess(payment: { id: string; bookingId: string }, event: unknown): Promise<void> {
   // Fetch booking to get tripId for row locks
   const p = await prisma.payment.findUnique({ where: { id: payment.id }, include: { booking: { include: { trip: true } } } })
@@ -101,7 +236,7 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
       const dec = Math.min(booking.seatCount, held)
       // If held < seatCount, log warn but clamp to avoid negative
       if (held < booking.seatCount) {
-        console.warn(`seatsHeld ${held} < seatCount ${booking.seatCount} for trip ${booking.tripId}, clamping`)
+        log.warn({ held, seatCount: booking.seatCount, tripId: booking.tripId }, "seatsHeld below seatCount, clamping")
       }
       // seatsHeld decrement only by dec, seatsBooked increment full count
       await t.seatAvailability.update({
@@ -154,7 +289,7 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
       issuedTicket = await generateAndIssueTicket(t as never, p.bookingId)
       ticketCreateSucceeded = true
     } catch (e) {
-      console.error(`[reconciliation] ticket generation failed for booking ${p.bookingId}:`, (e as Error).message)
+      log.error({ err: (e as Error).message, bookingId: p.bookingId }, "ticket generation failed")
       throw e
     }
 
@@ -395,6 +530,21 @@ export async function processPaymentWebhook(event: { id: string; type: string; a
   }
   // Also try providerRef composite for cinetpay: booking.reference is aggregateId but cinetpay uses cpm_trans_id which equals booking.reference
   if (!payment) {
+    // Non-transport services (hotel/rental/parcel/insurance/event) use derived
+    // references — resolve via prefix-scan and drive their own state machine.
+    const nonTrip = await resolveNonTripPayment(reference)
+    if (nonTrip) {
+      const pay = nonTrip.payment
+      if (pay.status === "success") return
+      if (["failed", "expired", "refunded"].includes(pay.status)) return
+      const verifyResult = await mustVerifyProvider(pay as never, { totalAmount: nonTrip.expectedAmount } as never)
+      if (verifyResult.status === "success") {
+        await confirmNonTripPayment(nonTrip, event)
+      } else if (verifyResult.status === "failed" || verifyResult.status === "expired") {
+        await failNonTripPayment(nonTrip, event, verifyResult.status as "failed" | "expired")
+      }
+      return
+    }
     throw new UnrecoverableError(`payment not found for reference ${reference}`)
   }
   // At this point payment is non-null
@@ -440,28 +590,45 @@ export async function reconcileStalePayments(): Promise<number> {
       const verified = await provider.verifyPayment(p.providerRef)
       // Amount mismatch guard already in mustVerifyProvider for success path; here also check
       if (verified.status === "success") {
-        // For CinetPay ensure amount matches booking
-        if (p.provider === "cinetpay") {
+        if (!p.bookingId) {
+          // Non-transport payment (hotel/rental/parcel/insurance/event)
+          const target = await resolveNonTripPaymentByPaymentId(p.id)
+          if (!target) continue
+          if (p.provider === "cinetpay" && verified.amount !== target.expectedAmount) {
+            await failNonTripPayment(target, verified.rawPayload, "failed")
+            count++
+            continue
+          }
+          await confirmNonTripPayment(target, verified.rawPayload)
+        } else if (p.provider === "cinetpay") {
           const booking = await prisma.booking.findUnique({ where: { id: p.bookingId } })
           if (booking && verified.amount !== booking.totalAmount) {
             await failPayment(p as never, verified.rawPayload, "failed")
             count++
             continue
           }
+          await confirmPaymentSuccess(p as never, verified.rawPayload)
+        } else {
+          await confirmPaymentSuccess(p as never, verified.rawPayload)
         }
-        await confirmPaymentSuccess(p as never, verified.rawPayload)
       } else if (verified.status === "failed" || verified.status === "expired") {
-        await failPayment(p as never, verified.rawPayload, verified.status as never)
+        if (!p.bookingId) {
+          const target = await resolveNonTripPaymentByPaymentId(p.id)
+          if (!target) continue
+          await failNonTripPayment(target, verified.rawPayload, verified.status as never)
+        } else {
+          await failPayment(p as never, verified.rawPayload, verified.status as never)
+        }
       } else {
         // still pending — leave
         continue
       }
       count++
     } catch (e) {
-      console.error(`reconcile payment ${p.id} failed`, e)
+      log.error({ err: (e as Error).message, paymentId: p.id }, "reconcile payment failed")
       // transient — will retry next cron
     }
   }
-  if (count > 0) console.log(`reconcileStalePayments processed ${count}`)
+  if (count > 0) log.info({ count }, "reconcileStalePayments processed")
   return count
 }

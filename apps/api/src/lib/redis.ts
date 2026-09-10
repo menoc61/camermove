@@ -1,5 +1,7 @@
 import IORedis from "ioredis"
-import { loadEnv } from "@camermove/config"
+import { createLogger, loadEnv } from "@camermove/config"
+
+const log = createLogger()
 
 let client: IORedis | null = null
 
@@ -11,7 +13,7 @@ export function getRedis(): IORedis {
     enableReadyCheck: true,
     lazyConnect: true,
   })
-  client.on("error", (err: Error) => console.warn("redis error", err.message))
+  client.on("error", (err: Error) => log.warn({ err: err.message }, "redis error"))
   return client
 }
 

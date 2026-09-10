@@ -1,18 +1,25 @@
 import Link from "next/link"
 import { prisma } from "@camermove/db"
 import { Hero } from "@/components/landing/Hero"
+import { Intro } from "@/components/landing/Intro"
 import { StatsBand } from "@/components/landing/StatsBand"
 import { Steps } from "@/components/landing/Steps"
 import { PriceSimulator } from "@/components/landing/PriceSimulator"
-import { NextDepartures } from "@/components/landing/NextDepartures"
 import { PartnerCta } from "@/components/landing/PartnerCta"
 import { SiteFooter } from "@/components/landing/SiteFooter"
 import { MotionSection } from "@/components/landing/MotionSection"
 import { AgencyMapDynamic } from "@/components/landing/AgencyMapDynamic"
 import { GsapBatchReveal } from "@/components/landing/GsapBatchReveal"
-import { ServicesBento } from "@/components/landing/ServicesBento"
+import { Method } from "@/components/landing/Method"
+import { TransportRail } from "@/components/landing/rails/TransportRail"
+import { HotelsRail } from "@/components/landing/rails/HotelsRail"
+import { RentalsRail } from "@/components/landing/rails/RentalsRail"
+import { ParcelsRail } from "@/components/landing/rails/ParcelsRail"
+import { InsuranceRail } from "@/components/landing/rails/InsuranceRail"
+import { EventsRail } from "@/components/landing/rails/EventsRail"
 import type { SearchResultItem } from "@/lib/api/search"
 import type { Agency } from "@/lib/api/agencies"
+import { FAQ_TEASER } from "@/lib/data/faq"
 
 export default async function HomePage() {
   let minPrice: number | undefined
@@ -85,6 +92,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <Intro />
       <main>
         <Hero
           minPrice={minPrice != null ? minPrice : undefined}
@@ -97,9 +105,21 @@ export default async function HomePage() {
           rentalsCount={rentalsCount}
         />
 
-        <Steps />
+        <TransportRail />
 
-        <ServicesBento hotelsCount={hotelsCount} rentalsCount={rentalsCount} />
+        <HotelsRail />
+
+        <RentalsRail />
+
+        <ParcelsRail />
+
+        <InsuranceRail />
+
+        <EventsRail />
+
+        <Method />
+
+        <Steps />
 
         <MotionSection>
           <section className="border-t border-line bg-paper text-ink">
@@ -107,7 +127,7 @@ export default async function HomePage() {
               <div className="grid grid-cols-12 gap-x-6 gap-y-10">
                 <div className="col-span-12 md:col-span-4">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-ink-2">
-                    06 — Simulateur
+                    10 — Simulateur
                   </p>
                   <h2 className="mt-3 text-[clamp(1.8rem,3vw,2.6rem)] font-medium leading-[1.05] tracking-[-0.025em] text-balance">
                     Vérifiez le prix de votre trajet en direct.
@@ -137,7 +157,7 @@ export default async function HomePage() {
               <div className="mb-10 flex flex-col gap-6 border-b border-line pb-8 md:mb-12 md:flex-row md:items-end md:justify-between">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.22em] text-ink-2">
-                    07 — Réseau
+                    11 — Réseau
                   </p>
                   <h2 className="mt-3 text-[clamp(1.8rem,3.2vw,2.8rem)] font-medium leading-[1.02] tracking-[-0.025em] text-balance">
                     Nos agences partenaires au Cameroun
@@ -164,11 +184,56 @@ export default async function HomePage() {
           </section>
         </MotionSection>
 
-        <NextDepartures trips={trips} />
-
         <div className="gsap-reveal">
           <PartnerCta />
         </div>
+
+        {/* FAQ teaser — single source of truth lives in lib/data/faq.ts,
+            shared with /faq. Keeps the home page self-explanatory without
+            duplicating the long copy. */}
+        <MotionSection>
+          <section
+            id="faq"
+            aria-label="Questions fréquentes"
+            className="border-t border-line bg-surface-1 text-ink"
+          >
+            <div className="mx-auto max-w-[1560px] px-6 py-20 sm:px-8 md:px-12 md:py-28">
+              <div className="grid grid-cols-12 gap-x-6 gap-y-10">
+                <div className="col-span-12 md:col-span-4">
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-ink-2">
+                    12 — Questions fréquentes
+                  </p>
+                  <h2 className="mt-3 text-[clamp(1.8rem,3vw,2.6rem)] font-medium leading-[1.05] tracking-[-0.025em] text-balance">
+                    Tout ce que vous devez savoir, en un coup d'œil.
+                  </h2>
+                  <p className="mt-4 max-w-[40ch] text-[15px] leading-[1.55] text-ink-1">
+                    Trajets, paiement, billets, annulation — les réponses aux
+                    questions que nos voyageurs posent le plus souvent.
+                  </p>
+                  <Link
+                    href="/faq"
+                    className="mt-6 inline-flex h-11 items-center rounded-full border border-line bg-paper px-5 text-sm font-semibold hover:bg-surface-2"
+                  >
+                    Voir toutes les questions →
+                  </Link>
+                </div>
+                <div className="col-span-12 md:col-span-8">
+                  <div className="divide-y divide-line rounded-2xl border border-line bg-paper">
+                    {FAQ_TEASER.map((f) => (
+                      <details key={f.q} className="group p-5 open:bg-surface-1">
+                        <summary className="cursor-pointer list-none text-[15px] font-medium flex justify-between gap-4">
+                          <span>{f.q}</span>
+                          <span className="text-ink-2 transition-transform group-open:rotate-45">+</span>
+                        </summary>
+                        <p className="mt-3 text-[14px] leading-[1.6] text-ink-1">{f.a}</p>
+                      </details>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </MotionSection>
       </main>
       <div className="gsap-reveal">
         <SiteFooter />

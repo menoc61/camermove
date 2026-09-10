@@ -1,13 +1,13 @@
 "use client"
 import { useBookingStore, useAuthStore } from "@camermove/frontend"
-import { createBooking } from "../../lib/api/bookings"
+import { createBooking, createTripPayment } from "../../lib/api/bookings"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Smartphone, CreditCard, ShieldCheck } from "lucide-react"
+import { PaymentStep } from "./PaymentStep"
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "expiré"
@@ -24,6 +24,7 @@ export function Recap({ price }: { price: number }) {
   const [error, setError] = useState<string | null>(null)
   const [holdExpiresAt, setHoldExpiresAt] = useState<Date | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [createdBooking, setCreatedBooking] = useState<{ id: string; reference: string } | null>(null)
   const total = price * seatCount
 
   useEffect(() => {
@@ -32,7 +33,6 @@ export function Recap({ price }: { price: number }) {
     return () => clearInterval(id)
   }, [holdExpiresAt])
 
-  const [method, setMethod] = useState<"momo" | "om" | "card">("momo")
   const invalidPassengers = passengers.some((p) => !p.fullName || p.fullName.trim().length < 2)
   const phoneInvalid = passengers.some((p) => p.phone && !/^\+?[1-9]\d{7,14}$/.test(p.phone.replace(/\s/g, "")))
 
@@ -43,7 +43,7 @@ export function Recap({ price }: { price: number }) {
     try {
       const res = await createBooking({ tripId, seatCount, passengers }, token)
       if (res.holdExpiresAt) setHoldExpiresAt(new Date(res.holdExpiresAt))
-      router.push(`/book/confirmation?ref=${res.booking.reference}`)
+      setCreatedBooking({ id: res.booking.id, reference: res.booking.reference })
     } catch (e: unknown) {
       const err = e as Error & { status?: number; message: string }
       if (err.status === 409) setError("Plus de places disponibles pour ce trajet. Veuillez choisir un autre horaire.")
@@ -79,24 +79,16 @@ export function Recap({ price }: { price: number }) {
             Vos places seront réservées 15 minutes lors de la confirmation.
           </p>
         )}
-        {/* Pay options — TransportModule reference CheckoutPage */}
-        <div className="pt-2">
-          <p className="text-xs font-bold mb-2" style={{ color: "#14213D" }}>Mode de paiement</p>
-          <div className="flex flex-col gap-2">
-            {[
-              { id: "momo" as const, icon: Smartphone, label: "MTN Mobile Money" },
-              { id: "om" as const, icon: Smartphone, label: "Orange Money" },
-              { id: "card" as const, icon: CreditCard, label: "Carte bancaire" },
-            ].map((o) => (
-              <div key={o.id} onClick={() => setMethod(o.id)} className="flex items-center gap-2 rounded-xl px-3 py-2.5 cursor-pointer bg-white" style={{ border: `1.5px solid ${method === o.id ? "#14213D" : "#E4E1D9"}` }}>
-                <o.icon size={16} color={method === o.id ? "#E8A548" : "#5A6474"} />
-                <span className="text-sm font-semibold flex-1" style={{ color: "#14213D" }}>{o.label}</span>
-                <span className="w-4 h-4 rounded-full border-2 flex items-center justify-center" style={{ borderColor: method === o.id ? "#14213D" : "#E4E1D9", background: method === o.id ? "#14213D" : "white" }} />
-              </div>
-            ))}
-          </div>
-          <p className="flex items-center gap-1.5 mt-3 text-[11px]" style={{ color: "#5A6474" }}><ShieldCheck size={14} color="#2E7D5B" /> Paiement sécurisé, aucune donnée bancaire stockée par CamerMove.</p>
-        </div>
+        {/* Pay options — PaymentStep owns provider + method selection */}
+        {createdBooking && token ? (
+          <PaymentStep
+            amount={total}
+            createPayment={(provider, opts) =>
+              createTripPayment(token, createdBooking.id, { provider, method: opts.method, phone: opts.phone })
+            }
+            onPaymentCreated={() => router.push(`/book/confirmation?ref=${createdBooking.reference}`)}
+          />
+        ) : null}
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -105,9 +97,14 @@ export function Recap({ price }: { price: number }) {
         {(invalidPassengers || phoneInvalid) && (
           <p className="text-xs text-amber-600">Vérifiez les informations passagers (nom requis, téléphone E.164)</p>
         )}
-        <Button onClick={submit} disabled={loading || !token || invalidPassengers || phoneInvalid} className="w-full rounded-full">
-          {loading ? "Réservation…" : "Confirmer la réservation"}
-        </Button>
+        {!createdBooking && (
+          <Button onClick={submit} disabled={loading || !token || invalidPassengers || phoneInvalid} className="w-full rounded-full">
+            {loading ? "Réservation…" : "Confirmer la réservation"}
+          </Button>
+        )}
+        {createdBooking && (
+          <p className="text-xs text-muted-foreground">Places réservées — finalisez le paiement ci-dessus.</p>
+        )}
         {!token && <p className="text-center text-xs text-amber-600">Connectez-vous pour réserver</p>}
       </CardContent>
     </Card>

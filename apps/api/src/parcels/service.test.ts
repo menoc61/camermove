@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { prisma } from "@camermove/db"
+import { prisma, __clearSettingsCache } from "@camermove/db"
 
 vi.mock("../lib/cache.js", () => ({
   getCached: vi.fn().mockResolvedValue(null),
@@ -29,12 +29,15 @@ vi.mock("@camermove/config", async (importOriginal) => {
 import { calcShippingCost, isValidTransition, sanitizeParcelForTrack, advanceParcelStatus } from "./service.js"
 
 describe("parcels/service", () => {
-  beforeEach(() => vi.restoreAllMocks())
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    __clearSettingsCache()
+  })
 
   it("calcShippingCost base 500 + perKg 100*kg fallback", async () => {
     vi.spyOn(prisma.appSettings, "findUnique").mockResolvedValue(null as never)
     vi.spyOn(prisma.appSettings, "create").mockResolvedValue({ id: "global", featureFlags: {} } as never)
-    // Mock getCached to return null already, so fallback base 500 perKg 100
+    // No settings row in DB → lazy-create path with empty flags, so fallback base 500 perKg 100
     const cost = await calcShippingCost({ parcelType: "standard", weightKg: 2 })
     expect(cost).toBe(500 + 100 * 2)
     const cost1 = await calcShippingCost({ parcelType: "standard", weightKg: 1 })
@@ -44,11 +47,12 @@ describe("parcels/service", () => {
   })
 
   it("calcShippingCost respects parcelPricing perType from featureFlags", async () => {
-    const { getCached } = await import("../lib/cache.js")
-    vi.mocked(getCached).mockResolvedValueOnce({ featureFlags: { parcelPricing: { base: 1000, perKg: 200, perType: { fragile: 500, default: 0 } } } } as never)
+    // Settings now come from @camermove/db (memory → prisma in test env)
+    vi.spyOn(prisma.appSettings, "findUnique").mockResolvedValue({ id: "global", featureFlags: { parcelPricing: { base: 1000, perKg: 200, perType: { fragile: 500, default: 0 } } } } as never)
     const cost = await calcShippingCost({ parcelType: "fragile", weightKg: 3 })
     expect(cost).toBe(1000 + 200 * 3 + 500)
-    vi.mocked(getCached).mockResolvedValueOnce({ featureFlags: { parcelPricing: { base: 1000, perKg: 200, perType: { default: 100 } } } } as never)
+    __clearSettingsCache()
+    vi.spyOn(prisma.appSettings, "findUnique").mockResolvedValue({ id: "global", featureFlags: { parcelPricing: { base: 1000, perKg: 200, perType: { default: 100 } } } } as never)
     const costDefault = await calcShippingCost({ parcelType: "unknown", weightKg: 1 })
     expect(costDefault).toBe(1000 + 200 * 1 + 100)
   })

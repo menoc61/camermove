@@ -45,44 +45,45 @@ From Git Bash or WSL (with docker on PATH): `bash scripts/dev-up.sh`
 
 ## Seeded demo data
 
-The seed script (`packages/db/prisma/seed.ts`, run via `pnpm --filter @camermove/db seed`)
-creates **business data only — no user accounts exist after seeding**:
+Two seeds (both idempotent, safe to re-run):
 
-- Transporter **CamerMove Express** (`express@camermove.cm`, Douala, bus, approved)
-- Route **Yaoundé → Douala**
-- **9 trips**: days +1/+2/+3 at 07:00 / 13:00 / 18:00 UTC, 6 000–8 000 XAF, 55 seats each (autocar)
+- **Minimal** (`packages/db/prisma/seed.ts`, `pnpm seed`) — transport only:
+  demo users (`admin@`/`user@`/`partner@camermove.cm`), CamerMove Express,
+  route Yaoundé → Douala, 9 trips.
+- **Rich** (`scripts/seed-rich.ts`, `pnpm seed:rich`) — all six services:
+  4 users (incl. `super@camermove.cm` / `Super123!`), 3 transporters,
+  ~1700 trips, 6 hotels / 15 rooms, 8 rental vehicles, 8 parcels with
+  status chains, 5 insurance policies, 5 events / 12 ticket categories,
+  bookings + payments + tickets + notifications + audit logs.
+  Verify with `pnpm seed:verify` (volumes + second-run-changes-nothing).
 
-Create a traveler account through the API (web login pages ship separately):
-
-```powershell
-Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/auth/register `
-  -ContentType "application/json" `
-  -Body '{"email":"vous@example.cm","password":"motdepasse123","firstName":"Vous"}'
-```
-
-No `super_admin` is pre-created; promote an existing account manually if needed
-(see Troubleshooting).
+| Rôle | Email | Mot de passe |
+|------|-------|--------------|
+| Super admin | `super@camermove.cm` | `Super123!` |
+| Admin | `admin@camermove.cm` | `Admin123!` |
+| Transporteur | `partner@camermove.cm` | `Partner123!` |
+| Voyageur | `user@camermove.cm` | `User123!` |
 
 ## Landing Page Features
 
-The landing page (`http://localhost:3002`) includes:
+The landing page (`http://localhost:3002`) follows a Studio-Haas direction —
+rigorous Swiss / Bauhaus minimalism:
 
-- **Cinematic intro animation** — 6-panel GSAP overlay reveals the hero
-- **Smooth scrolling** — Lenis-powered buttery scroll experience
-- **Hero section** — Plus Jakarta Sans typography, GSAP text reveal, parallax images
-- **How it works** — 3-step cards with icons and staggered scroll animation
-- **Price simulator** — Real-time price lookup with swap animation
-- **Agency map** — Leaflet + OpenStreetMap with animated markers
-- **Next departures** — Trip cards with hover spring animations
-- **Partner CTA** — Gradient background with noise texture
-- **Responsive design** — Mobile-first with hamburger nav
+- **Loading intro** — ink overlay, CAMERMOVE wordmark, 0→100% counter,
+  curtain reveal (skipped on repeat visits, bypassed on reduced-motion)
+- **Horizontal video carousel** — full-width transport + hotel chapters
+  with chapter selector and progress rail
+- **Six swippable service rails** — Transport (hero), Hôtels, Locations,
+  Colis, Assurance, Événements, each reading its own backend module
+- **Method section** — four principles applied to mobility
+- **Smooth scrolling** — Lenis; GSAP batch reveals; numbered section heads
+- **Responsive** — snap rails, 44px touch targets, working mobile nav
 
 ## Design System
 
-- **Typography:** Plus Jakarta Sans (headings) + Inter (body)
-- **Colors:** Warm-neutral palette — teal primary, amber accent
-- **Animations:** GSAP (intro/text), Framer Motion (scroll/hover), Lenis (smooth scroll)
-- **Components:** Button, Card, Input, Modal, Toast, Skeleton — all with micro-interactions
+- **Typography:** Inter (Helvetica-style stack, `--font-body`)
+- **Colors:** cool gray ink, warm paper, pure white surfaces, natural wood
+- **Shape:** hairline borders, zero radius, no shadows, 12-col Swiss grid
 
 ## Stop
 

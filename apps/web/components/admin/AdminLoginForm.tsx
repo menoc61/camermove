@@ -55,7 +55,7 @@ export function AdminLoginForm({ next }: { next?: string }) {
         setError("Accès réservé aux administrateurs.")
         return
       }
-      setAuth({ accessToken: res.accessToken, user: res.user })
+      setAuth({ accessToken: res.accessToken, refreshToken: res.refreshToken, user: res.user })
       router.push(next && next.startsWith("/") ? next : "/admin")
     } catch (err) {
       setError(

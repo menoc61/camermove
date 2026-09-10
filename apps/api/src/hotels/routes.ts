@@ -3,9 +3,9 @@ import { z } from "zod"
 import { prisma } from "@camermove/db"
 import { AppError, ForbiddenError, NotFoundError } from "@camermove/config"
 import { loadEnv } from "@camermove/config"
-import { CreateHotelBookingBody, HotelSearchQuery, HotelBookingParams } from "./schema.js"
+import { CreateHotelBookingBody, HotelSearchQuery, HotelBookingParams, HotelBookingsListQuery } from "./schema.js"
 import { buildHotelWhere, findHotels, countHotels, findHotelById } from "./repository.js"
-import { createHotelBooking, createHotelBookingPayment } from "./service.js"
+import { createHotelBooking, createHotelBookingPayment, cancelHotelBooking } from "./service.js"
 import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
@@ -95,27 +95,28 @@ export async function hotelRoutes(app: FastifyInstance) {
 
   // GET /hotels/bookings/me — owner list with dateFrom/dateTo/q/page/limit
   app.get("/hotels/bookings/me", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const q = HotelBookingsListQuery.parse(req.query)
     const user = (req as unknown as { user: { id: string } }).user
-    const query = req.query as Record<string, unknown>
-    const page = Math.max(1, Number(query.page ?? 1))
-    const perPage = Math.min(50, Math.max(1, Number(query.perPage ?? query.limit ?? 20)))
-    const q = query.q as string | undefined
-    const dateFrom = query.dateFrom as string | undefined
-    const dateTo = query.dateTo as string | undefined
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.(
+      { ...meta, userId: user.id, page: q.page, perPage: q.perPage, q: q.q, dateFrom: q.dateFrom, dateTo: q.dateTo },
+      "hotels.bookings.me.list",
+    )
+    const pagination = buildPagination({ page: q.page, perPage: q.perPage, limit: q.limit, offset: q.offset })
     const where: Record<string, unknown> = { userId: user.id }
-    if (q) where.OR = [{ hotel: { name: { contains: q, mode: "insensitive" } } }, { hotel: { city: { contains: q, mode: "insensitive" } } }]
-    if (dateFrom || dateTo) {
+    if (q.q) where.OR = [{ hotel: { name: { contains: q.q, mode: "insensitive" } } }, { hotel: { city: { contains: q.q, mode: "insensitive" } } }]
+    if (q.dateFrom || q.dateTo) {
       const createdAt: Record<string, Date> = {}
-      if (dateFrom) createdAt.gte = new Date(dateFrom)
-      if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59Z")
+      if (q.dateFrom) createdAt.gte = new Date(q.dateFrom)
+      if (q.dateTo) createdAt.lte = new Date(q.dateTo + "T23:59:59Z")
       where.createdAt = createdAt
     }
-    const skip = (page - 1) * perPage
     const [items, total] = await Promise.all([
-      prisma.hotelBooking.findMany({ where: where as never, include: { hotel: true, roomType: true, payment: true }, orderBy: { createdAt: "desc" }, skip, take: perPage }),
+      prisma.hotelBooking.findMany({ where: where as never, include: { hotel: true, roomType: true, payment: true }, orderBy: { createdAt: "desc" }, skip: pagination.skip, take: pagination.take }),
       prisma.hotelBooking.count({ where: where as never }),
     ])
-    return { items, total, page, perPage, totalPages: Math.ceil(total / perPage) }
+    const perPage = pagination.take
+    return { items, total, page: q.page, perPage, totalPages: Math.ceil(total / perPage) }
   })
 
   // GET /hotels/bookings/export — streamed csv/json with RBAC and SEARCH_MAX_LIMIT
@@ -151,6 +152,16 @@ export async function hotelRoutes(app: FastifyInstance) {
     const isAdmin = user.role === "admin" || user.role === "super_admin"
     if (!isAdmin && (booking as unknown as { userId: string }).userId !== user.id) throw new ForbiddenError("Accès refusé")
     return booking
+  })
+
+  // POST /hotels/bookings/:id/cancel — owner or admin, pending_payment only
+  app.post("/hotels/bookings/:id/cancel", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const { id } = HotelBookingParams.parse(req.params)
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "hotels.booking.cancel")
+    await cancelHotelBooking(id, user.id, user.role)
+    return { id, status: "cancelled" }
   })
 
   // POST /hotels/bookings/:id/pay — polymorphic via payments provider (bookingId nullable)

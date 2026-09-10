@@ -1,12 +1,14 @@
 "use client"
 import { useEffect, useState } from "react"
 import { listRoutes, createRoute, deleteRoute } from "@/lib/api/transporter"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export function RoutesClient({ token }: { token: string }) {
   const [items, setItems] = useState<{ id: string; originCity: string; destinationCity: string; active: boolean }[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ originCity: "", destinationCity: "" })
-  const refresh = () => listRoutes(token).then(setItems as never).catch((e) => setError(e.message))
+  const refresh = () => { setLoading(true); return listRoutes(token).then(setItems as never).catch((e) => setError(e.message)).finally(() => setLoading(false)) }
   useEffect(() => { refresh() }, [token])
   async function onCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -22,13 +24,22 @@ export function RoutesClient({ token }: { token: string }) {
         <button className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Créer</button>
       </form>
       <ul className="divide-y rounded-2xl border">
-        {items.map((r)=>(
+        {loading && Array.from({ length: 3 }).map((_, i) => (
+          <li key={`sk-${i}`} className="flex items-center justify-between p-4">
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <Skeleton className="h-4 w-16" />
+          </li>
+        ))}
+        {!loading && items.map((r)=>(
           <li key={r.id} className="flex items-center justify-between p-4">
             <div><div className="font-medium">{r.originCity} → {r.destinationCity}</div><div className="text-xs text-muted-foreground">{r.active ? "Actif" : "Inactif"}</div></div>
             <button onClick={async()=>{try{await deleteRoute(token,r.id); refresh()}catch(err){setError((err as Error).message)}}} className="text-sm text-destructive">Supprimer</button>
           </li>
         ))}
-        {items.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune route.</li>}
+        {!loading && items.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune route.</li>}
       </ul>
     </div>
   )

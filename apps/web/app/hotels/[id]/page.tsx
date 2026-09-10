@@ -2,8 +2,9 @@
 import { useState, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { fetchHotel, createHotelBooking } from "@/lib/api/hotels"
+import { fetchHotel, createHotelBooking, createHotelPayment } from "@/lib/api/hotels"
 import { useAuthStore } from "@camermove/frontend"
+import { PaymentStep } from "@/components/booking/PaymentStep"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,6 +28,7 @@ export default function HotelDetailPage() {
   const [guestNames, setGuestNames] = useState<string[]>(["", ""])
   const [specialRequests, setSpecialRequests] = useState("")
   const [loading, setLoading] = useState(false)
+  const [hotelBookingId, setHotelBookingId] = useState<string | null>(null)
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0
@@ -55,9 +57,9 @@ export default function HotelDetailPage() {
     if (!hotel) return
     setLoading(true)
     try {
-      await createHotelBooking(token, { hotelId: hotel.id, roomTypeId: selectedRoom, checkIn, checkOut, guests, guestNames: guestNames.filter(Boolean), specialRequests: specialRequests || undefined })
-      toast.success("Réservation créée")
-      router.push("/dashboard?tab=hotels")
+      const booking = await createHotelBooking(token, { hotelId: hotel.id, roomTypeId: selectedRoom, checkIn, checkOut, guests, guestNames: guestNames.filter(Boolean), specialRequests: specialRequests || undefined })
+      setHotelBookingId(booking.id)
+      toast.success("Réservation créée — procédez au paiement")
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec réservation")
     } finally { setLoading(false) }
@@ -113,7 +115,18 @@ export default function HotelDetailPage() {
               ))}
             </div>
             <div><label className="text-xs">Demandes spéciales</label><Input value={specialRequests} onChange={(e) => setSpecialRequests(e.target.value)} placeholder="Optionnel" /></div>
-            <Button className="w-full" onClick={handleBook} disabled={loading || !selectedRoom || nights < 1}>{loading ? "Réservation..." : `Payer ${total ? new Intl.NumberFormat("fr-CM").format(total) + " XAF" : ""}`}</Button>
+            {!hotelBookingId && (
+              <Button className="w-full" onClick={handleBook} disabled={loading || !selectedRoom || nights < 1}>{loading ? "Réservation..." : `Payer ${total ? new Intl.NumberFormat("fr-CM").format(total) + " XAF" : ""}`}</Button>
+            )}
+            {hotelBookingId && token && (
+              <PaymentStep
+                amount={total}
+                createPayment={(provider, opts) =>
+                  createHotelPayment(token, hotelBookingId, { provider, method: opts.method, phone: opts.phone })
+                }
+                onPaymentCreated={() => router.push("/dashboard?tab=hotels")}
+              />
+            )}
           </CardContent>
         </Card>
       </div>

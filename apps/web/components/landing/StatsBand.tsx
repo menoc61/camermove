@@ -35,7 +35,12 @@ export function StatsBand({ minPrice, hotelsCount, rentalsCount }: StatsBandProp
       aria-label="CamerMove en chiffres"
       className="border-y border-line bg-paper text-ink"
     >
-      <div className="mx-auto grid max-w-[1560px] grid-cols-2 gap-px bg-line md:grid-cols-5">
+      <div className="mx-auto max-w-[1560px] px-6 pt-12 sm:px-8 md:px-12 md:pt-16">
+        <p className="text-[11px] uppercase tracking-[0.22em] text-ink-2">
+          01 — En chiffres
+        </p>
+      </div>
+      <div className="mx-auto mt-6 grid max-w-[1560px] grid-cols-2 gap-px border-t border-line bg-line md:grid-cols-5">
         {stats.map((s, i) => (
           <motion.div
             key={s.label}

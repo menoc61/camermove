@@ -20,6 +20,5 @@
     "hooks": "@/hooks"
   },
   "menuColor": "inverted-translucent",
-  "menuAccent": "subtle",
-  "registries": {}
+  "menuAccent": "subtle"
 }
