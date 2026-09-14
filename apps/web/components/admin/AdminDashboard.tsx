@@ -5,7 +5,7 @@ import { useAuthStore } from "@camermove/frontend"
 import { getAdminStats } from "@/lib/api/admin"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { UsersIcon, TruckIcon, MapPinIcon, TicketIcon, WalletIcon, CalendarIcon, CheckCircleIcon, ClockIcon, XCircleIcon, BanknoteIcon, TrendingUpIcon } from "lucide-react"
+import { UsersIcon, TruckIcon, MapPinIcon, TicketIcon, WalletIcon, CalendarIcon, CheckCircleIcon, ClockIcon, XCircleIcon, BanknoteIcon, TrendingUpIcon, Building2Icon, CarIcon, PackageIcon, ShieldCheckIcon, PartyPopperIcon } from "lucide-react"
 
 const fmtXaf = (amount: number) =>
   (amount / 100).toLocaleString("fr-FR", { style: "currency", currency: "XAF", maximumFractionDigits: 0 })
@@ -155,6 +155,48 @@ export function AdminDashboard() {
           icon={<BanknoteIcon className="size-5" />}
           color="text-rose-600"
         />
+        <StatCard
+          label="Partenaires (staff)"
+          value={fmtNum(data.totalPartners)}
+          icon={<UsersIcon className="size-5" />}
+          color="text-slate-600"
+        />
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-lg font-semibold">KPIs par service</h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+          <StatCard
+            label="Réservations hôtels"
+            value={fmtNum(data.totalHotelBookings)}
+            icon={<Building2Icon className="size-5" />}
+            color="text-sky-600"
+          />
+          <StatCard
+            label="Locations de véhicules"
+            value={fmtNum(data.totalRentalBookings)}
+            icon={<CarIcon className="size-5" />}
+            color="text-violet-600"
+          />
+          <StatCard
+            label="Colis"
+            value={fmtNum(data.totalParcels)}
+            icon={<PackageIcon className="size-5" />}
+            color="text-amber-600"
+          />
+          <StatCard
+            label="Polices d'assurance"
+            value={fmtNum(data.totalInsurancePolicies)}
+            icon={<ShieldCheckIcon className="size-5" />}
+            color="text-emerald-600"
+          />
+          <StatCard
+            label="Réservations événements"
+            value={fmtNum(data.totalEventBookings)}
+            icon={<PartyPopperIcon className="size-5" />}
+            color="text-pink-600"
+          />
+        </div>
       </div>
     </div>
   )

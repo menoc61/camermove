@@ -25,10 +25,21 @@ export interface DashboardTicketItem {
   status: string
 }
 
+/** Personalized all-services totals (full counts, not page-limited lengths). */
+export interface DashboardTotals {
+  trips: number
+  hotels: number
+  rentals: number
+  parcels: number
+  insurance: number
+  events: number
+}
+
 export interface DashboardResponse {
   upcoming: DashboardItem[]
   history: DashboardItem[]
   tickets: DashboardTicketItem[]
+  totals?: DashboardTotals
 }
 
 export function getDashboard(token: string): Promise<DashboardResponse> {

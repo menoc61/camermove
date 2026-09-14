@@ -97,7 +97,17 @@ export async function getAppSettingsCached(ttlSeconds = DEFAULT_TTL_SECONDS): Pr
   return { commissionPercent: 10, holdExpiryMinutes: 15, featureFlags: {} }
 }
 
-/** Test/maintenance escape hatch: drop the process-local entry. */
-export function __clearSettingsCache(): void {
+/** Test/maintenance escape hatch: drop the process-local entry AND the shared
+ * Redis entry — otherwise another instance (or a later call in the same
+ * process) would immediately re-populate memory from the stale Redis value. */
+export async function __clearSettingsCache(): Promise<void> {
   memoryCache.delete(APP_SETTINGS_CACHE_KEY)
+  const client = getRedis()
+  if (client) {
+    try {
+      await client.del(APP_SETTINGS_CACHE_KEY)
+    } catch (err) {
+      log.warn({ err: (err as Error).message }, "db settings cache clear failed")
+    }
+  }
 }

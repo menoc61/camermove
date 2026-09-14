@@ -198,4 +198,39 @@ export async function parcelRoutes(app: FastifyInstance) {
     ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, parcelId: id, nextStatus: body.status, actorId: user.id }, "parcels.status.update")
     return advanceParcelStatus({ parcelId: id, actorId: user.id, role: user.role, nextStatus: body.status, location: body.location, note: body.note, meta: meta as Record<string, unknown> })
   })
+
+  // GET /partner/parcels — operator partner view: parcels handled by operators
+  // owned by the authenticated user (ownerId), NOT the traveler "my shipments"
+  // list. Scoped per service: a non-operator gets an empty list, not an error.
+  app.get("/partner/parcels", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const q = ParcelSearchQuery.parse(req.query)
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, userId: user.id, status: q.status, page: q.page }, "parcels.partner.list")
+    const isAdmin = user.role === "admin" || user.role === "super_admin"
+    const pagination = buildPagination({ page: q.page, perPage: q.perPage, limit: q.limit, offset: q.offset })
+    const operatorWhere: Record<string, unknown> = isAdmin ? {} : { ownerId: user.id }
+    const parcelWhere: Record<string, unknown> = { operator: operatorWhere }
+    if (q.status) parcelWhere.status = q.status
+    if (q.recipientCity) parcelWhere.recipientCity = { contains: q.recipientCity, mode: "insensitive" }
+    if (q.dateFrom || q.dateTo) {
+      const createdAt: Record<string, Date> = {}
+      if (q.dateFrom) createdAt.gte = new Date(q.dateFrom)
+      if (q.dateTo) createdAt.lte = new Date(q.dateTo + "T23:59:59Z")
+      parcelWhere.createdAt = createdAt
+    }
+    const [items, total, operators] = await Promise.all([
+      prisma.parcel.findMany({
+        where: parcelWhere as never,
+        orderBy: { createdAt: "desc" },
+        skip: pagination.skip,
+        take: pagination.take,
+        select: { id: true, trackingNumber: true, senderName: true, senderCity: true, recipientName: true, recipientCity: true, parcelType: true, weightKg: true, shippingCost: true, status: true, currentLocation: true, createdAt: true },
+      }),
+      prisma.parcel.count({ where: parcelWhere as never }),
+      prisma.parcelOperator.findMany({ where: operatorWhere as never, select: { id: true, companyName: true, status: true, partnerStatus: true } }),
+    ])
+    const perPage = pagination.take
+    return { items, total, page: pagination.page ?? q.page, perPage, totalPages: Math.ceil(total / perPage), operators }
+  })
 }

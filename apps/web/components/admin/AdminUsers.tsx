@@ -6,8 +6,6 @@ import { useAuthStore } from "@camermove/frontend"
 import { listUsers, updateUser, deleteUser } from "@/lib/api/admin"
 import type { UserItem } from "@/lib/api/admin"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -33,10 +31,17 @@ import {
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { MoreHorizontalIcon, SearchIcon, ChevronLeftIcon, ChevronRightIcon, Trash2Icon, AlertTriangleIcon } from "lucide-react"
-
-const fmtDate = (d: string) => new Date(d).toLocaleDateString("fr-FR")
-const fmtNum = (n: number) => n.toLocaleString("fr-FR")
+import { Trash2Icon, AlertTriangleIcon } from "lucide-react"
+import {
+  AdminDateRange,
+  AdminEmptyRow,
+  AdminFilterBar,
+  AdminPagination,
+  AdminSearch,
+  AdminTableFrame,
+  fmtDate,
+  fmtNum,
+} from "./shared"
 
 const roleVariant: Record<string, "default" | "secondary" | "outline"> = {
   super_admin: "destructive" as any,
@@ -116,28 +121,22 @@ export function AdminUsers() {
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-48">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher par email, nom..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Du</Label>
-          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-36" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Au</Label>
-          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-36" />
-        </div>
-      </div>
+      <AdminFilterBar>
+        <AdminSearch
+          placeholder="Rechercher par email, nom..."
+          value={search}
+          onChange={(v) => { setSearch(v); setPage(1) }}
+        />
+        <AdminDateRange
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFrom={(v) => { setDateFrom(v); setPage(1) }}
+          onTo={(v) => { setDateTo(v); setPage(1) }}
+        />
+      </AdminFilterBar>
 
       {/* Table */}
-      <div className="rounded-xl border overflow-hidden">
+      <AdminTableFrame>
         <Table>
           <TableHeader>
             <TableRow>
@@ -154,11 +153,7 @@ export function AdminUsers() {
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => <UserRowSkeleton key={i} />)}
             {!isLoading && data?.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  Aucun utilisateur trouvé.
-                </TableCell>
-              </TableRow>
+              <AdminEmptyRow colSpan={8}>Aucun utilisateur trouvé.</AdminEmptyRow>
             )}
             {!isLoading && data?.items.map((user) => (
               <TableRow key={user.id}>
@@ -208,23 +203,16 @@ export function AdminUsers() {
             ))}
           </TableBody>
         </Table>
-      </div>
+      </AdminTableFrame>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {data ? `${fmtNum(data.total)} utilisateurs` : ""}
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-            <ChevronLeftIcon className="size-4" />
-          </Button>
-          <span className="text-sm">Page {page} / {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
-            <ChevronRightIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
+      <AdminPagination
+        page={page}
+        totalPages={totalPages}
+        total={data?.total}
+        totalLabel="utilisateurs"
+        onPage={setPage}
+      />
 
       {/* Delete Confirmation Sheet */}
       <Sheet open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>

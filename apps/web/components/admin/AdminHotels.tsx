@@ -4,11 +4,19 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@camermove/frontend"
 import { apiFetch } from "@/lib/api/client"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
+import {
+  AdminDateRange,
+  AdminEmptyRow,
+  AdminFilterBar,
+  AdminPagination,
+  AdminSearch,
+  AdminTableFrame,
+  AdminTextField,
+} from "./shared"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
 
@@ -60,14 +68,18 @@ export function AdminHotels() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        <Input placeholder="Recherche" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} className="w-48" />
-        <Input placeholder="Ville" value={city} onChange={(e) => { setCity(e.target.value); setPage(1) }} className="w-32" />
-        <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-36" />
-        <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-36" />
+      <AdminFilterBar>
+        <AdminSearch placeholder="Recherche" value={q} onChange={(v) => { setQ(v); setPage(1) }} className="w-48" />
+        <AdminTextField placeholder="Ville" value={city} onChange={(v) => { setCity(v); setPage(1) }} />
+        <AdminDateRange
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFrom={(v) => { setDateFrom(v); setPage(1) }}
+          onTo={(v) => { setDateTo(v); setPage(1) }}
+        />
         <Button variant="outline" size="sm" onClick={() => exportCsv("csv")}>Export CSV</Button>
-      </div>
-      <div className="rounded-xl border overflow-hidden">
+      </AdminFilterBar>
+      <AdminTableFrame>
         <Table>
           <TableHeader><TableRow><TableHead>Hôtel</TableHead><TableHead>Ville</TableHead><TableHead>Chambres</TableHead><TableHead>Statut</TableHead><TableHead>Partner</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
           <TableBody>
@@ -91,14 +103,17 @@ export function AdminHotels() {
                 </TableCell>
               </TableRow>
             ))}
-            {!isLoading && data?.items.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Aucun hôtel.</TableCell></TableRow>}
+            {!isLoading && data?.items.length === 0 && <AdminEmptyRow colSpan={6}>Aucun hôtel.</AdminEmptyRow>}
           </TableBody>
         </Table>
-      </div>
-      <div className="flex justify-between items-center">
-        <span className="text-sm text-muted-foreground">{data?.total ?? 0} hôtels</span>
-        <div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Préc</Button><span className="text-sm py-1">Page {page} / {data?.totalPages ?? 1}</span><Button size="sm" variant="outline" disabled={page >= (data?.totalPages ?? 1)} onClick={() => setPage((p) => p + 1)}>Suiv</Button></div>
-      </div>
+      </AdminTableFrame>
+      <AdminPagination
+        page={page}
+        totalPages={data?.totalPages ?? 1}
+        total={data?.total ?? 0}
+        totalLabel="hôtels"
+        onPage={setPage}
+      />
     </div>
   )
 }

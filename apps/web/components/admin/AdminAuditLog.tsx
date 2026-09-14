@@ -6,7 +6,6 @@ import { useAuthStore } from "@camermove/frontend"
 import { listAuditLogs } from "@/lib/api/admin"
 import type { AuditLogItem } from "@/lib/api/admin"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -18,11 +17,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SearchIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import {
+  AdminDateRange,
+  AdminEmptyRow,
+  AdminFilterBar,
+  AdminPagination,
+  AdminSearch,
+  AdminStatusSelect,
+  AdminTableFrame,
+  fmtDate,
+} from "./shared"
 
-const fmtDate = (d: string) => new Date(d).toLocaleDateString("fr-FR")
 const fmtTime = (d: string) => new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-const fmtNum = (n: number) => n.toLocaleString("fr-FR")
 
 const roleVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   super_admin: "destructive" as any,
@@ -88,41 +94,31 @@ export function AdminAuditLog() {
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-48">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher acteur, action, entité..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="pl-9"
-          />
-        </div>
+      <AdminFilterBar>
+        <AdminSearch
+          placeholder="Rechercher acteur, action, entité..."
+          value={search}
+          onChange={(v) => { setSearch(v); setPage(1) }}
+        />
         <div className="flex items-center gap-2">
           <Label className="text-xs text-muted-foreground">Action</Label>
-          <select
-            className="h-9 rounded-4xl border border-input bg-input/30 px-3 text-sm"
+          <AdminStatusSelect
             value={actionFilter}
-            onChange={(e) => { setActionFilter(e.target.value); setPage(1) }}
-          >
-            <option value="">Toutes</option>
-            {uniqueActions.map((a) => (
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </select>
+            onChange={(v) => { setActionFilter(v); setPage(1) }}
+            options={uniqueActions.map((a) => ({ value: a, label: a }))}
+            allLabel="Toutes"
+          />
         </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Du</Label>
-          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-36" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Au</Label>
-          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-36" />
-        </div>
-      </div>
+        <AdminDateRange
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFrom={(v) => { setDateFrom(v); setPage(1) }}
+          onTo={(v) => { setDateTo(v); setPage(1) }}
+        />
+      </AdminFilterBar>
 
       {/* Table */}
-      <div className="rounded-xl border overflow-hidden">
+      <AdminTableFrame>
         <Table>
           <TableHeader>
             <TableRow>
@@ -138,11 +134,7 @@ export function AdminAuditLog() {
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => <AuditRowSkeleton key={i} />)}
             {!isLoading && data?.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  Aucun journal d'audit trouvé.
-                </TableCell>
-              </TableRow>
+              <AdminEmptyRow colSpan={7}>Aucun journal d'audit trouvé.</AdminEmptyRow>
             )}
             {!isLoading && data?.items.map((log, idx) => (
               <TableRow key={log.id}>
@@ -169,23 +161,16 @@ export function AdminAuditLog() {
             ))}
           </TableBody>
         </Table>
-      </div>
+      </AdminTableFrame>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {data ? `${fmtNum(data.total)} entrées` : ""}
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-            <ChevronLeftIcon className="size-4" />
-          </Button>
-          <span className="text-sm">Page {page} / {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
-            <ChevronRightIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
+      <AdminPagination
+        page={page}
+        totalPages={totalPages}
+        total={data?.total}
+        totalLabel="entrées"
+        onPage={setPage}
+      />
     </div>
   )
 }

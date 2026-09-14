@@ -1,6 +1,8 @@
 import { createServer, type Server } from "node:http"
 import { register } from "prom-client"
-import type { Env } from "@camermove/config"
+import { createLogger, type Env } from "@camermove/config"
+
+const log = createLogger()
 
 /**
  * Minimal /metrics + /health server for processes without an HTTP framework
@@ -13,6 +15,11 @@ import type { Env } from "@camermove/config"
  * The returned object exposes a `close()` Promise that resolves once the
  * underlying http server has finished draining — callers wire it into their
  * SIGTERM/SIGINT shutdown path for graceful shutdown.
+ *
+ * Port contention (parallel test workers, dev double-starts) degrades
+ * gracefully: if the port is already bound, the process keeps running and
+ * metrics are served by whichever listener owns the port — an unhandled
+ * 'error' event must never crash the whole app.
  */
 export interface MetricsServer {
   server: Server
@@ -40,6 +47,13 @@ export function startMetricsServer(env: Pick<Env, "METRICS_PORT">): MetricsServe
     } catch (err) {
       res.writeHead(500, { "Content-Type": "text/plain" })
       res.end(`metrics error: ${(err as Error).message}`)
+    }
+  })
+  server.on("error", (err) => {
+    if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
+      log.warn({ port }, "metrics port already in use — another listener owns it, continuing without standalone metrics server")
+    } else {
+      log.error({ err: (err as Error).message, port }, "metrics server error")
     }
   })
   server.listen(port)

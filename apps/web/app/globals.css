@@ -183,6 +183,38 @@
 
   /* Swiss numerals — tabular */
   .num-tabular { font-variant-numeric: tabular-nums; }
+
+  /* Scrollbars — hidden on programmatic/carousel tracks (content stays
+     scrollable via snap/arrow/drag). Kills the chunky native bars on the
+     landing rails and hero reel, on every platform. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* Ken Burns — slow cinematic zoom for hero media posters */
+  .kenburns {
+    animation: kenburns 20s var(--ease-in-out) infinite alternate;
+    will-change: transform;
+  }
+  @keyframes kenburns {
+    from { transform: scale(1) translateY(0); }
+    to { transform: scale(1.14) translateY(-1.5%); }
+  }
+
+  /* Animated route dashes (SVG stroke) for the transport hero panel */
+  .route-dash {
+    stroke-dasharray: 6 6;
+    animation: route-dash 1.1s linear infinite;
+  }
+  @keyframes route-dash {
+    to { stroke-dashoffset: -24; }
+  }
 }
 
 @layer utilities {
@@ -205,7 +237,9 @@ body { visibility: visible; }
 @media (prefers-reduced-motion: reduce) {
   .reveal-up,
   .reveal-fade,
-  .marquee-track {
+  .marquee-track,
+  .kenburns,
+  .route-dash {
     animation: none !important;
     transition: none !important;
     transform: none !important;
@@ -232,6 +266,7 @@ body { visibility: visible; }
   display: flex;
   gap: 80px;
   padding: 0 64px;
+  flex-wrap: wrap;
 }
 @media (max-width: 768px) {
   .nav-overlay__inner { flex-direction: column; gap: 32px; padding: 0 24px; }
@@ -286,6 +321,40 @@ body { visibility: visible; }
 .nav-contact__cta:hover {
   background: var(--paper);
   color: var(--ink);
+}
+
+/* ── Quicklinks section (inline, same style as contact) ── */
+.nav-quicklinks {
+  margin-top: 8px;
+}
+.nav-quicklinks__label {
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+.nav-quicklinks__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.nav-quicklinks__list li {
+  margin: 0;
+}
+.nav-quicklinks__list a {
+  color: var(--paper);
+  text-decoration: none;
+  font-size: 0.85rem;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+.nav-quicklinks__list a:hover {
+  opacity: 0.6;
 }
 
 @media (prefers-reduced-motion: reduce) {

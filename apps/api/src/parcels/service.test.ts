@@ -51,7 +51,7 @@ describe("parcels/service", () => {
     vi.spyOn(prisma.appSettings, "findUnique").mockResolvedValue({ id: "global", featureFlags: { parcelPricing: { base: 1000, perKg: 200, perType: { fragile: 500, default: 0 } } } } as never)
     const cost = await calcShippingCost({ parcelType: "fragile", weightKg: 3 })
     expect(cost).toBe(1000 + 200 * 3 + 500)
-    __clearSettingsCache()
+    await __clearSettingsCache()
     vi.spyOn(prisma.appSettings, "findUnique").mockResolvedValue({ id: "global", featureFlags: { parcelPricing: { base: 1000, perKg: 200, perType: { default: 100 } } } } as never)
     const costDefault = await calcShippingCost({ parcelType: "unknown", weightKg: 1 })
     expect(costDefault).toBe(1000 + 200 * 1 + 100)

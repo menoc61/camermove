@@ -46,7 +46,7 @@ export interface InsurancePoliciesParams {
 }
 
 // Paginated envelope — matches GET /api/v1/insurance/policies at runtime.
-// Callers must read `.items` (see app/insurance/page.tsx, InsurancePartnerClient).
+// Callers must read `.items` (see app/insurance/page.tsx and the dashboard insurance tab).
 export async function fetchInsurancePolicies(
   token: string,
   params: InsurancePoliciesParams = {},

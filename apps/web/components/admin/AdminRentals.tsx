@@ -4,11 +4,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@camermove/frontend"
 import { apiFetch } from "@/lib/api/client"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
+import {
+  AdminDateRange,
+  AdminEmptyRow,
+  AdminFilterBar,
+  AdminPagination,
+  AdminSearch,
+  AdminTableFrame,
+} from "./shared"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
 
@@ -51,13 +58,17 @@ export function AdminRentals() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        <Input placeholder="Recherche" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} className="w-48" />
-        <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-36" />
-        <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-36" />
+      <AdminFilterBar>
+        <AdminSearch placeholder="Recherche" value={q} onChange={(v) => { setQ(v); setPage(1) }} className="w-48" />
+        <AdminDateRange
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFrom={(v) => { setDateFrom(v); setPage(1) }}
+          onTo={(v) => { setDateTo(v); setPage(1) }}
+        />
         <Button variant="outline" size="sm" onClick={() => { if (!token) return; const qs = new URLSearchParams({ format: "csv", ...(dateFrom ? { dateFrom } : {}), ...(dateTo ? { dateTo } : {}), ...(q ? { q } : {}) }).toString(); downloadExport(token, `/api/v1/admin/rentals/export?${qs}`, "csv").catch(() => toast.error("Erreur lors de l'export")) }}>Export CSV</Button>
-      </div>
-      <div className="rounded-xl border overflow-hidden">
+      </AdminFilterBar>
+      <AdminTableFrame>
         <Table>
           <TableHeader><TableRow><TableHead>Véhicule</TableHead><TableHead>Catégorie</TableHead><TableHead>Ville</TableHead><TableHead>Statut</TableHead><TableHead>Partner</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
           <TableBody>
@@ -78,14 +89,17 @@ export function AdminRentals() {
                 <TableCell className="flex gap-1"><Button size="sm" variant="outline" onClick={() => update.mutate({ id: v.id, partnerStatus: "approved" })}>Approuver</Button><Button size="sm" variant="ghost" onClick={() => update.mutate({ id: v.id, partnerStatus: "rejected" })}>Rejeter</Button></TableCell>
               </TableRow>
             ))}
-            {!isLoading && data?.items.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Aucun véhicule.</TableCell></TableRow>}
+            {!isLoading && data?.items.length === 0 && <AdminEmptyRow colSpan={6}>Aucun véhicule.</AdminEmptyRow>}
           </TableBody>
         </Table>
-      </div>
-      <div className="flex justify-between items-center">
-        <span className="text-sm text-muted-foreground">{data?.total ?? 0} véhicules</span>
-        <div className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Préc</Button><span className="text-sm py-1">Page {page} / {data?.totalPages ?? 1}</span><Button size="sm" variant="outline" disabled={page >= (data?.totalPages ?? 1)} onClick={() => setPage((p) => p + 1)}>Suiv</Button></div>
-      </div>
+      </AdminTableFrame>
+      <AdminPagination
+        page={page}
+        totalPages={data?.totalPages ?? 1}
+        total={data?.total ?? 0}
+        totalLabel="véhicules"
+        onPage={setPage}
+      />
     </div>
   )
 }

@@ -191,18 +191,18 @@ describe("summary-tabs contract", () => {
     ).toBeLessThan(250);
   });
 
-  it("renders 5 stat cards + bookings trend chart", async () => {
+  it("renders 6 stat cards + bookings trend chart", async () => {
     const { SummaryGrid } = await import("./summary/SummaryGrid");
     const { container } = withClient(
       createElement(SummaryGrid, {
-        counts: { trips: 3, hotels: 1, rentals: 0, parcels: 2, events: 5 },
+        counts: { trips: 3, hotels: 1, rentals: 0, parcels: 2, insurance: 1, events: 5 },
         trend: [
           { label: "Jan", value: 2 },
           { label: "Fev", value: 4 },
         ],
       }),
     );
-    for (const label of ["Voyages", "Hôtels", "Véhicules", "Colis", "Événements"]) {
+    for (const label of ["Voyages", "Hôtels", "Véhicules", "Colis", "Assurances", "Événements"]) {
       expect(screen.getByText(label)).toBeTruthy();
     }
     expect(screen.getByText("3")).toBeTruthy();

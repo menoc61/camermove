@@ -1,15 +1,24 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { Children, cloneElement, isValidElement, useState } from "react"
 import Link from "next/link"
-import { useReducedMotion } from "motion/react"
+
+const RAIL_LIMIT = 6
 
 /**
- * ServiceRail — generic swippable horizontal rail (Studio-Haas direction).
+ * ServiceRail — bento-grid layout for service cards (Studio-Haas direction).
  *
  * Contract (P5): every service rail on the homepage is a <ServiceRail>
  * with its own server-fetched content. Do not change these props without
  * updating all rails.
+ *
+ * The grid gives each card a different shape by position (period 4):
+ *   0 → feature (2×2)   1 → tall (1×2)
+ *   2 → std (1×1)       3 → std (1×1)
+ * Any trailing hole in the tiling is filled with a brand cell — the "Voir
+ * plus" trigger when more items exist, otherwise a CTA to the service page —
+ * so the bento never shows dead space regardless of item count. On mobile/sm
+ * the spans collapse to a simple 1-col / 2-col stack with natural heights.
  *
  * Props:
  * - index: "01".."06" — Swiss section number
@@ -18,8 +27,24 @@ import { useReducedMotion } from "motion/react"
  * - intro: one-line description (max ~60ch)
  * - href / hrefLabel: deep link to the service page
  * - dark?: render on ink background (transport hero rail)
- * - children: snap-aligned cards (<ServiceRailCard> recommended)
+ * - children: grid cards (<ServiceRailCard> recommended)
  */
+
+type CardSize = "feature" | "tall" | "std" | "wide"
+
+const SPAN_BY_POSITION: Record<number, string> = {
+  0: "lg:col-span-2 lg:row-span-2",
+  1: "lg:row-span-2",
+  2: "",
+  3: "",
+}
+
+function sizeForPosition(i: number): CardSize {
+  if (i === 0) return "feature"
+  if (i === 1) return "tall"
+  return "std"
+}
+
 export function ServiceRail({
   index,
   kicker,
@@ -39,27 +64,78 @@ export function ServiceRail({
   dark?: boolean
   children: React.ReactNode
 }) {
-  const trackRef = useRef<HTMLDivElement>(null)
-  const [progress, setProgress] = useState(0)
-  const shouldReduce = useReducedMotion()
+  const [showAll, setShowAll] = useState(false)
+  const childArray = Children.toArray(children).filter(isValidElement)
+  const hasMore = childArray.length > RAIL_LIMIT
+  const visible = showAll ? childArray : childArray.slice(0, RAIL_LIMIT)
+  const count = visible.length
 
-  const onScroll = useCallback(() => {
-    const el = trackRef.current
-    if (!el) return
-    const total = el.scrollWidth - el.clientWidth
-    setProgress(total > 0 ? el.scrollLeft / total : 0)
-  }, [])
+  const cells: React.ReactNode[] = visible.map((child, i) => {
+    const size = sizeForPosition(i)
+    const span = count < 3 ? "" : SPAN_BY_POSITION[i % 4] ?? ""
+    return (
+      <div key={child.key ?? i} className={`h-full ${span}`}>
+        {cloneElement(child as React.ReactElement<{ size?: CardSize }>, { size })}
+      </div>
+    )
+  })
 
-  const scrollBy = useCallback(
-    (dir: 1 | -1) => {
-      const el = trackRef.current
-      if (!el) return
-      el.scrollTo({
-        left: el.scrollLeft + dir * el.clientWidth * 0.8,
-        behavior: shouldReduce ? "auto" : "smooth",
-      })
-    },
-    [shouldReduce],
+  // Fill the trailing hole of the period-4 tiling with a brand cell.
+  const remainder = count % 4
+  const needsFiller = count >= 3 && remainder !== 0
+  const fillerSpan = remainder === 3 ? "lg:col-span-1" : "lg:col-span-2"
+
+  const fillerContent = hasMore && !showAll ? (
+    <button
+      type="button"
+      onClick={() => setShowAll(true)}
+      className={`group flex h-full min-h-[11rem] flex-col items-start justify-between border p-5 text-left transition-colors ${
+        dark
+          ? "border-white/15 bg-white/[0.03] hover:bg-white/[0.07]"
+          : "border-line bg-surface-1 hover:bg-surface-2"
+      }`}
+    >
+      <span className={`text-[10px] font-medium uppercase tracking-[0.22em] ${dark ? "text-white/55" : "text-ink-2"}`}>
+        {index} · {kicker}
+      </span>
+      <span className="flex items-end justify-between gap-4 self-stretch">
+        <span className={`max-w-[14ch] text-[clamp(1.3rem,1.8vw,1.7rem)] font-medium leading-[1.05] tracking-[-0.02em] ${dark ? "text-paper" : "text-ink"}`}>
+          Voir plus
+        </span>
+        <span
+          aria-hidden
+          className="font-body text-[clamp(1.6rem,2.4vw,2.2rem)] leading-none transition-transform duration-300 group-hover:translate-y-0.5"
+          style={{ color: dark ? "#E8A548" : "#C2772A" }}
+        >
+          ↓
+        </span>
+      </span>
+    </button>
+  ) : (
+    <Link
+      href={href}
+      className={`group flex h-full min-h-[11rem] flex-col items-start justify-between border p-5 transition-colors ${
+        dark
+          ? "border-white/15 bg-white/[0.03] hover:bg-white/[0.07]"
+          : "border-line bg-surface-1 hover:bg-surface-2"
+      }`}
+    >
+      <span className={`text-[10px] font-medium uppercase tracking-[0.22em] ${dark ? "text-white/55" : "text-ink-2"}`}>
+        {index} · {kicker}
+      </span>
+      <span className="flex items-end justify-between gap-4 self-stretch">
+        <span className={`max-w-[14ch] text-[clamp(1.3rem,1.8vw,1.7rem)] font-medium leading-[1.05] tracking-[-0.02em] ${dark ? "text-paper" : "text-ink"}`}>
+          {hrefLabel}
+        </span>
+        <span
+          aria-hidden
+          className="font-body text-[clamp(1.6rem,2.4vw,2.2rem)] leading-none transition-transform duration-300 group-hover:translate-x-1"
+          style={{ color: dark ? "#E8A548" : "#C2772A" }}
+        >
+          →
+        </span>
+      </span>
+    </Link>
   )
 
   return (
@@ -91,42 +167,18 @@ export function ServiceRail({
             >
               {hrefLabel}
             </Link>
-            <button
-              type="button"
-              onClick={() => scrollBy(-1)}
-              aria-label="Faire défiler vers la gauche"
-              className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center border text-lg leading-none transition-colors ${
-                dark ? "border-white/25 hover:bg-paper hover:text-ink" : "border-ink/25 hover:bg-ink hover:text-paper"
-              }`}
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollBy(1)}
-              aria-label="Faire défiler vers la droite"
-              className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center border text-lg leading-none transition-colors ${
-                dark ? "border-white/25 hover:bg-paper hover:text-ink" : "border-ink/25 hover:bg-ink hover:text-paper"
-              }`}
-            >
-              →
-            </button>
           </div>
         </div>
 
         <div
-          ref={trackRef}
-          onScroll={onScroll}
-          className="-mx-6 flex snap-x snap-mandatory gap-5 overflow-x-auto px-6 pb-2 sm:-mx-8 sm:px-8 md:-mx-12 md:px-12"
+          className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 ${
+            count < 3 ? "" : "lg:auto-rows-[13rem]"
+          }`}
         >
-          {children}
-        </div>
-
-        <div className={`relative mt-6 h-px w-full ${dark ? "bg-white/10" : "bg-ink/10"}`} aria-hidden>
-          <span
-            className={dark ? "absolute inset-y-0 left-0 bg-paper" : "absolute inset-y-0 left-0 bg-ink"}
-            style={{ width: `${Math.max(6, progress * 100)}%`, transition: "width 120ms linear" }}
-          />
+          {cells}
+          {needsFiller && (
+            <div className={`h-full ${fillerSpan}`}>{fillerContent}</div>
+          )}
         </div>
       </div>
     </section>
@@ -134,8 +186,9 @@ export function ServiceRail({
 }
 
 /**
- * ServiceRailCard — snap-aligned card for rail children.
- * Image (16/10) + top meta row + title + bottom meta row, wrapped in a link.
+ * ServiceRailCard — bento card for rail children. Fills whatever cell the
+ * grid assigns it; `size` (injected by ServiceRail) scales the typography.
+ * Image grows to fill, meta rows stay pinned bottom.
  */
 export function ServiceRailCard({
   href,
@@ -145,6 +198,7 @@ export function ServiceRailCard({
   title,
   bottom,
   badge,
+  size = "std",
 }: {
   href: string
   image: string
@@ -153,19 +207,21 @@ export function ServiceRailCard({
   title: string
   bottom: string
   badge?: string
+  size?: CardSize
 }) {
+  const feature = size === "feature"
   return (
     <Link
       href={href}
-      className="group w-[78vw] shrink-0 snap-start border border-line bg-surface-1 sm:w-[380px]"
+      className="group flex h-full min-h-[13rem] flex-col border border-line bg-surface-1"
     >
-      <div className="relative aspect-[16/10] overflow-hidden bg-surface-2">
+      <div className={`relative min-h-0 flex-1 overflow-hidden bg-surface-2 ${size === "std" ? "aspect-[16/10] lg:aspect-auto" : ""}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image}
           alt={imageAlt}
           loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.06]"
         />
         {badge ? (
           <span className="absolute left-3 top-3 bg-ink px-2 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-paper">
@@ -173,10 +229,28 @@ export function ServiceRailCard({
           </span>
         ) : null}
       </div>
-      <div className="p-4">
-        <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-ink-2">{top}</p>
-        <p className="mt-2 text-[17px] font-medium leading-snug tracking-[-0.01em] text-ink">{title}</p>
-        <p className="mt-2 border-t border-line pt-2 text-[12px] uppercase tracking-[0.14em] text-ink-1">{bottom}</p>
+      <div className={`p-4 ${feature ? "md:p-5" : ""}`}>
+        <p className={`font-medium uppercase tracking-[0.22em] text-ink-2 ${feature ? "text-[11px]" : "text-[10px]"}`}>
+          {top}
+        </p>
+        <p
+          className={`mt-2 font-medium leading-snug tracking-[-0.01em] text-ink ${
+            feature
+              ? "text-[clamp(1.25rem,1.9vw,1.8rem)]"
+              : size === "tall"
+                ? "text-[18px]"
+                : "text-[17px]"
+          }`}
+        >
+          {title}
+        </p>
+        <p
+          className={`mt-2 border-t border-line pt-2 uppercase tracking-[0.14em] text-ink-1 ${
+            feature ? "text-[13px] font-medium text-ink" : "text-[12px]"
+          }`}
+        >
+          {bottom}
+        </p>
       </div>
     </Link>
   )

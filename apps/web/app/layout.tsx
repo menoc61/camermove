@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import dynamic from "next/dynamic";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -9,13 +8,13 @@ import { BackToTop } from "../components/back-to-top";
 import { ServiceWorkerRegister } from "../components/service-worker-register";
 import { QueryProvider } from "../components/providers";
 import { TooltipProvider } from "@/components/ui/tooltip";
+/* Client component that lazy-loads Lenis/gsap inside useEffect — safe to
+ * import directly from this Server Component. NEVER wrap it in next/dynamic:
+ * a dynamic bailout inside the root layout silently switches the ENTIRE app
+ * to client-side rendering (empty SSR body → blank flash + broken UI). */
+import { SmoothScroll } from "../components/smooth-scroll";
 
 import { Inter } from "next/font/google";
-
-const SmoothScroll = dynamic(
-  () => import("@/components/smooth-scroll").then((m) => m.SmoothScroll),
-  { ssr: false },
-);
 
 /* Helvetica-first stack via Inter as a close web analogue.
    Only the weights actually used by the codebase (400/500/600/700) are

@@ -81,7 +81,7 @@ export function AdminLoginForm({ next }: { next?: string }) {
             required
             aria-invalid={!!emailError}
             aria-describedby={emailError ? "admin-email-error" : undefined}
-            className={cn("bg-slate-900 text-slate-100", emailError && "border-destructive")}
+            className={cn("h-11 bg-paper", emailError && "border-destructive")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onBlur={() => setTouched((p) => ({ ...p, email: true }))}
@@ -94,7 +94,7 @@ export function AdminLoginForm({ next }: { next?: string }) {
                 initial={{ opacity: 0, y: -4, height: 0 }}
                 animate={{ opacity: 1, y: 0, height: "auto" }}
                 exit={{ opacity: 0, y: -4, height: 0 }}
-                className="text-sm text-red-300"
+                className="text-sm text-destructive"
                 role="alert"
               >
                 {emailError}
@@ -111,7 +111,7 @@ export function AdminLoginForm({ next }: { next?: string }) {
             minLength={8}
             aria-invalid={!!passwordError}
             aria-describedby={passwordError ? "admin-password-error" : undefined}
-            className={cn("bg-slate-900 text-slate-100", passwordError && "border-destructive")}
+            className={cn("h-11 bg-paper", passwordError && "border-destructive")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onBlur={() => setTouched((p) => ({ ...p, password: true }))}
@@ -124,7 +124,7 @@ export function AdminLoginForm({ next }: { next?: string }) {
                 initial={{ opacity: 0, y: -4, height: 0 }}
                 animate={{ opacity: 1, y: 0, height: "auto" }}
                 exit={{ opacity: 0, y: -4, height: 0 }}
-                className="text-sm text-red-300"
+                className="text-sm text-destructive"
                 role="alert"
               >
                 {passwordError}
@@ -140,15 +140,15 @@ export function AdminLoginForm({ next }: { next?: string }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: -6 }}
               role="alert"
-              className="rounded-lg bg-red-950/60 px-3 py-2 text-sm text-red-300 border border-red-900"
+              className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
               {error}
             </motion.p>
           ) : null}
         </AnimatePresence>
 
-        <motion.div whileTap={{ scale: 0.98 }} whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 400, damping: 25 }}>
-          <Button type="submit" className="rounded-full" disabled={submitting} loading={submitting}>
+        <motion.div whileTap={{ scale: 0.98 }} transition={{ type: "spring", stiffness: 400, damping: 25 }}>
+          <Button type="submit" className="h-12 w-full text-[12px] font-medium uppercase tracking-[0.22em]" disabled={submitting} loading={submitting}>
             {submitting ? "Un instant…" : "Accéder à la console"}
           </Button>
         </motion.div>

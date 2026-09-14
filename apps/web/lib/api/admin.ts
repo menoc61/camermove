@@ -14,6 +14,12 @@ export interface AdminStats {
   pendingPayments: number
   totalRevenue: number
   totalCommissions: number
+  totalHotelBookings: number
+  totalRentalBookings: number
+  totalParcels: number
+  totalInsurancePolicies: number
+  totalEventBookings: number
+  totalPartners: number
 }
 
 export interface PaginatedResponse<T> {

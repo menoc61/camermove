@@ -5,8 +5,11 @@
  * Single source of truth for queue names + connection factory + enqueue helpers.
  * Connections are lazy: no Redis I/O happens at import time, so API unit tests
  * that never enqueue never touch Redis.
+ *
+ * Backend-only module — consumed exclusively by apps/api and apps/worker.
+ * (No `server-only` guard: it is a React RSC boundary package and throws in
+ * plain Node, which broke every API test suite that imports route modules.)
  */
-import "server-only";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import { createLogger, loadEnv } from "@camermove/config";

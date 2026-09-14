@@ -201,6 +201,9 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
   // Fetch booking to get tripId for row locks
   const p = await prisma.payment.findUnique({ where: { id: payment.id }, include: { booking: { include: { trip: true } } } })
   if (!p) throw new UnrecoverableError(`payment not found ${payment.id}`)
+  if (!p.bookingId) throw new UnrecoverableError(`payment ${payment.id} has no bookingId (non-transport payment)`)
+  // Capture under a local const so the string narrowing survives into the tx closure.
+  const bookingId: string = p.bookingId
   const booking = p.booking as unknown as { id: string; tripId: string; seatCount: number; totalAmount: number; status: string; trip: { transportId: string }; userId: string; reference: string }
 
   // Issued ticket is captured during the transaction so we can publish the
@@ -212,12 +215,12 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
   await prisma.$transaction(async (tx: unknown) => {
     const t = tx as typeof prisma
     // Serialize against expireHolds — lock Booking and SeatAvailability
-    await (t as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Booking" WHERE "id"=${p.bookingId} FOR UPDATE`
+    await (t as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Booking" WHERE "id"=${bookingId} FOR UPDATE`
     await (t as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "tripId" FROM "SeatAvailability" WHERE "tripId"=${booking.tripId} FOR UPDATE`
 
     // Re-fetch inside tx under lock
     const freshPayment = await t.payment.findUnique({ where: { id: p.id } })
-    const freshBooking = await t.booking.findUnique({ where: { id: p.bookingId } })
+    const freshBooking = await t.booking.findUnique({ where: { id: bookingId } })
     if (!freshPayment || !freshBooking) return
     // Idempotency guard — already success
     if (freshPayment.status === "success") return
@@ -226,7 +229,7 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
     if (freshBooking.status !== "pending_payment") return
 
     await t.payment.update({ where: { id: p.id }, data: { status: "success", webhookPayload: event as never } })
-    await t.booking.update({ where: { id: p.bookingId }, data: { status: "confirmed" } })
+    await t.booking.update({ where: { id: bookingId }, data: { status: "confirmed" } })
 
     // Seat transition: seatsHeld -> seatsBooked, guard not negative
     const sa = await t.seatAvailability.findUnique({ where: { tripId: booking.tripId } })
@@ -285,10 +288,10 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
     // Generate ticket inside the same transaction (ACID per AGENTS.md §1).
     // If ticket generation throws, the entire transaction rolls back — no orphan Commission.
     try {
-      issuedTicket = await generateAndIssueTicket(t as never, p.bookingId)
+      issuedTicket = await generateAndIssueTicket(t as never, bookingId)
       ticketCreateSucceeded = true
     } catch (e) {
-      log.error({ err: (e as Error).message, bookingId: p.bookingId }, "ticket generation failed")
+      log.error({ err: (e as Error).message, bookingId }, "ticket generation failed")
       throw e
     }
 
@@ -302,7 +305,7 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
             entityType: "Ticket",
             entityId: issuedTicket.id,
             metadata: {
-              bookingId: p.bookingId,
+              bookingId,
               ticketId: issuedTicket.id,
               userId: (booking as unknown as { userId: string }).userId,
             } as never,
@@ -337,7 +340,7 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
           ticketId: justIssuedTicket.id,
           verificationCode: justIssuedTicket.verificationCode,
           amount: booking.totalAmount,
-          tripId: p.booking.tripId,
+          tripId: booking.tripId,
         },
       }
       await producer
@@ -390,7 +393,7 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
           bookingId: booking.id,
           reference: booking.reference,
           amount: booking.totalAmount,
-          tripId: p.booking.tripId,
+          tripId: booking.tripId,
         },
       }
       await producer
@@ -443,15 +446,18 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
 export async function failPayment(payment: { id: string; bookingId: string }, event: unknown, targetStatus: "failed" | "expired" = "failed"): Promise<void> {
   const p = await prisma.payment.findUnique({ where: { id: payment.id }, include: { booking: true } })
   if (!p) return
+  if (!p.bookingId) return // non-transport payment — handled by failNonTripPayment
+  // Capture under a local const so the string narrowing survives into the tx closure.
+  const bookingId: string = p.bookingId
   const booking = p.booking as unknown as { id: string; tripId: string; seatCount: number; status: string }
 
   await prisma.$transaction(async (tx: unknown) => {
     const t = tx as typeof prisma
-    await (t as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Booking" WHERE "id"=${p.bookingId} FOR UPDATE`
+    await (t as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Booking" WHERE "id"=${bookingId} FOR UPDATE`
     await (t as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "tripId" FROM "SeatAvailability" WHERE "tripId"=${booking.tripId} FOR UPDATE`
 
     const freshPayment = await t.payment.findUnique({ where: { id: p.id } })
-    const freshBooking = await t.booking.findUnique({ where: { id: p.bookingId } })
+    const freshBooking = await t.booking.findUnique({ where: { id: bookingId } })
     if (!freshPayment || !freshBooking) return
     if (["success", "refunded"].includes(freshPayment.status as string)) return // terminal
     if (freshPayment.status === targetStatus) return
@@ -460,7 +466,7 @@ export async function failPayment(payment: { id: string; bookingId: string }, ev
 
     // Only release held seats if booking still pending_payment (expiry race)
     if (freshBooking.status === "pending_payment") {
-      await t.booking.update({ where: { id: p.bookingId }, data: { status: "expired" } })
+      await t.booking.update({ where: { id: bookingId }, data: { status: "expired" } })
       const sa = await t.seatAvailability.findUnique({ where: { tripId: booking.tripId } })
       if (sa) {
         const held = sa.seatsHeld ?? 0
@@ -521,7 +527,9 @@ export async function processPaymentWebhook(event: { id: string; type: string; a
   }
   if (!payment) {
     const byRef = await prisma.payment.findFirst({ where: { providerRef: reference } })
-    if (byRef) {
+    if (byRef?.bookingId) {
+      // Only a booking-linked payment is a transport payment; non-transport
+      // (hotel/rental/parcel/insurance/event) fall through to resolveNonTripPayment.
       payment = byRef as unknown as PaymentRow
       const bb = await prisma.booking.findUnique({ where: { id: byRef.bookingId }, include: { trip: true } })
       if (bb) booking = { id: bb.id, tripId: bb.tripId, totalAmount: bb.totalAmount, transportId: (bb.trip as unknown as { transportId: string }).transportId }

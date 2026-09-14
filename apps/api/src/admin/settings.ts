@@ -35,7 +35,7 @@ export async function adminSettingsRoutes(app: FastifyInstance) {
       create: { id: "global", ...body, updatedBy: actorId },
     })
     await prisma.auditLog.create({
-      data: { actorId, action: "admin.settings.update", entityType: "AppSettings", entityId: "global", metadata: body as Record<string, unknown> },
+      data: { actorId, action: "admin.settings.update", entityType: "AppSettings", entityId: "global", metadata: body as never },
     })
     return settings
   })

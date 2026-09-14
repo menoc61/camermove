@@ -36,10 +36,6 @@ function toPage(res: Envelope, page: number, perPage: number): TabPage {
   };
 }
 
-function totalOf(res: Envelope | undefined): number {
-  return typeof res?.total === "number" ? res.total : 0;
-}
-
 export function DashboardV2({
   initialData,
   token,
@@ -53,34 +49,18 @@ export function DashboardV2({
     initialData,
     retry: false,
   });
-  const hotelsCount = useQuery({
-    queryKey: ["dashboard-v2-hotels-total", token],
-    queryFn: () => fetchMyHotelBookings(token, { page: 1, perPage: 1 }),
-    retry: false,
-  });
-  const rentalsCount = useQuery({
-    queryKey: ["dashboard-v2-rentals-total", token],
-    queryFn: () => fetchMyRentalBookings(token, { page: 1, perPage: 1 }),
-    retry: false,
-  });
-  const parcelsCount = useQuery({
-    queryKey: ["dashboard-v2-parcels-total", token],
-    queryFn: () => fetchParcels(token, { page: 1, perPage: 1 }),
-    retry: false,
-  });
-  const eventsCount = useQuery({
-    queryKey: ["dashboard-v2-events-total", token],
-    queryFn: () => fetchMyEventBookings(token, { page: 1, perPage: 1 }),
-    retry: false,
-  });
 
+  // Personalized all-services totals come straight from /me/dashboard
+  // (full DB counts in one roundtrip) — no per-service count probes needed.
   const data = dashboard.data ?? initialData;
+  const t = data.totals;
   const counts = {
-    trips: data.upcoming.length,
-    hotels: totalOf(hotelsCount.data as Envelope | undefined),
-    rentals: totalOf(rentalsCount.data as Envelope | undefined),
-    parcels: totalOf(parcelsCount.data as Envelope | undefined),
-    events: totalOf(eventsCount.data as Envelope | undefined),
+    trips: t?.trips ?? data.upcoming.length,
+    hotels: t?.hotels ?? 0,
+    rentals: t?.rentals ?? 0,
+    parcels: t?.parcels ?? 0,
+    insurance: t?.insurance ?? 0,
+    events: t?.events ?? 0,
   };
   const trend = [
     { label: "À venir", value: data.upcoming.length },

@@ -1,10 +1,25 @@
 # CamerMove
 
+[![Version](https://img.shields.io/badge/version-v.0.1-blue)](https://github.com/menoc61/camermove)
+[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![Contribute](https://img.shields.io/badge/contributions-welcome-orange)](./CONTRIBUTING.md)
+
 **Plateforme multi-services dédiée à la mobilité, au voyage et aux services associés au Cameroun.**
 
 CamerMove réunit six services autour d'un seul compte : transport interurbain (produit héros), hôtels & appartements, location de véhicules, transport de colis, assurance voyage, billetterie événements. Le tout avec paiement Mobile Money et billet QR.
 
 > Réinventons la mobilité africaine.
+
+## Services
+
+| Service | Description |
+|---------|-------------|
+| 🚌 **Transport** | Réservation de bus interurbain (Yaoundé ↔ Douala) |
+| 🏨 **Hôtels** | Hébergements vérifiés dans tout le Cameroun |
+| 🚗 **Location** | Véhicules avec prise en charge aéroport |
+| 📦 **Colis** | Envoi de colis avec suivi en temps réel |
+| 🛡️ **Assurance** | Assurance voyage dès 2 500 XAF |
+| 🎫 **Événements** | Billetterie événementielle |
 
 ## Structure
 
@@ -100,3 +115,29 @@ pnpm smoke:tickets
 pnpm smoke:dashboard
 pnpm swagger:export         # openapi.json
 ```
+
+## Contribution
+
+Les contributions sont les bienvenues ! Consultez [CONTRIBUTING.md](./CONTRIBUTING.md) pour les directives.
+
+## Licence
+
+Ce projet est sous licence [MIT](./LICENSE).
+
+## Changelog
+
+Consultez [CHANGELOG.md](./CHANGELOG.md) pour l'historique des versions.
+
+## Contact
+
+- **Email** : contact@camermove.cm
+- **Site** : https://camermove.cm
+- **Twitter** : [@camermove](https://x.com/camermove)
+
+---
+
+<div align="center">
+
+**CamerMove** — Réinventons la mobilité africaine 🇨🇲
+
+</div>

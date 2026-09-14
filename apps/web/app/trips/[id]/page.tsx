@@ -143,7 +143,7 @@ export default function TripDetailPage() {
   for (let r = 0; r < totalRows; r++) { const slice = displaySeats.slice(r * 4, r * 4 + 4); if (slice.length) displayRows.push(slice) }
 
   return (
-    <main className="mx-auto max-w-md space-y-4 p-4 pb-28" style={{ background: "#F7F5F0", minHeight: "100vh" }}>
+    <main className="mx-auto max-w-3xl space-y-4 p-4 pb-28 sm:p-6" style={{ background: "#F7F5F0", minHeight: "100vh" }}>
       {/* BackHeader like reference */}
       <div className="flex items-center gap-2">
         <Link href="/results" className="p-1.5 rounded-lg bg-white border" style={{ borderColor: BORDER }}><span className="text-sm" style={{ color: NAVY }}>←</span></Link>
@@ -232,7 +232,7 @@ export default function TripDetailPage() {
       )}
 
       {/* BottomBar like reference */}
-      <div className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-md flex-wrap items-center justify-between gap-3 border-t bg-white p-3" style={{ borderColor: BORDER }}>
+      <div className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 border-t bg-white p-3 sm:p-4" style={{ borderColor: BORDER }}>
         <div>
           <p className="text-[10px]" style={{ color: "#5A6474" }}>{picked ? `Siège ${seatLabel}` : "Choisissez un siège"}</p>
           <p className="font-bold text-sm" style={{ color: NAVY }}>{new Intl.NumberFormat("fr-CM").format(trip.price)} XAF</p>

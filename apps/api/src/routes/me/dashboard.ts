@@ -33,10 +33,21 @@ export interface DashboardTicketItem {
   status: string
 }
 
+/** All-services personalized totals (full counts, not page-limited lengths). */
+export interface DashboardTotals {
+  trips: number
+  hotels: number
+  rentals: number
+  parcels: number
+  insurance: number
+  events: number
+}
+
 export interface DashboardResponse {
   upcoming: DashboardItem[]
   history: DashboardItem[]
   tickets: DashboardTicketItem[]
+  totals?: DashboardTotals
   meta?: { cached: boolean }
 }
 
@@ -95,8 +106,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
     // Parallel queries — single roundtrip latency.
     // Select projection on route (id, originCity, destinationCity) instead of
-    // route:true to shrink the row payload.
-    const [upcomingRaw, historyRaw, ticketsRaw] = await Promise.all([
+    // route:true to shrink the row payload. Personalized totals are counted
+    // in the same roundtrip (all services owned/booked by this user).
+    const [upcomingRaw, historyRaw, ticketsRaw, totals] = await Promise.all([
       prisma.booking.findMany({
         where: {
           userId: user.id,
@@ -134,6 +146,15 @@ export async function dashboardRoutes(app: FastifyInstance) {
         orderBy: { issuedAt: "desc" },
         take: TICKETS_TAKE,
       }),
+      // Personalized KPI totals across every service (indexed [userId,status]).
+      Promise.all([
+        prisma.booking.count({ where: { userId: user.id, status: { in: ["confirmed", "pending_payment"] }, trip: { departureAt: { gte: now } } } }),
+        prisma.hotelBooking.count({ where: { userId: user.id, status: { in: ["confirmed", "pending_payment"] } } }),
+        prisma.rentalBooking.count({ where: { userId: user.id, status: { in: ["pending_payment", "confirmed", "active"] } } }),
+        prisma.parcel.count({ where: { userId: user.id, status: { in: ["registered", "picked_up", "in_transit", "arrived", "available_for_pickup"] } } }),
+        prisma.insurancePolicy.count({ where: { userId: user.id, status: { in: ["pending_payment", "confirmed"] } } }),
+        prisma.eventBooking.count({ where: { userId: user.id, status: { in: ["confirmed", "pending_payment"] } } }),
+      ]),
     ])
 
     const toItem = (b: BookingWithTrip): DashboardItem => ({
@@ -161,7 +182,13 @@ export async function dashboardRoutes(app: FastifyInstance) {
     // Best-effort audit log (per AGENTS.md §2); fire-and-forget, never blocks.
     fireAudit({ upcoming: upcoming.length, history: history.length, tickets: tickets.length })
 
-    const result = { upcoming, history, tickets } satisfies DashboardResponse
+    const [trips, hotels, rentals, parcels, insurance, events] = totals
+    const result = {
+      upcoming,
+      history,
+      tickets,
+      totals: { trips, hotels, rentals, parcels, insurance, events } satisfies DashboardTotals,
+    } satisfies DashboardResponse
     // Populate cache without blocking the response (60s TTL, hotels pattern).
     void setCached(cacheKeyStr, result, 60).catch(() => {})
 

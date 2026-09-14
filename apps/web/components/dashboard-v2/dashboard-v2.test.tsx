@@ -9,8 +9,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const here = dirname(fileURLToPath(import.meta.url));
 const webRoot = join(here, "..", "..");
 const v2Path = join(here, "DashboardV2.tsx");
-const pagePath = join(webRoot, "app", "dashboard-v2", "page.tsx");
-const oldPath = join(webRoot, "app", "dashboard", "page.tsx");
+const pagePath = join(webRoot, "app", "dashboard", "page.tsx");
+const oldV2Path = join(webRoot, "app", "dashboard-v2", "page.tsx");
 
 function read(p: string): string {
   return readFileSync(p, "utf8");
@@ -20,7 +20,7 @@ const replaceMock = vi.fn();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(""),
   useRouter: () => ({ replace: replaceMock }),
-  usePathname: () => "/dashboard-v2",
+  usePathname: () => "/dashboard",
 }));
 
 // Same behavior-preserving stubs as summary-tabs.test.tsx (jsx:preserve).
@@ -204,12 +204,12 @@ const initialData = {
 describe("dashboard-v2 route: shell + 5 cards + 10 tabs", () => {
   beforeEach(() => replaceMock.mockClear());
 
-  it("ships page + DashboardV2 under 250 lines each, keeps old /dashboard", () => {
-    expect(existsSync(pagePath), "app/dashboard-v2/page.tsx missing").toBe(true);
+  it("ships page + DashboardV2 under 250 lines each, /dashboard-v2 removed", () => {
+    expect(existsSync(pagePath), "app/dashboard/page.tsx missing").toBe(true);
     expect(existsSync(v2Path), "components/dashboard-v2/DashboardV2.tsx missing").toBe(true);
     expect(read(pagePath).split("\n").length, "page must stay <250 lines").toBeLessThan(250);
     expect(read(v2Path).split("\n").length, "DashboardV2 must stay <250 lines").toBeLessThan(250);
-    expect(existsSync(oldPath), "old app/dashboard/page.tsx must NOT be deleted").toBe(true);
+    expect(existsSync(oldV2Path), "app/dashboard-v2 must be deleted (single /dashboard)").toBe(false);
   });
 
   it("page gates token + SSR getDashboard, renders DashboardShell/DashboardV2", () => {
@@ -217,7 +217,7 @@ describe("dashboard-v2 route: shell + 5 cards + 10 tabs", () => {
     for (const token of [
       "x-cm-user-token",
       "cm_access",
-      "/login?next=/dashboard-v2",
+      "/login?next=/dashboard",
       "getDashboard",
       "DashboardShell",
       "DashboardV2",

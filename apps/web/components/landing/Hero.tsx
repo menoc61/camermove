@@ -6,14 +6,14 @@ import { motion, useReducedMotion } from "motion/react"
 import { SearchBar } from "../search/search-bar"
 import { Button } from "@/components/ui/button"
 
-/* Reel chapters: each one paints a CamerMove service with an on-brand gradient
-   instead of an external image. No CDN dependency, no 404s, and the visual
-   stays on-brand even before the (placeholder) video loads. */
+/* Reel chapters: each paints a CamerMove service with an on-brand gradient +
+ * a stable Unsplash poster (Ken Burns motion). The gradient stays on-brand
+ * while the poster loads; no CDN hard dependency for layout. */
 const REEL = [
   {
     label: "Transport interurbain",
     title: "Yaoundé ⇄ Douala, billets comparés en un clin d'œil",
-    src: "/videos/placeholder.mp4",
+    poster: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1600&q=70",
     chapter: "01",
     eyebrow: "Bus & voiture",
     gradient: "linear-gradient(135deg, #0E0E0E 0%, #1F3A5F 55%, #C2772A 100%)",
@@ -22,7 +22,7 @@ const REEL = [
   {
     label: "Hôtels vérifiés",
     title: "Suites et chambres climatisées, de Yaoundé à Kribi",
-    src: "/videos/placeholder.mp4",
+    poster: "https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=1600&q=70",
     chapter: "02",
     eyebrow: "Hébergement",
     gradient: "linear-gradient(135deg, #1B1B1B 0%, #5C2A2A 50%, #C28A3A 100%)",
@@ -31,7 +31,7 @@ const REEL = [
   {
     label: "Colis & courses",
     title: "Envoyez un colis de Douala à Bafoussam, suivi en direct",
-    src: "/videos/placeholder.mp4",
+    poster: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1600&q=70",
     chapter: "03",
     eyebrow: "Logistique",
     gradient: "linear-gradient(135deg, #0E1A1F 0%, #134E5E 60%, #71B280 100%)",
@@ -40,7 +40,7 @@ const REEL = [
   {
     label: "Location de véhicules",
     title: "Prise en charge aéroport, retour libre — sans paperasse",
-    src: "/videos/placeholder.mp4",
+    poster: "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&w=1600&q=70",
     chapter: "04",
     eyebrow: "Mobilité",
     gradient: "linear-gradient(135deg, #101524 0%, #2A2F6E 55%, #6F4FB8 100%)",
@@ -49,7 +49,7 @@ const REEL = [
   {
     label: "Assurance voyage",
     title: "Couverture santé, bagages et rapatriement, dès 2 500 XAF",
-    src: "/videos/placeholder.mp4",
+    poster: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=70",
     chapter: "05",
     eyebrow: "Protection",
     gradient: "linear-gradient(135deg, #0A1320 0%, #1B3B6F 50%, #3FA7D6 100%)",
@@ -58,7 +58,7 @@ const REEL = [
   {
     label: "Billetterie événementielle",
     title: "Concerts, matchs et festivals — billets mobiles authentiques",
-    src: "/videos/placeholder.mp4",
+    poster: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1600&q=70",
     chapter: "06",
     eyebrow: "Loisirs",
     gradient: "linear-gradient(135deg, #1A0F1F 0%, #5B1E5B 55%, #E255A1 100%)",
@@ -67,7 +67,7 @@ const REEL = [
   {
     label: "Mobile Money & carte",
     title: "Orange Money, MTN MoMo, carte Visa — paiement unifié",
-    src: "/videos/placeholder.mp4",
+    poster: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?auto=format&fit=crop&w=1600&q=70",
     chapter: "07",
     eyebrow: "Paiement",
     gradient: "linear-gradient(135deg, #1A1300 0%, #4D3800 55%, #FFB000 100%)",
@@ -94,7 +94,6 @@ function departureLabel(iso?: string): string {
 
 export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
   const reelRef = useRef<HTMLDivElement>(null)
-  const videoRefs = useRef<Array<HTMLVideoElement | null>>([])
   const shouldReduce = useReducedMotion()
   const [activeIndex, setActiveIndex] = useState(0)
   const [progress, setProgress] = useState(0)
@@ -145,19 +144,6 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
     }
   }, [shouldReduce])
 
-  // Only the active video plays, others are paused to save bandwidth.
-  useEffect(() => {
-    if (shouldReduce) return
-    videoRefs.current.forEach((v, i) => {
-      if (!v) return
-      if (i === activeIndex) {
-        v.play().catch(() => {})
-      } else {
-        v.pause()
-      }
-    })
-  }, [activeIndex, shouldReduce])
-
   // Click on a chapter scrolls the reel container there.
   const goTo = (i: number) => {
     const root = reelRef.current
@@ -179,7 +165,7 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
             Plateforme multi-services · Cameroun
           </p>
           <p className="hidden text-[11px] uppercase tracking-[0.22em] text-white/55 sm:block">
-            Édition 2026
+            v.0.1-beta
           </p>
         </div>
       </div>
@@ -226,7 +212,7 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
       {/* Horizontal video reel — real scroll container with snap */}
       <div
         ref={reelRef}
-        className="relative z-0 flex w-full snap-x snap-mandatory select-none overflow-x-auto"
+        className="relative z-0 flex w-full snap-x snap-mandatory select-none overflow-x-auto no-scrollbar"
         style={{ height: "min(78vh, 760px)" }}
       >
         {REEL.map((item, i) => (
@@ -236,36 +222,31 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
             aria-roledescription="slide"
             aria-label={`${item.chapter} — ${item.title}`}
           >
-            {/* On-brand gradient poster — no external image dependency */}
+            {/* On-brand gradient — visible while the poster loads */}
             <div
               aria-hidden
               className="absolute inset-0"
               style={{ background: item.gradient }}
             />
-            {/* Service badge — keeps the reel legible while the placeholder video plays */}
+            {/* Service poster with slow Ken Burns motion */}
+            <div aria-hidden className="absolute inset-0 overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.poster}
+                alt=""
+                loading={i === 0 ? "eager" : "lazy"}
+                className={`h-full w-full object-cover ${i === activeIndex && !shouldReduce ? "kenburns" : ""}`}
+              />
+            </div>
+            {/* Service badge — keeps the reel legible over the imagery */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div
-                className="rounded-full border border-white/25 bg-black/20 px-5 py-2 text-[11px] font-medium uppercase tracking-[0.32em] text-white/85 backdrop-blur-sm"
+                className="border border-white/25 bg-black/25 px-5 py-2 text-[11px] font-medium uppercase tracking-[0.32em] text-white/85 backdrop-blur-sm"
                 style={{ color: item.accent }}
               >
                 {item.eyebrow}
               </div>
             </div>
-            {/* Video (autoplay, muted, loop, playsInline) */}
-            {!shouldReduce && (
-              <video
-                ref={(el) => {
-                  videoRefs.current[i] = el
-                }}
-                src={item.src}
-                muted
-                loop
-                playsInline
-                preload={i === activeIndex ? "metadata" : "none"}
-                aria-hidden
-                className="absolute inset-0 h-full w-full object-cover opacity-0"
-              />
-            )}
             {/* Subtle dark veil for legibility */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-black/60" />
 
@@ -298,7 +279,7 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
       {/* Progress bar + chapter selector (sticky below the fixed header) */}
       <div className="sticky top-[72px] z-10 border-t border-white/10 bg-ink/85 backdrop-blur lg:top-24">
         <div className="mx-auto flex max-w-[1560px] flex-col gap-4 px-6 py-4 sm:px-8 md:flex-row md:items-center md:gap-8 md:px-12">
-          <div className="flex items-center gap-3 overflow-x-auto md:flex-1">
+          <div className="no-scrollbar flex items-center gap-3 overflow-x-auto md:flex-1">
             {REEL.map((item, i) => (
               <button
                 key={item.chapter}

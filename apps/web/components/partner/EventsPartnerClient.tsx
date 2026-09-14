@@ -1,7 +1,7 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { fetchEvents } from "@/lib/api/events"
+import { getPartnerEvents } from "@/lib/api/partners"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -9,10 +9,12 @@ import { Badge } from "@/components/ui/badge"
 
 interface Props { token: string }
 
+const fmtXaf = (amount: number) => new Intl.NumberFormat("fr-CM").format(amount)
+
 export function EventsPartnerClient({ token }: Props) {
-  const { data, isLoading, error } = useQuery<{ items: any[] }>({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["partner-events"],
-    queryFn: () => fetchEvents(token),
+    queryFn: () => getPartnerEvents(token),
     enabled: !!token,
   })
 
@@ -33,23 +35,35 @@ export function EventsPartnerClient({ token }: Props) {
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Erreur</AlertTitle>
-          <AlertDescription>Impossible de charger les événements — {error instanceof Error ? error.message : String(error)}</AlertDescription>
+          <AlertDescription>Impossible de charger vos événements — {error instanceof Error ? error.message : String(error)}</AlertDescription>
         </Alert>
       )}
       {!isLoading && !error && data?.items.map((e) => (
         <Card key={e.id}>
           <CardHeader><CardTitle>{e.name} — {e.city}</CardTitle></CardHeader>
-          <CardContent className="flex justify-between items-center">
+          <CardContent className="flex flex-wrap justify-between items-center gap-3">
             <div>
               <p className="text-sm text-muted-foreground">{new Date(e.startDate).toLocaleDateString("fr-FR")} - {e.endDate ? new Date(e.endDate).toLocaleDateString("fr-FR") : "∞"}</p>
-              <p className="text-sm text-muted-foreground">Type: {e.eventType}</p>
+              <p className="text-sm text-muted-foreground">Type : {e.eventType} · {e.ticketCategories.length} catégorie(s) de billets</p>
             </div>
-            <Badge variant={e.status === "active" ? "default" : "secondary"}>{e.status}</Badge>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Réservations</p>
+                <p className="text-lg font-semibold">{e.kpis.bookings}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Revenu confirmé</p>
+                <p className="text-lg font-semibold">{fmtXaf(e.kpis.revenue)} XAF</p>
+              </div>
+              <Badge variant={e.partnerStatus === "approved" ? "default" : "secondary"}>{e.partnerStatus}</Badge>
+            </div>
           </CardContent>
         </Card>
       ))}
       {!isLoading && !error && !data?.items?.length && (
-        <p className="text-sm text-muted-foreground">Aucun événement — créez‑en un via l&#39;interface admin.</p>
+        <p className="text-sm text-muted-foreground">
+          Aucun événement à votre organisation. Les événements que vous organisez apparaîtront ici.
+        </p>
       )}
     </div>
   )

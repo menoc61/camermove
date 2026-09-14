@@ -17,6 +17,7 @@ import { meTicketRoutes } from "./routes/me/tickets"
 import { meNotificationRoutes } from "./routes/me/notifications"
 import { meProfileRoutes } from "./routes/me/profile"
 import { partnerApplicationRoutes } from "./partner-applications/routes"
+import { partnerServiceRoutes } from "./partners/routes"
 import { placesRoutes } from "./places/routes"
 import { agenciesRoutes } from "./agencies/routes"
 import { transporterRoutes } from "./transporter/routes"
@@ -101,6 +102,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(meNotificationRoutes, { prefix: "/api/v1" })
   await app.register(meProfileRoutes, { prefix: "/api/v1" })
   await app.register(partnerApplicationRoutes, { prefix: "/api/v1" })
+  await app.register(partnerServiceRoutes, { prefix: "/api/v1" })
   await app.register(placesRoutes, { prefix: "/api/v1" })
   await app.register(agenciesRoutes, { prefix: "/api/v1" })
   await app.register(hotelRoutes, { prefix: "/api/v1" })

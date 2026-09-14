@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
-import { findUserByEmail, findUserById, createUser, findOrCreateSocialUser } from "@camermove/db"
+import { findUserByEmail, findUserById, findUserCredentialsByEmail, createUser, findOrCreateSocialUser } from "@camermove/db"
 import { loadEnv, ConflictError, UnauthorizedError } from "@camermove/config"
 import { hashPassword, verifyPassword } from "./password"
 import {
@@ -56,7 +56,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/auth/login", async (req) => {
     const body = RegisterBody.pick({ email: true, password: true }).parse(req.body)
-    const user = await findUserByEmail(body.email)
+    const user = await findUserCredentialsByEmail(body.email)
     if (!user?.passwordHash) throw new UnauthorizedError()
     const ok = await verifyPassword(user.passwordHash, body.password)
     if (!ok) throw new UnauthorizedError()

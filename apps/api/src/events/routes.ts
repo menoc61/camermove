@@ -314,6 +314,53 @@ export async function eventRoutes(app: FastifyInstance) {
     ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, code, userId: user.id }, "tickets.verify.get")
     return verifyCodeSanitized(code)
   })
+
+  // GET /partner/events — organizer partner view: events organized by the
+  // authenticated user (organizerId), with per-event booking KPIs. Scoped per
+  // service: a non-organizer gets an empty list, not an error.
+  app.get("/partner/events", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const query = req.query as Record<string, unknown>
+    const page = Math.max(1, Number(query.page ?? 1))
+    const perPage = Math.min(50, Math.max(1, Number(query.perPage ?? query.limit ?? 20)))
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, userId: user.id, page }, "events.partner.list")
+    const organizerWhere: Record<string, unknown> = user.role === "admin" || user.role === "super_admin" ? {} : { organizerId: user.id }
+    const skip = (page - 1) * perPage
+    const [items, total] = await Promise.all([
+      prisma.event.findMany({
+        where: organizerWhere as never,
+        include: { ticketCategories: true },
+        orderBy: { startDate: "asc" },
+        skip,
+        take: perPage,
+      }),
+      prisma.event.count({ where: organizerWhere as never }),
+    ])
+    const eventIds = items.map((e) => e.id)
+    const bookingAgg = eventIds.length
+      ? await prisma.eventBooking.groupBy({
+          by: ["eventId", "status"],
+          where: { eventId: { in: eventIds } },
+          _count: { _all: true },
+          _sum: { totalAmount: true },
+        })
+      : []
+    const kpisByEvent = new Map<string, { bookings: number; revenue: number }>()
+    for (const row of bookingAgg) {
+      const k = kpisByEvent.get(row.eventId) ?? { bookings: 0, revenue: 0 }
+      k.bookings += row._count._all
+      if (row.status === "confirmed") k.revenue += row._sum.totalAmount ?? 0
+      kpisByEvent.set(row.eventId, k)
+    }
+    return {
+      items: items.map((e) => ({ ...e, kpis: kpisByEvent.get(e.id) ?? { bookings: 0, revenue: 0 } })),
+      total,
+      page,
+      perPage,
+      totalPages: Math.ceil(total / perPage),
+    }
+  })
 }
 
 /**

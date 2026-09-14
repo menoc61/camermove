@@ -25,13 +25,22 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { SearchIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import {
+  AdminDateRange,
+  AdminEmptyRow,
+  AdminFilterBar,
+  AdminPagination,
+  AdminSearch,
+  AdminStatusSelect,
+  AdminTableFrame,
+  fmtDate,
+  fmtNum,
+} from "./shared"
 
-const fmtDate = (d: string) => new Date(d).toLocaleDateString("fr-FR")
 const fmtTime = (d: string) => new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-const fmtXaf = (amount: number) =>
+/* Trip prices are stored in minor units (cents) */
+const fmtXafCents = (amount: number) =>
   (amount / 100).toLocaleString("fr-FR", { style: "currency", currency: "XAF", maximumFractionDigits: 0 })
-const fmtNum = (n: number) => n.toLocaleString("fr-FR")
 
 const statusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   active: "default",
@@ -40,6 +49,7 @@ const statusVariant: Record<string, "default" | "secondary" | "outline" | "destr
 }
 
 const STATUSES = ["active", "inactive", "cancelled"]
+const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }))
 
 function TripRowSkeleton() {
   return (
@@ -110,39 +120,26 @@ export function AdminTrips() {
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-48">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher trajet, transporteur..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="pl-9"
-          />
-        </div>
+      <AdminFilterBar>
+        <AdminSearch
+          placeholder="Rechercher trajet, transporteur..."
+          value={search}
+          onChange={(v) => { setSearch(v); setPage(1) }}
+        />
         <div className="flex items-center gap-2">
           <Label className="text-xs text-muted-foreground">Statut</Label>
-          <select
-            className="h-9 rounded-4xl border border-input bg-input/30 px-3 text-sm"
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-          >
-            <option value="">Tous</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <AdminStatusSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1) }} options={STATUS_OPTIONS} />
         </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Du</Label>
-          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-36" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Au</Label>
-          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-36" />
-        </div>
-      </div>
+        <AdminDateRange
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFrom={(v) => { setDateFrom(v); setPage(1) }}
+          onTo={(v) => { setDateTo(v); setPage(1) }}
+        />
+      </AdminFilterBar>
 
       {/* Table */}
-      <div className="rounded-xl border overflow-hidden">
+      <AdminTableFrame>
         <Table>
           <TableHeader>
             <TableRow>
@@ -159,11 +156,7 @@ export function AdminTrips() {
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => <TripRowSkeleton key={i} />)}
             {!isLoading && data?.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  Aucun trajet trouvé.
-                </TableCell>
-              </TableRow>
+              <AdminEmptyRow colSpan={8}>Aucun trajet trouvé.</AdminEmptyRow>
             )}
             {!isLoading && data?.items.map((trip) => (
               <TableRow key={trip.id}>
@@ -192,7 +185,7 @@ export function AdminTrips() {
                     </div>
                   ) : (
                     <button className="hover:underline text-left" onClick={() => handlePriceEdit(trip)}>
-                      {fmtXaf(trip.price)}
+                      {fmtXafCents(trip.price)}
                     </button>
                   )}
                 </TableCell>
@@ -225,23 +218,16 @@ export function AdminTrips() {
             ))}
           </TableBody>
         </Table>
-      </div>
+      </AdminTableFrame>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {data ? `${fmtNum(data.total)} trajets` : ""}
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-            <ChevronLeftIcon className="size-4" />
-          </Button>
-          <span className="text-sm">Page {page} / {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
-            <ChevronRightIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
+      <AdminPagination
+        page={page}
+        totalPages={totalPages}
+        total={data?.total}
+        totalLabel="trajets"
+        onPage={setPage}
+      />
     </div>
   )
 }

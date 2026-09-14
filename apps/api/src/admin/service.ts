@@ -49,7 +49,7 @@ export async function updateUser(id: string, actorId: string, data: { role?: str
     const superAdminCount = await prisma.user.count({ where: { role: "super_admin" } })
     if (u.role === "super_admin" && superAdminCount <= 1) throw new ConflictError("Impossible de retirer le dernier super_admin")
   }
-  const updated = await prisma.user.update({ where: { id }, data })
+  const updated = await prisma.user.update({ where: { id }, data: data as Prisma.UserUncheckedUpdateInput })
   await prisma.auditLog.create({
     data: { actorId, action: "admin.user.update", entityType: "User", entityId: id, metadata: data as never },
   }).catch(() => {})
@@ -111,7 +111,7 @@ export async function getTransporter(id: string) {
 export async function updateTransporter(id: string, actorId: string, data: { status?: string; vehicleCount?: number }) {
   const t = await prisma.transporter.findUnique({ where: { id } })
   if (!t) throw new NotFoundError("Transporteur introuvable")
-  const updated = await prisma.transporter.update({ where: { id }, data })
+  const updated = await prisma.transporter.update({ where: { id }, data: data as Prisma.TransporterUncheckedUpdateInput })
   await prisma.auditLog.create({
     data: { actorId, action: "admin.transporter.update", entityType: "Transporter", entityId: id, metadata: data as never },
   }).catch(() => {})
@@ -178,10 +178,18 @@ export async function reviewPartnerApplication(id: string, actorId: string, data
   if (data.status === "rejected") {
     await prisma.transporter.update({ where: { id: transporterId! }, data: { status: "rejected" } }).catch(() => {})
   }
+  // Promotion: a validated/approved applicant becomes transporter_staff so the
+  // RBAC gates on /transporter/* and /partner/* accept their JWT (role rank 1).
+  if ((data.status === "validated" || data.status === "approved") && transporterId) {
+    await prisma.user.updateMany({
+      where: { transporterId, role: "traveler" },
+      data: { role: "transporter_staff" },
+    })
+  }
 
   const updated = await prisma.partnerApplication.update({ where: { id }, data: updateData })
   await prisma.auditLog.create({
-    data: { actorId, action: `admin.partner-application.${data.status}`, entityType: "PartnerApplication", entityId: id, metadata: { message: data.message } as never },
+    data: { actorId, action: `admin.partner-application.${data.status}`, entityType: "PartnerApplication", entityId: id, metadata: { message: data.message, promotedUsers: (data.status === "validated" || data.status === "approved") && transporterId ? (await prisma.user.count({ where: { transporterId, role: "transporter_staff" } })) : 0 } as never },
   }).catch(() => {})
   return updated
 }
@@ -336,13 +344,15 @@ export async function listCommissions(params: { page: number; limit: number; tra
   const take = params.limit
   const skip = (params.page - 1) * take
   const where: Prisma.CommissionWhereInput = {}
-  if (params.transporterId) where.booking = { trip: { transportId: params.transporterId } }
-  if (params.payoutStatus) where.payoutStatus = params.payoutStatus
+  const booking: Prisma.BookingWhereInput = {}
+  if (params.transporterId) booking.trip = { transportId: params.transporterId }
   if (params.dateFrom || params.dateTo) {
-    where.booking = { ...(where.booking ?? {}), createdAt: {} }
-    if (params.dateFrom) (where.booking as Prisma.BookingWhereInput).createdAt!.gte = new Date(params.dateFrom)
-    if (params.dateTo) (where.booking as Prisma.BookingWhereInput).createdAt!.lte = new Date(params.dateTo + "T23:59:59Z")
+    booking.createdAt = {}
+    if (params.dateFrom) booking.createdAt.gte = new Date(params.dateFrom)
+    if (params.dateTo) booking.createdAt.lte = new Date(params.dateTo + "T23:59:59Z")
   }
+  if (Object.keys(booking).length > 0) where.booking = booking
+  if (params.payoutStatus) where.payoutStatus = params.payoutStatus
 
   const [items, total, sumResult, statusCounts] = await Promise.all([
     prisma.commission.findMany({
@@ -411,6 +421,8 @@ export async function getAdminStats() {
     pendingApplications, totalTrips, activeTrips, totalBookings,
     todayBookings, confirmedToday, pendingPayments,
     totalRevenue, totalCommissions,
+    totalHotelBookings, totalRentalBookings, totalParcels,
+    totalInsurancePolicies, totalEventBookings, totalPartners,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { createdAt: { gte: today, lt: tomorrow } } }),
@@ -425,6 +437,13 @@ export async function getAdminStats() {
     prisma.payment.count({ where: { status: { in: ["pending", "processing"] } } }),
     prisma.booking.aggregate({ where: { status: "confirmed" }, _sum: { totalAmount: true } }),
     prisma.commission.aggregate({ where: {}, _sum: { commissionAmount: true } }),
+    // Per-service KPIs — admin overview covers every service, not only trips.
+    prisma.hotelBooking.count(),
+    prisma.rentalBooking.count(),
+    prisma.parcel.count(),
+    prisma.insurancePolicy.count(),
+    prisma.eventBooking.count(),
+    prisma.user.count({ where: { role: "transporter_staff" } }),
   ])
 
   const result = {
@@ -441,6 +460,12 @@ export async function getAdminStats() {
     pendingPayments,
     totalRevenue: totalRevenue._sum.totalAmount ?? 0,
     totalCommissions: totalCommissions._sum.commissionAmount ?? 0,
+    totalHotelBookings,
+    totalRentalBookings,
+    totalParcels,
+    totalInsurancePolicies,
+    totalEventBookings,
+    totalPartners,
     meta: { cached: false },
   }
   await setCached("admin:stats", result, 60).catch(() => {})

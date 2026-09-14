@@ -6,7 +6,6 @@ import { useAuthStore } from "@camermove/frontend"
 import { listTransporters, listPartnerApplications, reviewPartnerApplication } from "@/lib/api/admin"
 import type { TransporterItem, PartnerApplicationItem } from "@/lib/api/admin"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -28,9 +27,8 @@ import {
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { SearchIcon, CheckCircleIcon, XCircleIcon } from "lucide-react"
-
-const fmtDate = (d: string) => new Date(d).toLocaleDateString("fr-FR")
+import { CheckCircleIcon, XCircleIcon } from "lucide-react"
+import { AdminEmptyRow, AdminSearch, AdminTableFrame, fmtDate } from "./shared"
 
 const appStatusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "outline",
@@ -110,17 +108,14 @@ export function AdminTransporters() {
         </TabsList>
 
         <TabsContent value="transporters" className="mt-4 space-y-4">
-          <div className="relative max-w-sm">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher transporteur..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <AdminSearch
+            placeholder="Rechercher transporteur..."
+            value={search}
+            onChange={setSearch}
+            className="max-w-sm"
+          />
 
-          <div className="rounded-xl border overflow-hidden">
+          <AdminTableFrame>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -137,11 +132,7 @@ export function AdminTransporters() {
               <TableBody>
                 {transportersLoading && Array.from({ length: 5 }).map((_, i) => <TransporterRowSkeleton key={i} />)}
                 {!transportersLoading && transportersData?.items.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      Aucun transporteur trouvé.
-                    </TableCell>
-                  </TableRow>
+                  <AdminEmptyRow colSpan={8}>Aucun transporteur trouvé.</AdminEmptyRow>
                 )}
                 {!transportersLoading && transportersData?.items.map((t) => (
                   <TableRow key={t.id}>
@@ -159,11 +150,11 @@ export function AdminTransporters() {
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </AdminTableFrame>
         </TabsContent>
 
         <TabsContent value="applications" className="mt-4 space-y-4">
-          <div className="rounded-xl border overflow-hidden">
+          <AdminTableFrame>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -181,11 +172,7 @@ export function AdminTransporters() {
               <TableBody>
                 {applicationsLoading && Array.from({ length: 5 }).map((_, i) => <ApplicationRowSkeleton key={i} />)}
                 {!applicationsLoading && applicationsData?.items.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      Aucune candidature en attente.
-                    </TableCell>
-                  </TableRow>
+                  <AdminEmptyRow colSpan={9}>Aucune candidature en attente.</AdminEmptyRow>
                 )}
                 {!applicationsLoading && applicationsData?.items.map((app) => (
                   <TableRow key={app.id}>
@@ -212,7 +199,7 @@ export function AdminTransporters() {
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </AdminTableFrame>
         </TabsContent>
       </Tabs>
 

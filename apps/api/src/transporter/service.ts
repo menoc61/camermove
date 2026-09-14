@@ -1,4 +1,3 @@
-import { getStorage } from "@camermove/media"
 import { NotFoundError, ForbiddenError, ConflictError, loadEnv } from "@camermove/config"
 import type { Prisma } from "@prisma/client"
 import { BookingStatus } from "@prisma/client"
@@ -203,11 +202,4 @@ export async function getTransporterStats(transporterId: string) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1)
   return repo.getTransporterStats(transporterId, today, tomorrow)
-}
-
-// ─── Presigned URL ───────────────────────────────────────────────────────────
-
-export async function presignProfileLogo(transporterId: string, input: { filename: string; mimetype: string; size: number }) {
-  const { objectKey } = await getStorage().presignPut(`transporters/${transporterId}/logos/${Date.now()}-${input.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`, input.mimetype, 15)
-  return { objectKey, uploadUrl: objectKey } // presignPut returns {objectKey, presignedUrl} on MinioClient; adjust per actual return
 }

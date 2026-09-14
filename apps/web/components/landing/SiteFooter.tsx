@@ -69,7 +69,7 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-[1560px] grid-cols-2 gap-x-6 gap-y-12 px-6 py-16 sm:px-8 md:grid-cols-12 md:px-12 md:py-20">
         <div className="col-span-2 md:col-span-4">
           <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
-            Studio · 2026
+            CamerMove · v.0.1-beta
           </p>
           <p className="mt-3 text-[15px] leading-[1.55] text-white/65">
             Plateforme multi-services dédiée à la mobilité, au voyage et aux

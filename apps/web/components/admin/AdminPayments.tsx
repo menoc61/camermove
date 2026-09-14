@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query"
 import { useAuthStore } from "@camermove/frontend"
 import { listPayments } from "@/lib/api/admin"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -17,13 +16,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SearchIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import {
+  AdminDateRange,
+  AdminEmptyRow,
+  AdminFilterBar,
+  AdminPagination,
+  AdminSearch,
+  AdminStatusSelect,
+  AdminTableFrame,
+  fmtDate,
+} from "./shared"
 
-const fmtDate = (d: string) => new Date(d).toLocaleDateString("fr-FR")
-const fmtTime = (d: string) => new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-const fmtXaf = (amount: number) =>
+/* Payment amounts are stored in minor units (cents) */
+const fmtXafCents = (amount: number) =>
   (amount / 100).toLocaleString("fr-FR", { style: "currency", currency: "XAF", maximumFractionDigits: 0 })
-const fmtNum = (n: number) => n.toLocaleString("fr-FR")
+const fmtTime = (d: string) => new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
 
 const providerVariant: Record<string, "default" | "secondary" | "outline"> = {
   notchpay: "default",
@@ -36,6 +43,9 @@ const paymentStatusVariant: Record<string, "default" | "secondary" | "outline" |
   failed: "destructive" as any,
   refunded: "secondary",
 }
+
+const STATUS_OPTIONS = ["completed", "pending", "failed", "refunded"].map((s) => ({ value: s, label: s }))
+const PROVIDER_OPTIONS = ["notchpay", "cinetpay"].map((p) => ({ value: p, label: p }))
 
 function PaymentRowSkeleton() {
   return (
@@ -79,54 +89,30 @@ export function AdminPayments() {
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-48">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Recherche..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="pl-9"
-          />
-        </div>
+      <AdminFilterBar>
+        <AdminSearch
+          placeholder="Recherche..."
+          value={search}
+          onChange={(v) => { setSearch(v); setPage(1) }}
+        />
         <div className="flex items-center gap-2">
           <Label className="text-xs text-muted-foreground">Statut</Label>
-          <select
-            className="h-9 rounded-4xl border border-input bg-input/30 px-3 text-sm"
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-          >
-            <option value="">Tous</option>
-            {["completed", "pending", "failed", "refunded"].map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <AdminStatusSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1) }} options={STATUS_OPTIONS} />
         </div>
         <div className="flex items-center gap-2">
           <Label className="text-xs text-muted-foreground">Provider</Label>
-          <select
-            className="h-9 rounded-4xl border border-input bg-input/30 px-3 text-sm"
-            value={providerFilter}
-            onChange={(e) => { setProviderFilter(e.target.value); setPage(1) }}
-          >
-            <option value="">Tous</option>
-            {["notchpay", "cinetpay"].map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
+          <AdminStatusSelect value={providerFilter} onChange={(v) => { setProviderFilter(v); setPage(1) }} options={PROVIDER_OPTIONS} />
         </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Du</Label>
-          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-36" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Au</Label>
-          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-36" />
-        </div>
-      </div>
+        <AdminDateRange
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFrom={(v) => { setDateFrom(v); setPage(1) }}
+          onTo={(v) => { setDateTo(v); setPage(1) }}
+        />
+      </AdminFilterBar>
 
       {/* Table */}
-      <div className="rounded-xl border overflow-hidden">
+      <AdminTableFrame>
         <Table>
           <TableHeader>
             <TableRow>
@@ -143,11 +129,7 @@ export function AdminPayments() {
           <TableBody>
             {isLoading && Array.from({ length: 5 }).map((_, i) => <PaymentRowSkeleton key={i} />)}
             {!isLoading && data?.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  Aucun paiement trouvé.
-                </TableCell>
-              </TableRow>
+              <AdminEmptyRow colSpan={8}>Aucun paiement trouvé.</AdminEmptyRow>
             )}
             {!isLoading && data?.items.map((payment, idx) => (
               <TableRow key={payment.id}>
@@ -156,7 +138,7 @@ export function AdminPayments() {
                   <Badge variant={providerVariant[payment.provider] ?? "outline"}>{payment.provider}</Badge>
                 </TableCell>
                 <TableCell className="font-mono text-xs">{payment.providerRef ?? "—"}</TableCell>
-                <TableCell className="font-medium">{fmtXaf(payment.amount)}</TableCell>
+                <TableCell className="font-medium">{fmtXafCents(payment.amount)}</TableCell>
                 <TableCell>{payment.method ?? "—"}</TableCell>
                 <TableCell>
                   <Badge variant={paymentStatusVariant[payment.status] ?? "outline"}>{payment.status}</Badge>
@@ -173,23 +155,16 @@ export function AdminPayments() {
             ))}
           </TableBody>
         </Table>
-      </div>
+      </AdminTableFrame>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {data ? `${fmtNum(data.total)} paiements` : ""}
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-            <ChevronLeftIcon className="size-4" />
-          </Button>
-          <span className="text-sm">Page {page} / {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
-            <ChevronRightIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
+      <AdminPagination
+        page={page}
+        totalPages={totalPages}
+        total={data?.total}
+        totalLabel="paiements"
+        onPage={setPage}
+      />
     </div>
   )
 }

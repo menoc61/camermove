@@ -6,14 +6,22 @@ import { useAuthStore } from "@camermove/frontend"
 import { apiFetch } from "@/lib/api/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
-import { Download, Truck, TriangleAlert } from "lucide-react"
+import { Download, TriangleAlert } from "lucide-react"
+import {
+  AdminDateRange,
+  AdminEmptyRow,
+  AdminFilterBar,
+  AdminPagination,
+  AdminSearch,
+  AdminStatusSelect,
+  AdminTableFrame,
+  AdminTextField,
+} from "./shared"
 
 interface ParcelAdmin {
   id: string
@@ -45,6 +53,8 @@ const STATUS_LABELS: Record<string, string> = {
   available_for_pickup: "Disponible",
   delivered: "Livré",
 }
+
+const STATUS_OPTIONS = Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
 
@@ -115,41 +125,23 @@ export function AdminParcels() {
   }
 
   return (
-    <main className="p-6 space-y-6">
+    <div className="space-y-4">
       <h1 className="text-2xl font-bold tracking-tight">Gestion des colis</h1>
 
-      <div className="rounded-xl border bg-card p-4 flex flex-wrap gap-3 items-end">
-        <div className="min-w-48">
-          <label className="text-xs text-muted-foreground">Recherche</label>
-          <Input placeholder="Tracking, nom expéditeur/destinataire" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-        </div>
-        <div className="min-w-40">
-          <label className="text-xs text-muted-foreground">Statut</label>
-          <Select value={statusFilter || "all"} onValueChange={(v) => { setStatusFilter(v === "all" || v == null ? "" : v); setPage(1) }}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous</SelectItem>
-              <SelectItem value="registered">Enregistré</SelectItem>
-              <SelectItem value="picked_up">Pris en charge</SelectItem>
-              <SelectItem value="in_transit">En transit</SelectItem>
-              <SelectItem value="arrived">Arrivé</SelectItem>
-              <SelectItem value="available_for_pickup">Disponible</SelectItem>
-              <SelectItem value="delivered">Livré</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="min-w-32">
-          <label className="text-xs text-muted-foreground">Ville destinataire</label>
-          <Input placeholder="Douala" value={recipientCity} onChange={(e) => { setRecipientCity(e.target.value); setPage(1) }} />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Du</label>
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Au</label>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
+      <AdminFilterBar>
+        <AdminSearch
+          placeholder="Tracking, nom expéditeur/destinataire"
+          value={q}
+          onChange={(v) => { setQ(v); setPage(1) }}
+        />
+        <AdminStatusSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1) }} options={STATUS_OPTIONS} />
+        <AdminTextField placeholder="Douala" value={recipientCity} onChange={(v) => { setRecipientCity(v); setPage(1) }} />
+        <AdminDateRange
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFrom={(v) => { setDateFrom(v); setPage(1) }}
+          onTo={(v) => { setDateTo(v); setPage(1) }}
+        />
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => handleExport("csv")}>
             <Download className="size-4" /> Export CSV
@@ -158,9 +150,7 @@ export function AdminParcels() {
             Export JSON
           </Button>
         </div>
-      </div>
-
-      <Separator />
+      </AdminFilterBar>
 
       {isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -173,42 +163,45 @@ export function AdminParcels() {
       )}
 
       {data && data.items.length === 0 && (
-        <Card><CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-          <div className="rounded-full bg-muted p-3"><Truck className="size-6 text-muted-foreground" /></div>
-          <p className="text-sm text-muted-foreground">Aucun colis trouvé.</p>
-        </CardContent></Card>
+        <AdminTableFrame>
+          <Table>
+            <TableBody>
+              <AdminEmptyRow colSpan={7}>Aucun colis trouvé.</AdminEmptyRow>
+            </TableBody>
+          </Table>
+        </AdminTableFrame>
       )}
 
       {data && data.items.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/30 text-left text-xs font-medium text-muted-foreground">
-                <th className="px-3 py-2">Tracking</th>
-                <th className="px-3 py-2">Expéditeur</th>
-                <th className="px-3 py-2">Destinataire</th>
-                <th className="px-3 py-2">Trajet</th>
-                <th className="px-3 py-2">Statut</th>
-                <th className="px-3 py-2">Coût</th>
-                <th className="px-3 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+        <AdminTableFrame>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Tracking</TableHead>
+                <TableHead>Expéditeur</TableHead>
+                <TableHead>Destinataire</TableHead>
+                <TableHead>Trajet</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead>Coût</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {data.items.map((p) => {
                 const next = NEXT_STATUSES[p.status]?.[0]
                 return (
-                  <tr key={p.id} className="border-b">
-                    <td className="px-3 py-2 font-mono text-xs">{p.trackingNumber}</td>
-                    <td className="px-3 py-2">{p.senderName}</td>
-                    <td className="px-3 py-2">{p.recipientName}</td>
-                    <td className="px-3 py-2">{p.senderCity} → {p.recipientCity}</td>
-                    <td className="px-3 py-2">
+                  <TableRow key={p.id}>
+                    <TableCell className="font-mono text-xs">{p.trackingNumber}</TableCell>
+                    <TableCell>{p.senderName}</TableCell>
+                    <TableCell>{p.recipientName}</TableCell>
+                    <TableCell>{p.senderCity} → {p.recipientCity}</TableCell>
+                    <TableCell>
                       <Badge variant={p.status === "delivered" ? "default" : "outline"}>
                         {STATUS_LABELS[p.status] ?? p.status}
                       </Badge>
-                    </td>
-                    <td className="px-3 py-2">{new Intl.NumberFormat("fr-CM").format(p.shippingCost)} XAF</td>
-                    <td className="px-3 py-2">
+                    </TableCell>
+                    <TableCell>{new Intl.NumberFormat("fr-CM").format(p.shippingCost)} XAF</TableCell>
+                    <TableCell>
                       {next && (
                         <Button
                           size="sm"
@@ -219,25 +212,24 @@ export function AdminParcels() {
                           → {STATUS_LABELS[next] ?? next}
                         </Button>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </AdminTableFrame>
       )}
 
-      {data && data.totalPages > 1 && (
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-muted-foreground">{data.total} colis</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Préc</Button>
-            <span className="text-sm py-1">Page {page} / {data.totalPages}</span>
-            <Button size="sm" variant="outline" disabled={page >= data.totalPages} onClick={() => setPage((p) => p + 1)}>Suiv</Button>
-          </div>
-        </div>
+      {data && (
+        <AdminPagination
+          page={page}
+          totalPages={data.totalPages}
+          total={data.total}
+          totalLabel="colis"
+          onPage={setPage}
+        />
       )}
-    </main>
+    </div>
   )
 }

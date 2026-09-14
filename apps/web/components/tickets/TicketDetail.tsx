@@ -1,6 +1,6 @@
 import Link from "next/link"
 import type { TicketDetailResponse } from "../../lib/api/tickets"
-import { StatusPill, mapTicketStatus } from "../dashboard/StatusPill"
+import { StatusPill, mapTicketStatus } from "../dashboard-v2/cards/StatusPill"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"

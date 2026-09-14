@@ -2,7 +2,7 @@
  * Dashboard smoke suite.
  *
  * Test 1: login + dashboard — GET /api/v1/me/dashboard with valid JWT returns
- *         200 with exactly 3 keys (upcoming, history, tickets).
+ *         200 with exactly 5 keys (upcoming, history, tickets, totals, meta).
  * Test 2: unauth dashboard — GET /api/v1/me/dashboard without auth → 401.
  * Test 3: ticket ownership leak — user A attempting to access user B's ticket
  *         returns 404 (NOT 403, so no existence leak).
@@ -76,9 +76,17 @@ async function test1_loginAndDashboard(): Promise<void> {
   const body = (await res.json()) as Record<string, unknown>
   const keys = Object.keys(body).sort()
   log(
-    "response has exactly {upcoming, history, tickets}",
-    keys.length === 3 && keys.includes("history") && keys.includes("tickets") && keys.includes("upcoming"),
+    "response has exactly {upcoming, history, tickets, totals, meta}",
+    keys.length === 5 && keys.includes("history") && keys.includes("tickets") && keys.includes("upcoming") && keys.includes("totals") && keys.includes("meta"),
     `keys=${keys.join(",")}`,
+  )
+  // Personalized totals KPI block: all six service counters must be present.
+  const totals = body.totals as Record<string, unknown> | undefined
+  const totalKeys = totals ? Object.keys(totals).sort() : []
+  log(
+    "totals has all six service KPIs",
+    totalKeys.join(",") === "events,hotels,insurance,parcels,rentals,trips",
+    `totals=${totalKeys.join(",")}`,
   )
 }
 

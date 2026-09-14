@@ -7,10 +7,24 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        // Partner application page is publicly marketed - allow it explicitly
-        // even though the transporter portal itself stays out of search.
-        allow: ["/", "/transporter/apply"],
-        disallow: ["/admin", "/api/", "/dashboard", "/tickets/", "/transporter"],
+        // Public pages — allow key marketing pages
+        allow: [
+          "/",
+          "/become-partner",
+          "/transporter/apply",
+        ],
+        // Protected/private pages — disallow authenticated areas
+        disallow: [
+          "/admin/",
+          "/api/",
+          "/dashboard/",
+          "/tickets/",
+          "/transporter/",
+          "/book/",
+          "/login",
+          "/register",
+          "/auth/",
+        ],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

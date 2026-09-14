@@ -80,8 +80,8 @@ export function SiteNav() {
   // ── Overlay close: reverse, then hide + unlock scroll ──
   const closeNav = useCallback(async () => {
     animateHamburger(false)
-    setIsOpen(false)
     if (shouldReduce) {
+      setIsOpen(false)
       document.body.style.overflow = ""
       return
     }
@@ -90,6 +90,7 @@ export function SiteNav() {
     const gsap = (await import("gsap")).default
     const tl = gsap.timeline({
       onComplete: () => {
+        setIsOpen(false)
         gsap.set(overlay, { y: "-100%" })
         document.body.style.overflow = ""
       },
@@ -140,7 +141,8 @@ export function SiteNav() {
     <>
       <motion.header
         className={cn(
-          "fixed top-0 left-0 right-0 z-50 transition-colors duration-300",
+          "fixed top-0 left-0 right-0 transition-colors duration-300",
+          isOpen ? "z-[70]" : "z-50",
           scrolled && !isOpen
             ? "border-b border-border bg-surface-0/80 backdrop-blur-xl"
             : "border-b-transparent bg-transparent"
@@ -192,7 +194,10 @@ export function SiteNav() {
               aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
               aria-expanded={isOpen}
               aria-controls="cm-nav-overlay"
-              className="relative z-[60] flex h-10 w-10 flex-col items-center justify-center gap-[6px]"
+              className={cn(
+                "relative z-[70] flex h-10 w-10 flex-col items-center justify-center gap-[6px] rounded-full transition-colors duration-300",
+                isOpen ? "bg-white" : "bg-transparent"
+              )}
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
               transition={{ type: "spring", stiffness: 500, damping: 25 }}
@@ -201,19 +206,19 @@ export function SiteNav() {
                 ref={(el) => {
                   linesRef.current[0] = el
                 }}
-                className={cn("block h-0.5 w-6 transition-colors duration-300", isOpen ? "bg-white" : "bg-foreground")}
+                className={cn("block h-0.5 w-6 transition-colors duration-300", isOpen ? "bg-ink" : "bg-foreground")}
               />
               <span
                 ref={(el) => {
                   linesRef.current[1] = el
                 }}
-                className={cn("block h-0.5 w-6 transition-colors duration-300", isOpen ? "bg-white" : "bg-foreground")}
+                className={cn("block h-0.5 w-6 transition-colors duration-300", isOpen ? "bg-ink" : "bg-foreground")}
               />
               <span
                 ref={(el) => {
                   linesRef.current[2] = el
                 }}
-                className={cn("block h-0.5 w-6 transition-colors duration-300", isOpen ? "bg-white" : "bg-foreground")}
+                className={cn("block h-0.5 w-6 transition-colors duration-300", isOpen ? "bg-ink" : "bg-foreground")}
               />
             </motion.button>
           </div>
@@ -262,6 +267,38 @@ export function SiteNav() {
                 Contactez-nous →
               </Link>
             </div>
+          </div>
+
+          {/* Quicklinks — utility pages */}
+          <div className="nav-quicklinks">
+            <div className="nav-quicklinks__label">Informations</div>
+            <ul className="nav-quicklinks__list">
+              <li>
+                <Link href="/faq" onClick={closeNav}>
+                  FAQ
+                </Link>
+              </li>
+              <li>
+                <Link href="/how-it-works" onClick={closeNav}>
+                  Comment ça marche
+                </Link>
+              </li>
+              <li>
+                <Link href="/legal" onClick={closeNav}>
+                  Mentions légales
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact" onClick={closeNav}>
+                  Contact
+                </Link>
+              </li>
+              <li>
+                <Link href="/become-partner" onClick={closeNav}>
+                  Devenir partenaire
+                </Link>
+              </li>
+            </ul>
           </div>
         </div>
       </div>

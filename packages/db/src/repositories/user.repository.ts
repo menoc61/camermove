@@ -50,6 +50,20 @@ export async function findUserById(id: string): Promise<PublicUser | null> {
   })) as PublicUser | null
 }
 
+/**
+ * Credential lookup for the login path — the ONLY repository function that
+ * exposes `passwordHash`. Returns the minimal shape needed to verify a
+ * password and issue tokens; never returned to API responses.
+ */
+export async function findUserCredentialsByEmail(
+  email: string,
+): Promise<{ id: string; email: string; role: string; passwordHash: string | null; status: string } | null> {
+  return (await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, email: true, role: true, passwordHash: true, status: true },
+  })) as { id: string; email: string; role: string; passwordHash: string | null; status: string } | null
+}
+
 export async function createUser(data: {
   email: string
   passwordHash?: string | null

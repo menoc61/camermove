@@ -15,9 +15,14 @@ export type EventHandler<T = unknown> = (event: DomainEvent<T>) => Promise<void>
  * Zod schema for the wire-format DomainEvent. Producers may emit any `data`
  * shape — workers narrow it with their own per-topic schemas, but the envelope
  * is fixed so the consumer can validate cheaply.
+ *
+ * `id` is the dedup key only — producers mint composite ids like
+ * `ticket-<cuid>` / `failed-<ts>` alongside plain uuids, so it is validated
+ * as a non-empty string, NOT as a uuid (a uuid-only check silently DLQ'd
+ * every notification event).
  */
 const DomainEventSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1),
   type: z.string(),
   ts: z.string().datetime(),
   aggregateId: z.string(),

@@ -21,6 +21,7 @@ export type SummaryCounts = {
   hotels: number;
   rentals: number;
   parcels: number;
+  insurance: number;
   events: number;
 };
 
@@ -35,6 +36,7 @@ const STATS: {
   { key: "hotels", label: "Hôtels", description: "Réservés" },
   { key: "rentals", label: "Véhicules", description: "Loués" },
   { key: "parcels", label: "Colis", description: "Envoyés" },
+  { key: "insurance", label: "Assurances", description: "Actives" },
   { key: "events", label: "Événements", description: "À venir" },
 ];
 
@@ -93,7 +95,7 @@ export function SummaryGrid({
     { className: "flex flex-col gap-3" },
     el(
       "div",
-      { className: "grid gap-3 md:grid-cols-2 xl:grid-cols-5" },
+      { className: "grid gap-3 md:grid-cols-2 xl:grid-cols-6" },
       ...STATS.map((s) =>
         el(StatCard, { key: s.key, label: s.label, description: s.description, value: counts[s.key] }),
       ),

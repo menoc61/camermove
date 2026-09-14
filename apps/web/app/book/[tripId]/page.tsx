@@ -1,6 +1,6 @@
 "use client"
-import { useParams } from "next/navigation"
-import { useBookingStore } from "@camermove/frontend"
+import { useParams, useRouter } from "next/navigation"
+import { useBookingStore, useAuthStore } from "@camermove/frontend"
 import { PassengerForm } from "../../../components/booking/passenger-form"
 import { Recap } from "../../../components/booking/recap"
 import { useEffect, useRef, useState } from "react"
@@ -8,12 +8,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
+import Link from "next/link"
 
 export default function BookPage() {
   const { tripId } = useParams() as { tripId: string }
+  const router = useRouter()
+  const token = useAuthStore((s) => s.accessToken)
   const { setBooking, seatCount, passengers } = useBookingStore()
   const [trip, setTrip] = useState<{ price: number } | null>(null)
   const prevTripId = useRef<string | null>(null)
+  const initialized = useRef(false)
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!token && !initialized.current) {
+      initialized.current = true
+      router.push(`/login?next=/book/${tripId}`)
+    }
+  }, [token, router, tripId])
 
   const bookingTripId = useBookingStore((s) => s.tripId)
   useEffect(() => {
@@ -39,9 +51,24 @@ export default function BookPage() {
     }
   }, [tripId])
 
+  // Show loading state while redirecting unauthenticated users
+  if (!token) {
+    return (
+      <main className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Skeleton className="h-8 w-48 mb-4" />
+          <p className="text-sm text-muted-foreground mb-4">Connexion requise pour réserver</p>
+          <Link href={`/login?next=/book/${tripId}`} className="text-sm text-primary hover:underline">
+            Se connecter →
+          </Link>
+        </div>
+      </main>
+    )
+  }
+
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-6">
-      <h1 className="text-2xl font-bold tracking-tight">Réserver</h1>
+    <main className="mx-auto max-w-2xl space-y-4 p-4 sm:p-6">
+      <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Réserver</h1>
 
       <Card>
         <CardHeader>

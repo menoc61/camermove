@@ -5,15 +5,21 @@ import { useQuery } from "@tanstack/react-query"
 import { useAuthStore } from "@camermove/frontend"
 import { apiFetch } from "@/lib/api/client"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
-import { Calendar, Download, TriangleAlert } from "lucide-react"
+import { Download, TriangleAlert } from "lucide-react"
+import {
+  AdminDateRange,
+  AdminFilterBar,
+  AdminPagination,
+  AdminSearch,
+  AdminStatusSelect,
+  AdminTableFrame,
+  AdminTextField,
+} from "./shared"
 
 interface EventAdmin {
   id: string
@@ -40,6 +46,15 @@ interface EventBookingAdmin {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
+
+const EVENT_TYPE_OPTIONS = [
+  { value: "concert", label: "Concert" },
+  { value: "sport", label: "Sport" },
+  { value: "conference", label: "Conférence" },
+  { value: "theatre", label: "Théâtre" },
+  { value: "festival", label: "Festival" },
+  { value: "other", label: "Autre" },
+]
 
 export function AdminEvents() {
   const token = useAuthStore((s) => s.accessToken)
@@ -95,41 +110,19 @@ export function AdminEvents() {
   }
 
   return (
-    <main className="p-6 space-y-6">
+    <div className="space-y-4">
       <h1 className="text-2xl font-bold tracking-tight">Gestion des événements</h1>
 
-      <div className="rounded-xl border bg-card p-4 flex flex-wrap gap-3 items-end">
-        <div className="min-w-40">
-          <label className="text-xs text-muted-foreground">Recherche</label>
-          <Input placeholder="Nom, ville" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-        </div>
-        <div className="min-w-32">
-          <label className="text-xs text-muted-foreground">Ville</label>
-          <Input placeholder="Yaoundé" value={cityFilter} onChange={(e) => { setCityFilter(e.target.value); setPage(1) }} />
-        </div>
-        <div className="min-w-36">
-          <label className="text-xs text-muted-foreground">Type</label>
-          <Select value={eventTypeFilter || "all"} onValueChange={(v) => { setEventTypeFilter(v === "all" || v == null ? "" : v); setPage(1) }}>
-            <SelectTrigger><SelectValue placeholder="Tous" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous</SelectItem>
-              <SelectItem value="concert">Concert</SelectItem>
-              <SelectItem value="sport">Sport</SelectItem>
-              <SelectItem value="conference">Conférence</SelectItem>
-              <SelectItem value="theatre">Théâtre</SelectItem>
-              <SelectItem value="festival">Festival</SelectItem>
-              <SelectItem value="other">Autre</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Du</label>
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Au</label>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
+      <AdminFilterBar>
+        <AdminSearch placeholder="Nom, ville" value={q} onChange={(v) => { setQ(v); setPage(1) }} />
+        <AdminTextField placeholder="Yaoundé" value={cityFilter} onChange={(v) => { setCityFilter(v); setPage(1) }} />
+        <AdminStatusSelect value={eventTypeFilter} onChange={(v) => { setEventTypeFilter(v); setPage(1) }} options={EVENT_TYPE_OPTIONS} />
+        <AdminDateRange
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFrom={(v) => { setDateFrom(v); setPage(1) }}
+          onTo={(v) => { setDateTo(v); setPage(1) }}
+        />
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => handleExport("csv")}>
             <Download className="size-4" /> Export CSV
@@ -138,9 +131,7 @@ export function AdminEvents() {
             Export JSON
           </Button>
         </div>
-      </div>
-
-      <Separator />
+      </AdminFilterBar>
 
       {isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -152,60 +143,51 @@ export function AdminEvents() {
         <Alert variant="destructive"><TriangleAlert /><AlertTitle>Erreur</AlertTitle><AlertDescription>Impossible de charger les événements.</AlertDescription></Alert>
       )}
 
-      {events && events.items.length === 0 && (
-        <Card><CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-          <div className="rounded-full bg-muted p-3"><Calendar className="size-6 text-muted-foreground" /></div>
-          <p className="text-sm text-muted-foreground">Aucun événement trouvé.</p>
-        </CardContent></Card>
-      )}
-
       {events && events.items.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/30 text-left text-xs font-medium text-muted-foreground">
-                <th className="px-3 py-2">Nom</th>
-                <th className="px-3 py-2">Ville</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">Statut</th>
-                <th className="px-3 py-2">Billets</th>
-              </tr>
-            </thead>
-            <tbody>
+        <AdminTableFrame>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nom</TableHead>
+                <TableHead>Ville</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead>Billets</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {events.items.map((e) => {
                 const sold = e.ticketCategories?.reduce((acc, c) => acc + c.sold, 0) ?? 0
                 const quantity = e.ticketCategories?.reduce((acc, c) => acc + c.quantity, 0) ?? 0
                 return (
-                  <tr key={e.id} className="border-b">
-                    <td className="px-3 py-2 font-medium line-clamp-1">{e.name}</td>
-                    <td className="px-3 py-2">{e.city}</td>
-                    <td className="px-3 py-2"><Badge variant="secondary" className="text-[11px]">{e.eventType}</Badge></td>
-                    <td className="px-3 py-2 text-sm">{new Date(e.startDate).toLocaleDateString("fr-FR")}</td>
-                    <td className="px-3 py-2"><Badge variant={e.status === "sold_out" || e.status === "cancelled" ? "destructive" : "outline"}>{e.status}</Badge></td>
-                    <td className="px-3 py-2 text-xs">{sold}/{quantity}</td>
-                  </tr>
+                  <TableRow key={e.id}>
+                    <TableCell className="font-medium line-clamp-1">{e.name}</TableCell>
+                    <TableCell>{e.city}</TableCell>
+                    <TableCell><Badge variant="secondary" className="text-[11px]">{e.eventType}</Badge></TableCell>
+                    <TableCell className="text-sm">{new Date(e.startDate).toLocaleDateString("fr-FR")}</TableCell>
+                    <TableCell><Badge variant={e.status === "sold_out" || e.status === "cancelled" ? "destructive" : "outline"}>{e.status}</Badge></TableCell>
+                    <TableCell className="text-xs">{sold}/{quantity}</TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </AdminTableFrame>
       )}
 
-      {events && events.totalPages > 1 && (
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-muted-foreground">{events.total} événements</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Préc</Button>
-            <span className="text-sm py-1">Page {page} / {events.totalPages}</span>
-            <Button size="sm" variant="outline" disabled={page >= events.totalPages} onClick={() => setPage((p) => p + 1)}>Suiv</Button>
-          </div>
-        </div>
+      {events && (
+        <AdminPagination
+          page={page}
+          totalPages={events.totalPages}
+          total={events.total}
+          totalLabel="événements"
+          onPage={setPage}
+        />
       )}
 
       {/* Bookings section */}
-      <Separator />
-      <h2 className="text-xl font-bold tracking-tight">Réservations</h2>
+      <h2 className="pt-4 text-xl font-bold tracking-tight">Réservations</h2>
 
       {bookingsLoading && (
         <div className="space-y-2">
@@ -214,37 +196,37 @@ export function AdminEvents() {
       )}
 
       {bookings && bookings.items.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/30 text-left text-xs font-medium text-muted-foreground">
-                <th className="px-3 py-2">Ticket #</th>
-                <th className="px-3 py-2">Événement</th>
-                <th className="px-3 py-2">Catégorie</th>
-                <th className="px-3 py-2">Quantité</th>
-                <th className="px-3 py-2">Total</th>
-                <th className="px-3 py-2">Statut</th>
-              </tr>
-            </thead>
-            <tbody>
+        <AdminTableFrame>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ticket #</TableHead>
+                <TableHead>Événement</TableHead>
+                <TableHead>Catégorie</TableHead>
+                <TableHead>Quantité</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Statut</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {bookings.items.map((b) => (
-                <tr key={b.id} className="border-b">
-                  <td className="px-3 py-2 font-mono text-xs">{b.ticketNumber}</td>
-                  <td className="px-3 py-2">{b.event.name}</td>
-                  <td className="px-3 py-2"><Badge variant="secondary" className="text-[11px]">{b.ticketCategory?.name || ""}</Badge></td>
-                  <td className="px-3 py-2">{b.quantity}</td>
-                  <td className="px-3 py-2">{new Intl.NumberFormat("fr-CM").format(b.totalAmount)} XAF</td>
-                  <td className="px-3 py-2"><Badge variant={b.status === "paid" || b.status === "confirmed" ? "default" : "outline"}>{b.status}</Badge></td>
-                </tr>
+                <TableRow key={b.id}>
+                  <TableCell className="font-mono text-xs">{b.ticketNumber}</TableCell>
+                  <TableCell>{b.event.name}</TableCell>
+                  <TableCell><Badge variant="secondary" className="text-[11px]">{b.ticketCategory?.name || ""}</Badge></TableCell>
+                  <TableCell>{b.quantity}</TableCell>
+                  <TableCell>{new Intl.NumberFormat("fr-CM").format(b.totalAmount)} XAF</TableCell>
+                  <TableCell><Badge variant={b.status === "paid" || b.status === "confirmed" ? "default" : "outline"}>{b.status}</Badge></TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </AdminTableFrame>
       )}
 
       {bookings && bookings.items.length === 0 && (
         <p className="text-sm text-muted-foreground">Aucune réservation.</p>
       )}
-    </main>
+    </div>
   )
 }

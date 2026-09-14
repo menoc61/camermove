@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import { EventsPartnerClient } from "@/components/partner/EventsPartnerClient"
 
 export default async function PartnerEventsPage() {
@@ -9,8 +10,13 @@ export default async function PartnerEventsPage() {
   if (!token) redirect("/login?next=/partner/events")
   return (
     <main className="mx-auto max-w-4xl p-6 space-y-4">
-      <h1 className="text-2xl font-bold">Partner — Événements</h1>
-      <p className="text-sm text-muted-foreground">Gérez vos événements, billets, et ventes.</p>
+      <div>
+        <h1 className="text-2xl font-bold">Partenaire — Événements</h1>
+        <p className="text-sm text-muted-foreground">
+          Vos événements organisés, leurs billets et leurs ventes (KPIs par événement).
+        </p>
+        <Link href="/partner" className="text-sm underline underline-offset-4">← Espace partenaire</Link>
+      </div>
       <EventsPartnerClient token={token} />
     </main>
   )

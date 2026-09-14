@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@camermove/frontend"
 import { listCommissions, markCommissionPaid } from "@/lib/api/admin"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -19,17 +18,27 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { SearchIcon, DownloadIcon, CheckCircleIcon, ClockIcon } from "lucide-react"
+import { DownloadIcon, CheckCircleIcon, ClockIcon } from "lucide-react"
+import {
+  AdminDateRange,
+  AdminEmptyRow,
+  AdminFilterBar,
+  AdminPagination,
+  AdminStatusSelect,
+  AdminTableFrame,
+  fmtDate,
+} from "./shared"
 
-const fmtDate = (d: string) => new Date(d).toLocaleDateString("fr-FR")
-const fmtXaf = (amount: number) =>
+/* Commission amounts are stored in minor units (cents) */
+const fmtXafCents = (amount: number) =>
   (amount / 100).toLocaleString("fr-FR", { style: "currency", currency: "XAF", maximumFractionDigits: 0 })
-const fmtNum = (n: number) => n.toLocaleString("fr-FR")
 
 const payoutStatusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   paid: "default",
   pending: "outline",
 }
+
+const PAYOUT_OPTIONS = ["paid", "pending"].map((s) => ({ value: s, label: s }))
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
 
@@ -114,13 +123,13 @@ export function AdminCommissions() {
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Commission totale</p>
-              <p className="text-xl font-semibold">{fmtXaf(totals.commission)}</p>
+              <p className="text-xl font-semibold">{fmtXafCents(totals.commission)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">Net total</p>
-              <p className="text-xl font-semibold text-emerald-600">{fmtXaf(totals.net)}</p>
+              <p className="text-xl font-semibold text-emerald-600">{fmtXafCents(totals.net)}</p>
             </CardContent>
           </Card>
           <Card>
@@ -145,35 +154,24 @@ export function AdminCommissions() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
+      <AdminFilterBar>
         <div className="flex items-center gap-2">
           <Label className="text-xs text-muted-foreground">Statut payout</Label>
-          <select
-            className="h-9 rounded-4xl border border-input bg-input/30 px-3 text-sm"
-            value={payoutFilter}
-            onChange={(e) => { setPayoutFilter(e.target.value); setPage(1) }}
-          >
-            <option value="">Tous</option>
-            {["paid", "pending"].map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <AdminStatusSelect value={payoutFilter} onChange={(v) => { setPayoutFilter(v); setPage(1) }} options={PAYOUT_OPTIONS} />
         </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Du</Label>
-          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-36" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs text-muted-foreground">Au</Label>
-          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-36" />
-        </div>
+        <AdminDateRange
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onFrom={(v) => { setDateFrom(v); setPage(1) }}
+          onTo={(v) => { setDateTo(v); setPage(1) }}
+        />
         <Button variant="outline" size="sm" onClick={() => handleExport("csv")}>
           <DownloadIcon className="size-4 mr-1" /> Exporter CSV
         </Button>
-      </div>
+      </AdminFilterBar>
 
       {/* Table */}
-      <div className="rounded-xl border overflow-hidden">
+      <AdminTableFrame>
         <Table>
           <TableHeader>
             <TableRow>
@@ -201,9 +199,9 @@ export function AdminCommissions() {
                 <TableCell className="font-medium">
                   {commission.booking.trip.transport.companyName}
                 </TableCell>
-                <TableCell>{fmtXaf(commission.grossAmount)}</TableCell>
-                <TableCell className="text-destructive">{fmtXaf(commission.commissionAmount)}</TableCell>
-                <TableCell className="text-emerald-600 font-medium">{fmtXaf(commission.netAmount)}</TableCell>
+                <TableCell>{fmtXafCents(commission.grossAmount)}</TableCell>
+                <TableCell className="text-destructive">{fmtXafCents(commission.commissionAmount)}</TableCell>
+                <TableCell className="text-emerald-600 font-medium">{fmtXafCents(commission.netAmount)}</TableCell>
                 <TableCell>{commission.percentApplied}%</TableCell>
                 <TableCell>
                   <Badge variant={payoutStatusVariant[commission.payoutStatus] ?? "outline"}>
@@ -232,23 +230,16 @@ export function AdminCommissions() {
             ))}
           </TableBody>
         </Table>
-      </div>
+      </AdminTableFrame>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {data ? `${fmtNum(data.total)} commissions` : ""}
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-            {"<"}
-          </Button>
-          <span className="text-sm">Page {page} / {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
-            {">"}
-          </Button>
-        </div>
-      </div>
+      <AdminPagination
+        page={page}
+        totalPages={totalPages}
+        total={data?.total}
+        totalLabel="commissions"
+        onPage={setPage}
+      />
     </div>
   )
 }
