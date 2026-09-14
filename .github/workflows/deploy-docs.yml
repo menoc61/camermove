@@ -1,7 +1,7 @@
 name: Deploy Docs to GitHub Pages
 on:
   push:
-    branches: [master]
+    branches: [develop]
     paths:
       - 'docs/**'
       - '.github/workflows/deploy-docs.yml'
@@ -17,24 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.9.0
-
-      - name: Copy docs to /docs folder for GitHub Pages
-        run: |
-          mkdir -p /tmp/camermove-docs
-          cp -r docs/* /tmp/camermove-docs/
-          # Ensure index.html and documentation.html are at the root
-          ls -la /tmp/camermove-docs/
-
       - name: Deploy to GitHub Pages
         uses: actions/configure-pages@v5
         with:
@@ -48,4 +30,4 @@ jobs:
 
       - name: Deploy
         uses: actions/deploy-pages@v4
-        if: github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+

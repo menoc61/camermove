@@ -3,6 +3,7 @@
 [![Version](https://img.shields.io/badge/version-v.0.1-blue)](https://github.com/menoc61/camermove)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Contribute](https://img.shields.io/badge/contributions-welcome-orange)](./CONTRIBUTING.md)
+[![Documentation](https://img.shields.io/badge/docs-github%20pages-blue?logo=githubpages)](https://menoc61.github.io/camermove/)
 
 **Plateforme multi-services dédiée à la mobilité, au voyage et aux services associés au Cameroun.**
 
