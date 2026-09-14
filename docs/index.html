@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CamerMove - Documentation Technique Complete v.0.1-beta</title>
+<style>
+:root{--ink:#0E0E0E;--paper:#FAFAF7;--ink-1:#4A4A4A;--ink-2:#888;--line:#E4E1D9;--accent:#E8A548;--surface-1:#F0EEE9;--surface-2:#E8E5DD;--primary:#14213D;--danger:#dc2626;--success:#16a34a;--warning:#d97706}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;font-size:14px}
+.c{max-width:1400px;margin:0 auto;padding:0 24px}
+header{background:var(--primary);color:var(--paper);padding:40px 0;text-align:center}
+h1{font-size:2rem;margin-bottom:8px;font-weight:500}
+header p{opacity:.8;font-size:1rem}
+nav{background:var(--surface-1);border-bottom:1px solid var(--line);padding:12px 0;position:sticky;top:0;z-index:100;overflow-x:auto}
+nav ul{list-style:none;display:flex;gap:10px;flex-wrap:nowrap}
+nav a{color:var(--ink);text-decoration:none;font-size:.8rem;opacity:.7;white-space:nowrap;padding:4px 8px;border-radius:4px}
+nav a:hover{opacity:1;background:var(--surface-2)}
+main{padding:40px 0}
+section{margin-bottom:40px;padding:24px;background:#fff;border:1px solid var(--line);border-radius:6px}
+h2{font-size:1.4rem;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--primary);color:var(--primary)}
+h3{font-size:1.1rem;margin:16px 0 8px;color:var(--ink)}
+h4{font-size:.95rem;margin:12px 0 4px;color:var(--ink-1)}
+p{margin-bottom:12px;color:var(--ink-1)}
+ul,ol{margin:8px 0 12px 24px;color:var(--ink-1)}
+li{margin-bottom:4px}
+code{background:var(--surface-2);padding:2px 6px;border-radius:3px;font-size:.85rem;font-family:Consolas,monospace}
+pre{background:var(--ink);color:var(--paper);padding:16px;border-radius:6px;overflow-x:auto;margin:12px 0;font-size:.8rem;line-height:1.5}
+pre code{background:transparent;padding:0}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.83rem}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;background:var(--surface-1)}
+tr:hover td{background:var(--surface-1)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--surface-1);border:1px solid var(--line);padding:16px;margin-bottom:12px;border-radius:4px}
+.card h4{font-size:.95rem;margin-bottom:4px}
+.card p{margin:0;font-size:.85rem}
+.screenshot{margin:16px 0;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--surface-1)}
+.screenshot img{width:100%;height:auto;display:block}
+.screenshot-label{padding:8px 12px;background:var(--surface-1);font-size:.8rem;color:var(--ink-1);border-top:1px solid var(--line)}
+.badge{display:inline-block;padding:2px 6px;background:var(--accent);color:var(--ink);font-size:.7rem;font-weight:600;border-radius:3px;margin-left:6px}
+.badge-ok{background:var(--success);color:#fff}
+.badge-warn{background:var(--warning);color:#fff}
+.badge-err{background:var(--danger);color:#fff}
+.method{padding:2px 6px;border-radius:3px;font-size:.7rem;font-weight:700;color:#fff;display:inline-block;min-width:50px;text-align:center}
+.get{background:#22c55e}.post{background:#3b82f6}.put{background:#f59e0b}.delete{background:#ef4444}.patch{background:#8b5cf6}
+.route{font-family:Consolas,monospace;font-size:.83rem}
+footer{background:var(--primary);color:var(--paper);padding:30px 0;text-align:center;font-size:.8rem;opacity:.8}
+.alert{padding:12px 16px;border-radius:4px;margin:12px 0;font-size:.85rem}
+.alert-info{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af}
+.alert-warn{background:#fef3c7;border:1px solid #fcd34d;color:#92400e}
+.alert-ok{background:#dcfce7;border:1px solid #86efac;color:#166534}
+.alert-err{background:#fee2e2;border:1px solid #fca5a5;color:#991b1b}
+.toc{background:var(--surface-1);border:1px solid var(--line);padding:16px;margin-bottom:24px;border-radius:6px}
+.toc h3{margin-top:0}
+.toc ul{margin:0;list-style:none}
+.toc li{margin-bottom:2px}
+.toc a{color:var(--ink-1);text-decoration:none;font-size:.85rem}
+.toc a:hover{color:var(--primary)}
+.step{display:flex;gap:12px;margin-bottom:16px;align-items:flex-start}
+.step-num{background:var(--primary);color:var(--paper);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0}
+.step-body{flex:1}
+.step-body h4{margin-top:0}
+.tree{font-family:Consolas,monospace;font-size:.8rem;background:var(--surface-1);padding:16px;border-radius:4px;overflow-x:auto;margin:12px 0;line-height:1.5}
+@media(max-width:768px){
+  .grid,.grid-2{grid-template-columns:1fr}
+  .c{padding:0 12px}
+  nav ul{gap:6px}
+  nav a{font-size:.75rem;padding:3px 6px}
+  table{font-size:.75rem}
+  th,td{padding:6px 8px}
+}
+</style>
+</head>
+<body>
+<header><div class="c">
+<h1>CamerMove <span class="badge">v.0.1-beta</span></h1>
+<p>Documentation Technique Complete - Plateforme Multi-Services de Mobilite au Cameroun</p>
+<p style="margin-top:8px;font-size:.9rem">Transport interurbain &bull; Hotels &bull; Location &bull; Colis &bull; Assurance &bull; Evenements</p>
+</div></header>
+<nav><div class="c"><ul>
+<li><a href="#overview">Vue d'ensemble</a></li>
+<li><a href="#architecture">Architecture</a></li>
+<li><a href="#modules">6 Services</a></li>
+<li><a href="#auth">Auth</a></li>
+<li><a href="#booking">Reservation</a></li>
+<li><a href="#admin">Admin</a></li>
+<li><a href="#transporter">Transporteur</a></li>
+<li><a href="#partner">Partenaire</a></li>
+<li><a href="#api">API/Swagger</a></li>
+<li><a href="#routes">Routes</a></li>
+<li><a href="#screenshots">Screenshots</a></li>
+<li><a href="#database">DB</a></li>
+<li><a href="#events">Kafka</a></li>
+<li><a href="#upgrade">Upgrades</a></li>
+<li><a href="documentation.html">Full Docs</a></li>
+</ul></div></nav>
+<main class="c">
+
+<section id="overview">
+<h2>1. Vue d'ensemble</h2>
+<p>CamerMove est une plateforme multi-services dediee a la mobilite au Cameroun. Elle connecte les voyageurs aux transporteurs, hotels, loueurs de vehicules et prestataires de services via un seul compte et un systeme de paiement unifie (Mobile Money).</p>
+<div class="grid">
+<div class="card"><h4>Version</h4><p>v.0.1-beta (Septembre 2026)</p></div>
+<div class="card"><h4>Frontend</h4><p>Next.js 16, React 19, Tailwind v4, Zustand</p></div>
+<div class="card"><h4>Backend</h4><p>Fastify 5, Prisma 6, PostgreSQL 16, Redis 7</p></div>
+<div class="card"><h4>Auth</h4><p>JWT + Refresh Tokens + RBAC (4 roles)</p></div>
+<div class="card"><h4>API Docs</h4><p><a href="http://localhost:3000/docs">Swagger UI</a></p></div>
+<div class="card"><h4>Services</h4><p>6 modules operationnels</p></div>
+</div>
+<div class="alert alert-info"><strong>Acces rapide :</strong> Web: <code>http://localhost:3002</code> &bull; API: <code>http://localhost:3000</code> &bull; Swagger: <code>http://localhost:3000/docs</code> &bull; Health: <code>http://localhost:3000/health</code></div>
+</section>
+
+<section id="architecture">
+<h2>2. Architecture</h2>
+<h3>2.1 Structure du monorepo</h3>
+<pre><code>camermove/
++-- apps/
+|   +-- api/           # API REST Fastify (port 3000)
+|   +-- web/           # Frontend Next.js 16 (port 3002)
+|   +-- worker/        # Jobs BullMQ + Consumer Kafka
++-- packages/
+|   +-- config/        # Configuration Zod (loadEnv)
+|   +-- db/            # Schema Prisma + repositories
+|   +-- events/        # Types et producteurs Kafka
+|   +-- frontend/      # Stores Zustand, hooks, API clients
+|   +-- media/         # Stockage S3/MinIO
+|   +-- observability/ # Prometheus + OpenTelemetry
+|   +-- shared/        # Calculs financiers, BullMQ queues
++-- tests/             # Tests E2E Playwright
++-- docs/              # Documentation + screenshots
++-- infra/             # Docker Compose, Prometheus, Grafana</code></pre>
+<h3>2.2 Principes directeurs</h3>
+<table><tr><th>Principe</th><th>Implementation</th></tr>
+<tr><td>Statelessness</td><td>JWT dans chaque requete, pas de session serveur</td></tr>
+<tr><td>Idempotence</td><td>Header <code>Idempotency-Key</code> sur POST/PUT/PATCH</td></tr>
+<tr><td>Validation</td><td>Zod sur chaque endpoint API</td></tr>
+<tr><td>Securite</td><td>argon2 + RBAC (4 roles) + audit logs</td></tr>
+<tr><td>Cache</td><td>Redis TTL 60s recherche, invalidation sur ecriture</td></tr>
+<tr><td>Rate Limiting</td><td>Double couche IP + app-wide via Redis</td></tr>
+<tr><td>Async</td><td>Kafka evenements + BullMQ taches differees</td></tr></table>
+</section>
+
+<section id="modules">
+<h2>3. Modules (6 Services)</h2>
+<h3>3.1 Transport Interurbain <span class="badge badge-ok">ACTIF</span></h3>
+<p>Module principal - recherche et reservation de bus interurbain.</p>
+<div class="grid">
+<div class="card"><h4>Recherche</h4><p>Origine, destination, date, nombre de passagers</p></div>
+<div class="card"><h4>Filtres</h4><p>Prix, heure depart, type vehicule, places dispo</p></div>
+<div class="card"><h4>Selection siege</h4><p>Carte interactive avec places disponibles/occupes</p></div>
+<div class="card"><h4>Hold</h4><p>Reservation temporaire 15 min en attente paiement</p></div>
+</div>
+<p><strong>Routes :</strong> <code>/results</code> &rarr; <code>/trips/:id</code> &rarr; <code>/book/:tripId</code> &rarr; <code>/book/confirmation</code></p>
+<p><strong>API :</strong> <code>GET /search</code>, <code>GET /trips/:id</code>, <code>POST /bookings</code></p>
+
+<h3>3.2 Hotels <span class="badge badge-ok">ACTIF</span></h3>
+<p>Recherche et reservation d'hebergements verifies.</p>
+<div class="grid">
+<div class="card"><h4>Recherche</h4><p>Par ville, dates, nombre personnes</p></div>
+<div class="card"><h4>Filtres</h4><p>Prix, equipements, note</p></div>
+<div class="card"><h4>Detail</h4><p>Photos, description, chambres disponibles</p></div>
+<div class="card"><h4>Reservation</h4><p>Selection chambre + confirmation</p></div>
+</div>
+<p><strong>Routes :</strong> <code>/hotels</code> &rarr; <code>/hotels/:id</code> &rarr; <code>/hotels/confirmation</code></p>
+
+<h3>3.3 Location de Vehicules <span class="badge badge-ok">ACTIF</span></h3>
+<p>Location de vehicules avec prise en charge.</p>
+<div class="grid">
+<div class="card"><h4>Catalogue</h4><p>Vehicules par categorie (berline, SUV, utilitaire)</p></div>
+<div class="card"><h4>Disponibilite</h4><p>Calendrier des reservations</p></div>
+<div class="card"><h4>Options</h4><p>Prise en charge aéroport, chauffeur</p></div>
+</div>
+<p><strong>Routes :</strong> <code>/rentals</code> &rarr; <code>/rentals/:id</code> &rarr; <code>/rentals/confirmation</code></p>
+
+<h3>3.4 Transport de Colis <span class="badge badge-ok">ACTIF</span></h3>
+<p>Envoi et suivi de colis entre villes.</p>
+<div class="grid">
+<div class="card"><h4>Envoi</h4><p>Formulaire expediteur + destinataire + type colis</p></div>
+<div class="card"><h4>Calcul frais</h4><p>Automatique selon poids et destination</p></div>
+<div class="card"><h4>Suivi</h4><p>Statut en temps reel via numero tracking</p></div>
+</div>
+<p><strong>Routes :</strong> <code>/parcels</code> (envoi/suivi) &rarr; <code>/parcels/success</code> &rarr; <code>/parcels/track/:trackingNumber</code></p>
+
+<h3>3.5 Assurance Voyage <span class="badge badge-ok">ACTIF</span></h3>
+<p>Souscription assurance voyage (sante, bagages, rapatriement).</p>
+<div class="grid">
+<div class="card"><h4>Devis</h4><p>Calcul automatique selon destination et duree</p></div>
+<div class="card"><h4>Souscription</h4><p>Formule basique, standard, premium, famille</p></div>
+<div class="card"><h4>Police</h4><p>Document genere apres paiement</p></div>
+</div>
+<p><strong>Routes :</strong> <code>/insurance</code> &rarr; <code>/insurance/success</code></p>
+
+<h3>3.6 Billetterie Evenementielle <span class="badge badge-ok">ACTIF</span></h3>
+<p>Vente de billets pour concerts, matchs, festivals.</p>
+<div class="grid">
+<div class="card"><h4>Evenements</h4><p>Liste filtrable par ville, type, date</p></div>
+<div class="card"><h4>Reservation</h4><p>Selection du nombre de places</p></div>
+<div class="card"><h4>Billet QR</h4><p>Code QR unique verifier sur place</p></div>
+</div>
+<p><strong>Routes :</strong> <code>/events</code> &rarr; <code>/events/:id</code> &rarr; <code>/book/confirmation</code></p>
+</section>
+
+<section id="auth">
+<h2>4. Authentification</h2>
+<p>Systeme JWT avec 4 roles hierarchiques et refresh tokens securises.</p>
+<h3>4.1 Roles</h3>
+<table><tr><th>Role</th><th>Niveau</th><th>Permissions</th></tr>
+<tr><td><code>voyageur</code></td><td>1</td><td>Reserver, voir ses reservations, payer</td></tr>
+<tr><td><code>partenaire</code></td><td>2</td><td>Gerer ses trajets/hotels/vehicules</td></tr>
+<tr><td><code>admin</code></td><td>3</td><td>Gerer utilisateurs, voir statistiques</td></tr>
+<tr><td><code>super_admin</code></td><td>4</td><td>Acces complet + parametres systeme</td></tr></table>
+<h3>4.2 Flux complet</h3>
+<div class="step"><div class="step-num">1</div><div class="step-body"><h4>Login</h4><p>POST <code>/auth/login</code> avec email + password. Retourne <code>accessToken</code> (15min) + <code>refreshToken</code> (7j).</p></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body"><h4>Stockage</h4><p>Cookie <code>cm_access</code> (SameSite=Lax, 15min). Zustand store en memoire.</p></div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body"><h4>Requetes</h4><p>Header <code>Authorization: Bearer &lt;accessToken&gt;</code> sur chaque appel API.</p></div></div>
+<div class="step"><div class="step-num">4</div><div class="step-body"><h4>Middleware</h4><p>Next.js middleware verifie cookie pour routes protegees (<code>/dashboard</code>, <code>/tickets</code>, <code>/admin</code>).</p></div></div>
+<div class="step"><div class="step-num">5</div><div class="step-body"><h4>API Guard</h4><p><code>requireAuth(role?)</code> verifie signature JWT + permissions en base.</p></div></div>
+<div class="step"><div class="step-num">6</div><div class="step-body"><h4>Refresh</h4><p>Quand access token expire, POST <code>/auth/refresh</code> avec refreshToken pour en obtenir un nouveau.</p></div></div>
+<h3>4.3 Securite</h3>
+<ul>
+<li>Mots de passe haches avec <code>argon2</code></li>
+<li>Tokens JWT signe HS256, expiration 15 min</li>
+<li>Refresh tokens stockes en DB avec rotation (detection vol)</li>
+<li>Rate limiting: 5 tentatives/min sur <code>/auth/login</code></li>
+<li>Audit logs: toutes les actions sensibles enregistrees</li>
+<li>Cookie <code>SameSite=Lax</code> (protection CSRF)</li>
+</ul>
+</section>
+
+<section id="booking">
+<h2>5. Workflow de Reservation (Transport)</h2>
+<h3>5.1 Etapes</h3>
+<div class="step"><div class="step-num">1</div><div class="step-body"><h4>Recherche <code>/results</code></h4><p>L'utilisateur saisit origine, destination, date, passagers. Appel API <code>GET /api/v1/search</code>.</p></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body"><h4>Liste resultats</h4><p>Affichage des trajets avec prix, horaires, places dispo. Filtrage client cote client.</p></div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body"><h4>Detail trajet <code>/trips/:id</code></h4><p>Carte des sieges interactive. WebSocket pour mise a jour temps reel des places.</p></div></div>
+<div class="step"><div class="step-num">4</div><div class="step-body"><h4>Selection siege</h4><p>Clic sur un siege disponible. Stockage dans Zustand booking store.</p></div></div>
+<div class="step"><div class="step-num">5</div><div class="step-body"><h4>Informations passager <code>/book/:tripId</code></h4><p>Formulaire nom + telephone. Redirection login si non authentifie.</p></div></div>
+<div class="step"><div class="step-num">6</div><div class="step-body"><h4>Confirmation</h4><p>API <code>POST /api/v1/bookings</code> cree un hold de 15 min. Evenement Kafka <code>booking.created</code>.</p></div></div>
+<div class="step"><div class="step-num">7</div><div class="step-body"><h4>Paiement <code>/payments</code></h4><p>Choix Orange Money ou MTN MoMo. Appel API <code>POST /api/v1/payments</code>.</p></div></div>
+<div class="step"><div class="step-num">8</div><div class="step-body"><h4>Confirmation <code>/book/confirmation</code></h4><p>Billet QR genere. Evenements <code>payment.completed</code> + <code>ticket.issued</code>.</p></div></div>
+<h3>5.2 Diagramme</h3>
+<pre><code>[Recherche] --&gt; [Resultats] --&gt; [Detail Trajet] --&gt; [Selection Siege]
+     |                                                    |
+     v                                                    v
+[Cache Redis]                                    [Zustand Store]
+                                                       |
+[Confirmation] &lt;-- [Paiement] &lt;-- [Hold 15min] &lt;-- [Infos Passager]
+     |
+     v
+[Billet QR] --&gt; [Dashboard] --&gt; [Email/SMS Notification]</code></pre>
+</section>
+
+<section id="admin">
+<h2>6. Administration</h2>
+<p>Interface d'administration reservee aux roles <code>admin</code> et <code>super_admin</code>.</p>
+<table><tr><th>Route</th><th>Description</th><th>Role</th></tr>
+<tr><td><code>/admin</code></td><td>Tableau de bord (stats, graphiques recharts)</td><td>Admin+</td></tr>
+<tr><td><code>/admin/users</code></td><td>Gestion utilisateurs (CRUD, changement role)</td><td>Admin+</td></tr>
+<tr><td><code>/admin/trips</code></td><td>Gestion trajets (creation, statut, export)</td><td>Admin+</td></tr>
+<tr><td><code>/admin/bookings</code></td><td>Gestion reservations (confirmation, annulation)</td><td>Admin+</td></tr>
+<tr><td><code>/admin/payments</code></td><td>Suivi paiements + reconciliation</td><td>Admin+</td></tr>
+<tr><td><code>/admin/transporters</code></td><td>Gestion transporteurs partenaires</td><td>Admin+</td></tr>
+<tr><td><code>/admin/settings</code></td><td>Parametres (commission, hold, feature flags)</td><td>Super-Admin</td></tr></table>
+</section>
+
+<section id="transporter">
+<h2>7. Espace Transporteur</h2>
+<table><tr><th>Route</th><th>Description</th></tr>
+<tr><td><code>/transporter</code></td><td>Dashboard transporteur</td></tr>
+<tr><td><code>/transporter/trips</code></td><td>Liste de leurs trajets</td></tr>
+<tr><td><code>/transporter/bookings</code></td><td>Reservations pour leurs trajets</td></tr>
+<tr><td><code>/transporter/routes</code></td><td>Leurs itineraires</td></tr>
+<tr><td><code>/transporter/vehicles</code></td><td>Gestion de leur flotte</td></tr>
+<tr><td><code>/transporter/apply</code></td><td>Formulaire de candidature</td></tr></table>
+</section>
+
+<section id="partner">
+<h2>8. Espace Partenaire</h2>
+<table><tr><th>Route</th><th>Description</th></tr>
+<tr><td><code>/partner</code></td><td>Dashboard partenaire</td></tr>
+<tr><td><code>/partner/hotels</code></td><td>Gestion de leurs hotels</td></tr>
+<tr><td><code>/partner/rentals</code></td><td>Gestion de leurs vehicules</td></tr>
+<tr><td><code>/partner/parcels</code></td><td>Gestion de leurs envois</td></tr>
+<tr><td><code>/partner/events</code></td><td>Gestion de leurs evenements</td></tr>
+<tr><td><code>/become-partner</code></td><td>Page publique de presentation</td></tr></table>
+</section>
+
+<section id="api">
+<h2>9. API REST &amp; Swagger</h2>
+<p>L'API REST est documentee avec OpenAPI/Swagger et accessible a <a href="http://localhost:3000/docs"><code>http://localhost:3000/docs</code></a>.</p>
+<table><tr><th>MET</th><th>Route</th><th>Auth</th><th>Description</th></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/auth/register</code></td><td>Non</td><td>Inscription</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/auth/login</code></td><td>Non</td><td>Connexion (retourne tokens)</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/auth/refresh</code></td><td>Non</td><td>Rafraichir access token</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/auth/logout</code></td><td>Oui</td><td>Deconnexion</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/search</code></td><td>Non</td><td>Recherche trajets</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/trips/:id</code></td><td>Non</td><td>Detail trajet</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/bookings</code></td><td>Oui</td><td>Creer reservation</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/bookings/:id</code></td><td>Oui</td><td>Detail reservation</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/bookings/:id/cancel</code></td><td>Oui</td><td>Annuler reservation</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/payments</code></td><td>Oui</td><td>Creer paiement</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/tickets/lookup</code></td><td>Non</td><td>Verification billet (public)</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/me/bookings</code></td><td>Oui</td><td>Reservations utilisateur</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/me/tickets</code></td><td>Oui</td><td>Billets utilisateur</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/me/dashboard</code></td><td>Oui</td><td>Tableau de bord</td></tr></table>
+<pre><code>Authorization: Bearer &lt;access_token&gt;\nContent-Type: application/json\nIdempotency-Key: &lt;uuid&gt;  # Pour POST/PUT/PATCH</code></pre>
+</section>
+
+<section id="routes">
+<h2>10. Toutes les Routes (50+)</h2>
+<h3>Pages publiques (30)</h3>
+<table><tr><th>Route</th><th>Description</th></tr>
+<tr><td><code>/</code></td><td>Accueil + 6 rails services</td></tr>
+<tr><td><code>/results</code></td><td>Resultats recherche trajets</td></tr>
+<tr><td><code>/trips/:id</code></td><td>Detail trajet + selection siege</td></tr>
+<tr><td><code>/hotels</code></td><td>Liste hotels</td></tr>
+<tr><td><code>/hotels/:id</code></td><td>Detail hotel</td></tr>
+<tr><td><code>/hotels/confirmation</code></td><td>Confirmation hotel</td></tr>
+<tr><td><code>/rentals</code></td><td>Liste vehicules</td></tr>
+<tr><td><code>/rentals/:id</code></td><td>Detail vehicule</td></tr>
+<tr><td><code>/rentals/confirmation</code></td><td>Confirmation location</td></tr>
+<tr><td><code>/parcels</code></td><td>Envoi + suivi colis</td></tr>
+<tr><td><code>/parcels/success</code></td><td>Confirmation envoi</td></tr>
+<tr><td><code>/parcels/track/:tn</code></td><td>Suivi par numero</td></tr>
+<tr><td><code>/events</code></td><td>Liste evenements</td></tr>
+<tr><td><code>/events/:id</code></td><td>Detail evenement</td></tr>
+<tr><td><code>/insurance</code></td><td>Devis assurance</td></tr>
+<tr><td><code>/insurance/success</code></td><td>Confirmation assurance</td></tr>
+<tr><td><code>/faq</code></td><td>Questions frequentes</td></tr>
+<tr><td><code>/how-it-works</code></td><td>Comment ca marche</td></tr>
+<tr><td><code>/legal/cgu</code></td><td>Conditions generales</td></tr>
+<tr><td><code>/legal/privacy</code></td><td>Politique confidentialite</td></tr>
+<tr><td><code>/contact</code></td><td>Formulaire contact</td></tr>
+<tr><td><code>/become-partner</code></td><td>Devenir partenaire</td></tr>
+<tr><td><code>/transporter/apply</code></td><td>Candidature transporteur</td></tr>
+<tr><td><code>/login</code></td><td>Connexion</td></tr>
+<tr><td><code>/register</code></td><td>Inscription</td></tr>
+<tr><td><code>/admin/login</code></td><td>Connexion admin</td></tr>
+<tr><td><code>/tickets/lookup</code></td><td>Verification billet</td></tr>
+<tr><td><code>/intraurban</code></td><td>Transport intra-urbain</td></tr>
+<tr><td><code>/auth/callback</code></td><td>Callback OAuth</td></tr></table>
+<h3>Pages authentifiees (3)</h3>
+<table><tr><th>Route</th><th>Description</th></tr>
+<tr><td><code>/dashboard</code></td><td>Tableau de bord voyageur</td></tr>
+<tr><td><code>/book/:tripId</code></td><td>Formulaire reservation</td></tr>
+<tr><td><code>/book/confirmation</code></td><td>Confirmation</td></tr></table>
+<h3>Pages admin (7)</h3>
+<table><tr><th>Route</th><th>Description</th></tr>
+<tr><td><code>/admin</code></td><td>Dashboard</td></tr>
+<tr><td><code>/admin/users</code></td><td>Utilisateurs</td></tr>
+<tr><td><code>/admin/trips</code></td><td>Trajets</td></tr>
+<tr><td><code>/admin/bookings</code></td><td>Reservations</td></tr>
+<tr><td><code>/admin/payments</code></td><td>Paiements</td></tr>
+<tr><td><code>/admin/transporters</code></td><td>Transporteurs</td></tr>
+<tr><td><code>/admin/settings</code></td><td>Parametres</td></tr></table>
+</section>
+
+<section id="screenshots">
+<h2>11. Captures d'ecran</h3>
+<p>33 captures d'ecran generees via Playwright (Chromium, Desktop + Mobile).</p>
+<div class="grid-2">
+<div class="screenshot"><img src="screenshots/homepage.png" alt="Homepage"><div class="screenshot-label">Page d'accueil</div></div>
+<div class="screenshot"><img src="screenshots/login.png" alt="Login"><div class="screenshot-label">Connexion</div></div>
+<div class="screenshot"><img src="screenshots/dashboard.png" alt="Dashboard"><div class="screenshot-label">Tableau de bord</div></div>
+<div class="screenshot"><img src="screenshots/swagger.png" alt="Swagger"><div class="screenshot-label">Swagger API Docs</div></div>
+<div class="screenshot"><img src="screenshots/admin-dashboard.png" alt="Admin"><div class="screenshot-label">Dashboard Admin</div></div>
+<div class="screenshot"><img src="screenshots/mobile-nav.png" alt="Mobile"><div class="screenshot-label">Menu Mobile</div></div>
+</div>
+<p><strong>Toutes les captures :</strong> homepage, results, hotels, rentals, parcels, events, insurance, faq, how-it-works, legal-cgu, legal-privacy, contact, become-partner, transporter-apply, login, register, admin-login, ticket-lookup, dashboard, dashboard-bookings, dashboard-tickets, admin-dashboard, admin-users, admin-trips, admin-bookings, admin-payments, admin-transporters, admin-settings, swagger, health, mobile-homepage, mobile-login, mobile-nav</p>
+</section>
+
+<section id="database">
+<h2>12. Base de Donnees</h2>
+<h3>12.1 Modeles principaux</h3>
+<table><tr><th>Modele</th><th>Description</th><th>Relations</th></tr>
+<tr><td><code>User</code></td><td>Utilisateurs</td><td>Bookings, Tickets, Notifications</td></tr>
+<tr><td><code>Trip</code></td><td>Trajets</td><td>Route, Transport, Bookings</td></tr>
+<tr><td><code>Booking</code></td><td>Reservations</td><td>User, Trip, Passengers, Tickets, Payment</td></tr>
+<tr><td><code>Passenger</code></td><td>Passagers</td><td>Booking</td></tr>
+<tr><td><code>Ticket</code></td><td>Billets</td><td>Booking (QR code)</td></tr>
+<tr><td><code>Payment</code></td><td>Paiements</td><td>Booking, Provider</td></tr>
+<tr><td><code>Route</code></td><td>Itineraires</td><td>Trips, Stops</td></tr>
+<tr><td><code>Transport</code></td><td>Transporteurs</td><td>Trips, User</td></tr>
+<tr><td><code>Hotel</code></td><td>Hotels</td><td>Bookings, Rooms</td></tr>
+<tr><td><code>RentalVehicle</code></td><td>Vehicules</td><td>Rentals</td></tr>
+<tr><td><code>Event</code></td><td>Evenements</td><td>EventBookings</td></tr>
+<tr><td><code>InsurancePolicy</code></td><td>Polices</td><td>User, Trip</td></tr>
+<tr><td><code>Parcel</code></td><td>Colis</td><td>Sender, Tracking</td></tr>
+</table>
+<h3>12.2 Index</h3>
+<ul>
+<li><code>Trip @@index([departureAt],[price],[status],[routeId,departureAt])</code></li>
+<li><code>Booking @@index([userId,status],[tripId],[status,holdExpiresAt])</code></li>
+<li><code>Ticket @@index([bookingId],[verificationCode])</code></li>
+</ul>
+</section>
+
+<section id="events">
+<h2>13. Evenements Kafka</h2>
+<table><tr><th>Evenement</th><th>Description</th><th>Producteur</th></tr>
+<tr><td><code>booking.created</code></td><td>Nouvelle reservation</td><td>API</td></tr>
+<tr><td><code>booking.cancelled</code></td><td>Reservation annulee</td><td>API</td></tr>
+<tr><td><code>booking.confirmed</code></td><td>Confirmee</td><td>Worker</td></tr>
+<tr><td><code>payment.completed</code></td><td>Paiement confirme</td><td>API</td></tr>
+<tr><td><code>ticket.issued</code></td><td>Billet emis</td><td>Worker</td></tr>
+<tr><td><code>trip.reminder.24h</code></td><td>Rappel 24h</td><td>Worker</td></tr>
+<tr><td><code>hotel.booking.confirmed</code></td><td>Hotel confirmee</td><td>API</td></tr>
+<tr><td><code>rental.booking.confirmed</code></td><td>Location confirmee</td><td>API</td></tr>
+<tr><td><code>parcel.status.changed</code></td><td>Statut colis</td><td>API</td></tr>
+<tr><td><code>insurance.policy.issued</code></td><td>Police emise</td><td>API</td></tr>
+<tr><td><code>event.booking.confirmed</code></td><td>Evenement confirme</td><td>API</td></tr>
+</table>
+</section>
+
+<section id="upgrade">
+<h2>14. Mises a jour &amp; Ameliorations</h2>
+<h3>14.1 Ameliorations prioritaires</h3>
+<table><tr><th>Priorite</th><th>Action</th><th>Description</th></tr>
+<tr><td><span class="badge badge-err">HAUTE</span></td><td>ApiError export</td><td>Exporter <code>ApiError</code> depuis <code>lib/api/client.ts</code> (dashboard page erreur)</td></tr>
+<tr><td><span class="badge badge-err">HAUTE</span></td><td>OAuth Google</td><td>Implementer le flux complet Google OAuth</td></tr>
+<tr><td><span class="badge badge-warn">MOYENNE</span></td><td>Notifications</td><td>Activer email/SMS/WhatsApp via worker</td></tr>
+<tr><td><span class="badge badge-warn">MOYENNE</span></td><td>Tests E2E</td><td>Etendre Playwright a tous les workflows</td></tr>
+<tr><td><span class="badge badge-warn">MOYENNE</span></td><td>CI/CD</td><td>Ajouter GitHub Actions (typecheck, tests, deploy)</td></tr>
+<tr><td><span class="badge badge-ok">BASSE</span></td><td>PWA</td><td>Service worker + manifest pour mode offline</td></tr>
+<tr><td><span class="badge badge-ok">BASSE</span></td><td>i18n</td><td>Support multilingue (Francais/Anglais)</td></tr>
+<tr><td><span class="badge badge-ok">BASSE</span></td><td>Mobile App</td><td>React Native pour iOS/Android</td></tr>
+<tr><td><span class="badge badge-ok">BASSE</span></td><td>Analytics</td><td>Tableau de bord analytics avance</td></tr>
+<tr><td><span class="badge badge-ok">BASSE</span></td><td>Partner API</td><td>API publique pour partenaires tiers</td></tr>
+</table>
+<h3>14.2 Problemes connus</h3>
+<ul>
+<li><code>/dashboard/page.tsx</code> importe <code>ApiError</code> qui n'est pas exporte depuis <code>lib/api/client.ts</code></li>
+<li>Middleware Next.js deprecie (migration vers <code>proxy</code>)</li>
+<li>WebSocket pour sieges non implemente (polling actuel)</li>
+<li>Mode intra-urban en developpement</li>
+</ul>
+<div class="alert alert-info"><strong>Pour re-generer les screenshots :</strong> <code>npx playwright test tests/screenshots.spec.ts --project=chromium</code></div>
+</section>
+
+</main>
+<footer><div class="c">
+<p>CamerMove v.0.1-beta - Plateforme multi-services dediee a la mobilite au Cameroun</p>
+<p style="margin-top:8px">© 2026 CamerMove. Tous droits reserves.</p>
+</div></footer>
+</body>
+</html>
