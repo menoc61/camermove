@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { prisma } from "@camermove/db"
 import { NotFoundError, ForbiddenError, ConflictError, loadEnv } from "@camermove/config"
 import type { Prisma } from "@prisma/client"
@@ -214,7 +213,15 @@ export async function listTrips(params: {
   const [items, total] = await Promise.all([
     prisma.trip.findMany({
       where, skip, take, orderBy: { departureAt: "asc" },
-      include: { route: true, vehicle: true, transport: { select: { id: true, companyName: true } }, seatAvailability: true, _count: { select: { bookings: true } } },
+      select: {
+        id: true, routeId: true, transportId: true, vehicleId: true,
+        departureAt: true, price: true, totalSeats: true, status: true, createdAt: true,
+        route: { select: { id: true, originCity: true, destinationCity: true } },
+        vehicle: { select: { id: true, type: true, plateNumber: true } },
+        transport: { select: { id: true, companyName: true } },
+        seatAvailability: { select: { seatsAvailable: true } },
+        _count: { select: { bookings: true } },
+      },
     }),
     prisma.trip.count({ where }),
   ])
@@ -270,7 +277,20 @@ export async function listBookings(params: {
   const [items, total] = await Promise.all([
     prisma.booking.findMany({
       where, skip, take, orderBy: { createdAt: "desc" },
-      include: { trip: { include: { route: true, transport: { select: { id: true, companyName: true } } } }, user: { select: { id: true, email: true, firstName: true, lastName: true } }, passengers: true, payments: true },
+      select: {
+        id: true, reference: true, tripId: true, userId: true,
+        seatCount: true, totalAmount: true, status: true, createdAt: true,
+        trip: {
+          select: {
+            id: true, departureAt: true, price: true,
+            route: { select: { id: true, originCity: true, destinationCity: true } },
+            transport: { select: { id: true, companyName: true } },
+          },
+        },
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+        passengers: { select: { id: true, fullName: true } },
+        payments: { select: { id: true, amount: true, status: true, provider: true } },
+      },
     }),
     prisma.booking.count({ where }),
   ])
@@ -379,6 +399,10 @@ export async function listAuditLogs(params: { page: number; limit: number; q?: s
 // ─── Stats ──────────────────────────────────────────────────────────────────
 
 export async function getAdminStats() {
+  const { getCached, setCached } = await import("../lib/cache")
+  const cached = await getCached<Record<string, unknown>>("admin:stats")
+  if (cached) return { ...(cached as object), meta: { cached: true } }
+
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1)
 
@@ -403,7 +427,7 @@ export async function getAdminStats() {
     prisma.commission.aggregate({ where: {}, _sum: { commissionAmount: true } }),
   ])
 
-  return {
+  const result = {
     totalUsers,
     newUsersToday,
     totalTransporters,
@@ -417,5 +441,8 @@ export async function getAdminStats() {
     pendingPayments,
     totalRevenue: totalRevenue._sum.totalAmount ?? 0,
     totalCommissions: totalCommissions._sum.commissionAmount ?? 0,
+    meta: { cached: false },
   }
+  await setCached("admin:stats", result, 60).catch(() => {})
+  return result
 }

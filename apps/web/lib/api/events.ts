@@ -116,6 +116,7 @@ export async function createEventBooking(
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
       "Idempotency-Key": idempotencyKey || crypto.randomUUID(),
     },
     body: JSON.stringify(body),

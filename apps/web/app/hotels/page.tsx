@@ -115,7 +115,7 @@ export default function HotelsPage() {
             <Link key={h.id} href={`/hotels/${h.id}`} className="group">
               <Card className="overflow-hidden hover:border-primary/30 transition-colors h-full">
                 <div className="h-40 bg-muted relative overflow-hidden">
-                  {h.photos?.[0] ? <img src={h.photos[0]} alt={h.name} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" /> : <div className="flex items-center justify-center h-full text-muted-foreground"><Bed className="size-8" /></div>}
+                  {h.photos?.[0] ? <img src={h.photos[0]} alt={h.name} loading="lazy" className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" /> : <div className="flex items-center justify-center h-full text-muted-foreground"><Bed className="size-8" /></div>}
                   {h.starRating && <span className="absolute top-2 right-2 rounded-full bg-white px-2 py-1 text-xs font-semibold shadow">★ {h.starRating}</span>}
                 </div>
                 <CardContent className="p-4 space-y-2">

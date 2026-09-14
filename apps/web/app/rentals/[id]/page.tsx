@@ -81,7 +81,7 @@ export default function RentalDetailPage() {
         <h1 className="text-2xl font-bold flex items-center gap-2"><Car className="size-6" /> {vehicle.make} {vehicle.model}</h1>
         <p className="text-sm text-muted-foreground">{vehicle.category} · {vehicle.capacity} places · {vehicle.pickupCity} · {vehicle.durationUnit} {vehicle.hasDriver ? "· avec chauffeur" : ""}</p>
         <div className="flex gap-1 mt-2">{vehicle.amenities.slice(0, 5).map((a) => <Badge key={a} variant="secondary">{a}</Badge>)}</div>
-        {vehicle.photos?.length ? <div className="mt-4 grid grid-cols-2 gap-2">{vehicle.photos.slice(0, 4).map((p) => <img key={p} src={p} alt="" className="h-40 object-cover rounded-xl" />)}</div> : null}
+        {vehicle.photos?.length ? <div className="mt-4 grid grid-cols-2 gap-2">{vehicle.photos.slice(0, 4).map((p) => <img key={p} src={p} alt={`${vehicle.make} ${vehicle.model}`} loading="lazy" className="h-40 object-cover rounded-xl" />)}</div> : null}
         <p className="mt-3 text-lg font-bold">{new Intl.NumberFormat("fr-CM").format(vehicle.pricePerUnit)} XAF / {vehicle.durationUnit}</p>
       </div>
       <Separator />

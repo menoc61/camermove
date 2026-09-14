@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { prisma } from "@camermove/db"
+import { Suspense } from "react"
 import { Hero } from "@/components/landing/Hero"
 import { Intro } from "@/components/landing/Intro"
 import { StatsBand } from "@/components/landing/StatsBand"
@@ -17,87 +17,48 @@ import { RentalsRail } from "@/components/landing/rails/RentalsRail"
 import { ParcelsRail } from "@/components/landing/rails/ParcelsRail"
 import { InsuranceRail } from "@/components/landing/rails/InsuranceRail"
 import { EventsRail } from "@/components/landing/rails/EventsRail"
-import type { SearchResultItem } from "@/lib/api/search"
-import type { Agency } from "@/lib/api/agencies"
+import { fetchLandingStats, type LandingAgency } from "@/lib/api/landing"
 import { FAQ_TEASER } from "@/lib/data/faq"
+
+function RailSkeleton() {
+  return (
+    <section aria-hidden className="border-t border-line bg-paper">
+      <div className="mx-auto max-w-[1560px] px-6 py-16 sm:px-8 md:px-12">
+        <div className="h-4 w-40 animate-pulse bg-line" />
+        <div className="mt-4 h-8 w-2/3 animate-pulse bg-line" />
+        <div className="mt-8 flex gap-4 overflow-hidden">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-64 w-[78vw] shrink-0 animate-pulse bg-surface-1 sm:w-[380px]" />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
 
 export default async function HomePage() {
   let minPrice: number | undefined
-  let trips: SearchResultItem[] = []
-  let agencies: Agency[] = []
-  let hotelsCount = 0
-  let rentalsCount = 0
+  let nextDepartureAt: string | undefined
+  let hotelsCount: number | undefined
+  let rentalsCount: number | undefined
+  let agencies: LandingAgency[] = []
 
   try {
-    const [minTrip, upcomingTrips, agencyRows] = await Promise.all([
-      prisma.trip.findFirst({
-        where: {
-          status: "active",
-          seatAvailability: { seatsAvailable: { gte: 1 } },
-        },
-        orderBy: { price: "asc" },
-        select: { price: true },
-      }),
-      prisma.trip.findMany({
-        where: {
-          status: "active",
-          departureAt: { gte: new Date() },
-          seatAvailability: { seatsAvailable: { gte: 1 } },
-        },
-        orderBy: { departureAt: "asc" },
-        take: 6,
-        include: {
-          transport: { select: { companyName: true } },
-          seatAvailability: true,
-        },
-      }),
-      prisma.transporter.findMany({
-        where: { status: "approved" },
-        select: { id: true, companyName: true, city: true },
-        take: 20,
-      }),
-    ])
-    minPrice = minTrip?.price
-    trips = upcomingTrips.map((t) => ({
-      id: t.id,
-      departureAt: t.departureAt.toISOString(),
-      price: t.price,
-      totalSeats: t.totalSeats,
-      seatsAvailable: t.seatAvailability?.seatsAvailable ?? 0,
-      transporterId: t.transportId,
-      companyName: t.transport.companyName,
-      vehicleTypeInfo: t.vehicleTypeInfo,
-    }))
-    agencies = agencyRows.map((r) => ({
-      id: r.id,
-      companyName: r.companyName,
-      city: r.city,
-      lat: null,
-      lon: null,
-      departurePointInfo: null,
-    }))
+    const stats = await fetchLandingStats()
+    minPrice = stats.minPrice ?? undefined
+    nextDepartureAt = stats.nextDepartureAt ?? undefined
+    hotelsCount = stats.hotelsCount
+    rentalsCount = stats.rentalsCount
+    agencies = stats.agencies ?? []
   } catch {
-    // DB unavailable — render without data
-  }
-  try {
-    const [hc, rc] = await Promise.all([
-      prisma.hotel.count({ where: { status: "active" } }),
-      prisma.rentalVehicle.count({ where: { status: "available" } }),
-    ])
-    hotelsCount = hc
-    rentalsCount = rc
-  } catch {
-    // best-effort
+    // API unavailable — render without data
   }
 
   return (
     <>
       <Intro />
       <main>
-        <Hero
-          minPrice={minPrice != null ? minPrice : undefined}
-          nextDepartureAt={trips[0]?.departureAt}
-        />
+        <Hero minPrice={minPrice} nextDepartureAt={nextDepartureAt} />
 
         <StatsBand
           minPrice={minPrice}
@@ -105,17 +66,29 @@ export default async function HomePage() {
           rentalsCount={rentalsCount}
         />
 
-        <TransportRail />
+        <Suspense fallback={<RailSkeleton />}>
+          <TransportRail />
+        </Suspense>
 
-        <HotelsRail />
+        <Suspense fallback={<RailSkeleton />}>
+          <HotelsRail />
+        </Suspense>
 
-        <RentalsRail />
+        <Suspense fallback={<RailSkeleton />}>
+          <RentalsRail />
+        </Suspense>
 
-        <ParcelsRail />
+        <Suspense fallback={<RailSkeleton />}>
+          <ParcelsRail />
+        </Suspense>
 
-        <InsuranceRail />
+        <Suspense fallback={<RailSkeleton />}>
+          <InsuranceRail />
+        </Suspense>
 
-        <EventsRail />
+        <Suspense fallback={<RailSkeleton />}>
+          <EventsRail />
+        </Suspense>
 
         <Method />
 

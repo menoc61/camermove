@@ -35,7 +35,7 @@ export function TicketDetail({ data }: { data: TicketDetailResponse }) {
           {data.qrDataUrl ? (
             <div className="p-3 rounded-xl" style={{ background: "#F7F5F0" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={data.qrDataUrl} alt="QR code du billet" className="mx-auto h-[120px] w-[120px]" />
+              <img src={data.qrDataUrl} alt="QR code du billet" loading="eager" fetchPriority="high" className="mx-auto h-[120px] w-[120px]" />
             </div>
           ) : (
             <div className="mx-auto flex h-[120px] w-[120px] items-center justify-center rounded-xl border border-dashed text-xs" style={{ background: "#F7F5F0", borderColor: "#E4E1D9", color: "#5A6474" }}>

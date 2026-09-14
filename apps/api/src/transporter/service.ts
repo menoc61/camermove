@@ -1,12 +1,14 @@
-// @ts-nocheck
 import { getStorage } from "@camermove/media"
 import { NotFoundError, ForbiddenError, ConflictError, loadEnv } from "@camermove/config"
 import type { Prisma } from "@prisma/client"
+import { BookingStatus } from "@prisma/client"
 import * as repo from "./repository"
 
-function err(msg: string) { throw new NotFoundError(msg) }
-function forbid(msg = "Accès refusé") { throw new ForbiddenError(msg) }
-function conflict(msg: string) { throw new ConflictError(msg) }
+function err(msg: string): never { throw new NotFoundError(msg) }
+function forbid(msg = "Accès refusé"): never { throw new ForbiddenError(msg) }
+function conflict(msg: string): never { throw new ConflictError(msg) }
+
+type VehicleStatusString = "active" | "inactive"
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
@@ -29,11 +31,11 @@ export async function listVehicles(transporterId: string) {
   return repo.findVehicles(transporterId)
 }
 
-export async function createVehicle(transporterId: string, data: { type: string; capacity: number; plateNumber?: string; status?: string }) {
+export async function createVehicle(transporterId: string, data: { type: string; capacity: number; plateNumber?: string; status?: VehicleStatusString }) {
   return repo.createVehicleRow({ ...data, transporterId, status: data.status ?? "active" })
 }
 
-export async function updateVehicle(vehicleId: string, transporterId: string, data: { type?: string; capacity?: number; plateNumber?: string | null; status?: string }) {
+export async function updateVehicle(vehicleId: string, transporterId: string, data: { type?: string; capacity?: number; plateNumber?: string | null; status?: VehicleStatusString }) {
   const v = await repo.findVehicleById(vehicleId)
   if (!v) err("Véhicule introuvable")
   if (v.transporterId !== transporterId) forbid()
@@ -94,8 +96,8 @@ export async function listTrips(transporterId: string, params: { page?: number; 
   }
 
   const [items, total] = await Promise.all([
-    repo.findTrips(where as unknown as Record<string, unknown>, skip, take),
-    repo.countTrips(where as unknown as Record<string, unknown>),
+    repo.findTrips(where, skip, take),
+    repo.countTrips(where),
   ])
   return { items, total, page: params.page ?? 1, perPage: take, totalPages: Math.ceil(total / take) }
 }
@@ -146,7 +148,7 @@ export async function updateTrip(tripId: string, transporterId: string, data: Pa
   if (!trip) err("Trajet introuvable")
   if (trip.transportId !== transporterId) forbid()
 
-  const updateData: Prisma.TripUpdateInput = { ...data }
+  const updateData: Prisma.TripUncheckedUpdateInput = { ...data }
   // If totalSeats changed, update seatAvailability
   if (data.totalSeats !== undefined && trip.seatAvailability) {
     const diff = data.totalSeats - trip.totalSeats
@@ -155,7 +157,7 @@ export async function updateTrip(tripId: string, transporterId: string, data: Pa
     }
   }
 
-  return repo.updateTripRow(tripId, updateData as unknown as Record<string, unknown>)
+  return repo.updateTripRow(tripId, updateData)
 }
 
 export async function deleteTrip(tripId: string, transporterId: string) {
@@ -170,13 +172,13 @@ export async function deleteTrip(tripId: string, transporterId: string) {
 
 export async function listTransporterBookings(
   transporterId: string,
-  params: { page?: number; limit?: number; status?: string; dateFrom?: string; dateTo?: string }
+  params: { page?: number; limit?: number; status?: BookingStatus; dateFrom?: string; dateTo?: string }
 ) {
   const env = loadEnv()
   const take = params.limit ?? env.PAGINATION_DEFAULT_PER_PAGE
   const skip = ((params.page ?? 1) - 1) * take
   const where: Prisma.BookingWhereInput = { trip: { transportId: transporterId } }
-  if (params.status) where.status = params.status as Prisma.EnumBookingStatusFilter["equals"]
+  if (params.status) where.status = params.status
   if (params.dateFrom || params.dateTo) {
     where.createdAt = {}
     if (params.dateFrom) where.createdAt.gte = new Date(params.dateFrom)
@@ -184,8 +186,8 @@ export async function listTransporterBookings(
   }
 
   const [items, total] = await Promise.all([
-    repo.findTransporterBookings(where as unknown as Record<string, unknown>, skip, take),
-    repo.countTransporterBookings(where as unknown as Record<string, unknown>),
+    repo.findTransporterBookings(where, skip, take),
+    repo.countTransporterBookings(where),
   ])
   return { items, total, page: params.page ?? 1, perPage: take, totalPages: Math.ceil(total / take) }
 }

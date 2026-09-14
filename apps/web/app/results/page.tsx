@@ -1,5 +1,5 @@
 "use client"
-import { Suspense, useCallback } from "react"
+import { Suspense, useCallback, useRef } from "react"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { fetchSearch, type SearchParams, type SearchResultItem } from "../../lib/api/search"
@@ -58,6 +58,7 @@ function FilterBar({
   const router = useRouter()
   const pathname = usePathname()
   const sp = useSearchParams()
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const updateParam = useCallback(
     (key: string, value: string | undefined) => {
@@ -68,7 +69,11 @@ function FilterBar({
         next.set(key, value)
       }
       next.delete("page") // reset to page 1 on filter change
-      router.push(`${pathname}?${next.toString()}`, { scroll: false })
+      const url = `${pathname}?${next.toString()}`
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = setTimeout(() => {
+        router.push(url, { scroll: false })
+      }, 300)
     },
     [sp, router, pathname]
   )
@@ -237,6 +242,7 @@ function ResultsInner() {
       params.page,
     ],
     queryFn: () => fetchSearch(params),
+    staleTime: 30_000,
   })
 
   if (isLoading)

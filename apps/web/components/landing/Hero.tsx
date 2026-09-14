@@ -261,7 +261,7 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
                 muted
                 loop
                 playsInline
-                preload="metadata"
+                preload={i === activeIndex ? "metadata" : "none"}
                 aria-hidden
                 className="absolute inset-0 h-full w-full object-cover opacity-0"
               />

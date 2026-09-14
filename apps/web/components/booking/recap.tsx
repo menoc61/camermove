@@ -54,7 +54,7 @@ export function Recap({ price }: { price: number }) {
     }
   }
 
-  const countdown = holdExpiresAt ? holdExpiresAt.getTime() - now : null
+  const countdown = holdExpiresAt ? Math.max(0, holdExpiresAt.getTime() - now) : null
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4">

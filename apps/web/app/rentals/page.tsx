@@ -100,7 +100,7 @@ export default function RentalsPage() {
             <Link key={v.id} href={`/rentals/${v.id}`} className="group">
               <Card className="overflow-hidden hover:border-primary/30 transition-colors h-full">
                 <div className="h-40 bg-muted relative overflow-hidden">
-                  {v.photos?.[0] ? <img src={v.photos[0]} alt={`${v.make} ${v.model}`} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" /> : <div className="flex items-center justify-center h-full text-muted-foreground"><Car className="size-8" /></div>}
+                  {v.photos?.[0] ? <img src={v.photos[0]} alt={`${v.make} ${v.model}`} loading="lazy" className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" /> : <div className="flex items-center justify-center h-full text-muted-foreground"><Car className="size-8" /></div>}
                   {v.hasDriver && <span className="absolute top-2 left-2 rounded-full bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground">Avec chauffeur</span>}
                 </div>
                 <CardContent className="p-4 space-y-2">

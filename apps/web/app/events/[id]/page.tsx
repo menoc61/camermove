@@ -88,7 +88,7 @@ export default function EventDetailPage() {
       {/* Hero / poster */}
       <div className="rounded-xl overflow-hidden bg-gradient-to-b from-muted/30 to-card">
         {event.posterUrl ? (
-          <img src={event.posterUrl} alt={event.name} className="object-cover w-full h-64" />
+          <img src={event.posterUrl} alt={event.name} loading="lazy" className="object-cover w-full h-64" />
         ) : (
           <div className="h-64 flex items-center justify-center text-muted-foreground">
             <Ticket className="size-8" />

@@ -2,7 +2,7 @@
  * Shared API helpers for the web app. Mirrors the bookings.ts pattern
  * (token in Authorization header, throws ApiError on non-2xx).
  */
-function apiBase(): string {
+export function apiBase(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
 }
 

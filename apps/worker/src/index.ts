@@ -1,13 +1,20 @@
 import { createLogger, loadEnv } from "@camermove/config"
 import { createKafkaClient, createEventConsumer, EVENT_TOPICS } from "@camermove/events"
 import { createNotificationHandlers } from "./handlers/notifications"
-import { initTelemetry } from "@camermove/observability"
+import { initTelemetry, startMetricsServer } from "@camermove/observability"
+import { getStorage } from "@camermove/media"
 import { startHeartbeat, stopHeartbeat } from "./heartbeat"
 import { startQueues, closeQueues } from "./queues"
 
 const env = loadEnv()
 const log = createLogger()
 const telemetry = initTelemetry(env)
+// Standalone /metrics + /health server so Prometheus can scrape worker:4000
+// independently of any HTTP framework (AGENTS.md §1 observability).
+const metricsServer = env.METRICS_ENABLED ? startMetricsServer(env) : undefined
+if (metricsServer) {
+  log.info({ port: env.METRICS_PORT }, "worker metrics server listening")
+}
 const kafka = createKafkaClient(env)
 const notificationHandlers = createNotificationHandlers(env)
 
@@ -42,6 +49,8 @@ const consumer = createEventConsumer(kafka, env, {
 })
 
 async function main() {
+  // Ensure the MinIO bucket exists before any consumer code that may upload artifacts.
+  await getStorage().ensureBucket()
   await consumer.connect()
   log.info("worker running — payment handlers registered")
   // BullMQ owns hold-expiry + reconciliation + trip reminders (AGENTS.md §1).
@@ -54,10 +63,15 @@ main().catch((err) => {
   process.exit(1)
 })
 
-process.on("SIGTERM", async () => {
+async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  log.info({ signal }, "worker shutdown signal received")
   await stopHeartbeat().catch(() => {})
   await closeQueues().catch(() => {})
-  await telemetry.shutdown()
-  await consumer.disconnect()
+  await metricsServer?.close().catch(() => {})
+  await telemetry.shutdown().catch(() => {})
+  await consumer.disconnect().catch(() => {})
   process.exit(0)
-})
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"))
+process.on("SIGINT", () => void shutdown("SIGINT"))

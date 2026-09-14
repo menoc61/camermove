@@ -81,29 +81,29 @@ enum PartnerApplicationStatus {
 }
 
 model User {
-  id             String           @id @default(cuid())
-  role           Role             @default(traveler)
-  firstName      String?
-  lastName       String?
-  email          String           @unique
-  phone          String?
-  passwordHash   String?
-  emailVerified  Boolean          @default(false)
-  status         String           @default("active")
-  transporterId  String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  socialAccounts SocialAccount[]
-  bookings       Booking[]
-  hotelBookings HotelBooking[]
-  rentalBookings RentalBooking[]
-  parcels Parcel[]
+  id                String            @id @default(cuid())
+  role              Role              @default(traveler)
+  firstName         String?
+  lastName          String?
+  email             String            @unique
+  phone             String?
+  passwordHash      String?
+  emailVerified     Boolean           @default(false)
+  status            String            @default("active")
+  transporterId     String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  socialAccounts    SocialAccount[]
+  bookings          Booking[]
+  hotelBookings     HotelBooking[]
+  rentalBookings    RentalBooking[]
+  parcels           Parcel[]
   insurancePolicies InsurancePolicy[]
-  eventBookings EventBooking[]
-  favorites      Favorite[]
-  notifications  Notification[]
-  auditLogs      AuditLog[]
-  transporter    Transporter?     @relation(fields: [transporterId], references: [id], onDelete: SetNull)
+  eventBookings     EventBooking[]
+  favorites         Favorite[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  transporter       Transporter?      @relation(fields: [transporterId], references: [id], onDelete: SetNull)
   hotels            Hotel[]
   rentalVehicles    RentalVehicle[]
   parcelOperators   ParcelOperator[]
@@ -135,33 +135,33 @@ model Favorite {
 }
 
 model Transporter {
-  id                String             @id @default(cuid())
-  companyName       String
-  contactName       String?
-  phone             String?
-  email             String             @unique
-  city              String?
-  transportType     String?
-  vehicleCount      Int                @default(0)
-  servedRoutes      String[]
-  status            TransporterStatus  @default(pending)
-  commissionPercent Decimal?           @db.Decimal(5, 2)
-  documents         Document[]
-  vehicles          Vehicle[]
-  routes            Route[]
-  trips             Trip[]             @relation("TripTransporter")
-  staffUsers        User[]
+  id                 String              @id @default(cuid())
+  companyName        String
+  contactName        String?
+  phone              String?
+  email              String              @unique
+  city               String?
+  transportType      String?
+  vehicleCount       Int                 @default(0)
+  servedRoutes       String[]
+  status             TransporterStatus   @default(pending)
+  commissionPercent  Decimal?            @db.Decimal(5, 2)
+  documents          Document[]
+  vehicles           Vehicle[]
+  routes             Route[]
+  trips              Trip[]              @relation("TripTransporter")
+  staffUsers         User[]
   partnerApplication PartnerApplication?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 }
 
 model Document {
-  id            String      @id @default(cuid())
-  type          String
-  objectKey     String
-  mimetype      String
-  size          Int
+  id                   String              @id @default(cuid())
+  type                 String
+  objectKey            String
+  mimetype             String
+  size                 Int
   transporterId        String
   transporter          Transporter         @relation(fields: [transporterId], references: [id], onDelete: Cascade)
   partnerApplicationId String?
@@ -198,42 +198,42 @@ model Route {
 // Ordered boarding/drop-off points along a route (terminus + en-route dépôts).
 // offsetMinutes = ETA after the trip's departureAt at that stop.
 model RouteStop {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   routeId       String
-  route         Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  route         Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
   name          String
   kind          String // terminus | depo | stop
   stopOrder     Int
   offsetMinutes Int
   boardings     Booking[] @relation("BookingBoardingStop")
   dropOffs      Booking[] @relation("BookingDropOffStop")
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   @@unique([routeId, name])
   @@index([routeId, stopOrder])
 }
 
 model Trip {
-  id                  String           @id @default(cuid())
-  routeId             String
-  route               Route            @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  vehicleId           String?
-  vehicle             Vehicle?         @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  transportId         String
-  transport           Transporter      @relation("TripTransporter", fields: [transportId], references: [id])
-  departureAt         DateTime
-  arrivalEstimateAt   DateTime?
-  durationEstimate    Int?
-  price               Int
-  totalSeats          Int
-  departurePointInfo  String?
-  vehicleTypeInfo     String?
-  conditions          String?
-  cancellationPolicy  String?
-  status              String           @default("active")
-  seatAvailability    SeatAvailability?
-  bookings            Booking[]
-  createdAt           DateTime         @default(now())
+  id                 String            @id @default(cuid())
+  routeId            String
+  route              Route             @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  vehicleId          String?
+  vehicle            Vehicle?          @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  transportId        String
+  transport          Transporter       @relation("TripTransporter", fields: [transportId], references: [id])
+  departureAt        DateTime
+  arrivalEstimateAt  DateTime?
+  durationEstimate   Int?
+  price              Int
+  totalSeats         Int
+  departurePointInfo String?
+  vehicleTypeInfo    String?
+  conditions         String?
+  cancellationPolicy String?
+  status             String            @default("active")
+  seatAvailability   SeatAvailability?
+  bookings           Booking[]
+  createdAt          DateTime          @default(now())
 
   @@index([departureAt])
   @@index([price])
@@ -251,26 +251,26 @@ model SeatAvailability {
 }
 
 model Booking {
-  id            String          @id @default(cuid())
-  reference     String          @unique
-  tripId        String
-  trip          Trip            @relation(fields: [tripId], references: [id], onDelete: Restrict)
-  userId        String
-  user          User            @relation(fields: [userId], references: [id], onDelete: Restrict)
-  seatCount     Int
-  totalAmount   Int
-  status        BookingStatus   @default(pending_payment)
-  holdExpiresAt DateTime?
+  id             String        @id @default(cuid())
+  reference      String        @unique
+  tripId         String
+  trip           Trip          @relation(fields: [tripId], references: [id], onDelete: Restrict)
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  seatCount      Int
+  totalAmount    Int
+  status         BookingStatus @default(pending_payment)
+  holdExpiresAt  DateTime?
   boardingStopId String?
-  boardingStop   RouteStop?     @relation("BookingBoardingStop", fields: [boardingStopId], references: [id], onDelete: SetNull)
+  boardingStop   RouteStop?    @relation("BookingBoardingStop", fields: [boardingStopId], references: [id], onDelete: SetNull)
   dropOffStopId  String?
-  dropOffStop    RouteStop?     @relation("BookingDropOffStop", fields: [dropOffStopId], references: [id], onDelete: SetNull)
-  passengers    Passenger[]
-  payments      Payment[]
-  commission    Commission?
-  tickets       Ticket[]
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  dropOffStop    RouteStop?    @relation("BookingDropOffStop", fields: [dropOffStopId], references: [id], onDelete: SetNull)
+  passengers     Passenger[]
+  payments       Payment[]
+  commission     Commission?
+  tickets        Ticket[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([userId, status])
   @@index([tripId])
@@ -286,29 +286,29 @@ model Passenger {
 }
 
 model Payment {
-  id             String          @id @default(cuid())
-  bookingId      String?
-  booking        Booking?        @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  provider       PaymentProvider @default(notchpay)
-  providerRef    String?
-  amount         Int
-  method         PaymentMethod?
-  currency       String          @default("XAF")
-  status         PaymentStatus   @default(pending)
-  webhookPayload Json?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id              String           @id @default(cuid())
+  bookingId       String?
+  booking         Booking?         @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  provider        PaymentProvider  @default(notchpay)
+  providerRef     String?
+  amount          Int
+  method          PaymentMethod?
+  currency        String           @default("XAF")
+  status          PaymentStatus    @default(pending)
+  webhookPayload  Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   hotelBooking    HotelBooking?
   rentalBooking   RentalBooking?
   parcel          Parcel?
   insurancePolicy InsurancePolicy?
   eventBooking    EventBooking?
+  // providerRef is nullable until creation; one-pending-per-booking enforced via app guard + partial index migration (not hard unique on nullable)
 
   @@index([status, createdAt])
   @@index([provider, providerRef])
   @@index([bookingId, status])
   @@index([providerRef])
-  // providerRef is nullable until creation; one-pending-per-booking enforced via app guard + partial index migration (not hard unique on nullable)
 }
 
 enum RentalVehicleStatus {
@@ -368,72 +368,72 @@ enum EventTicketStatus {
 }
 
 model Hotel {
-  id              String          @id @default(cuid())
-  ownerId         String?
-  owner           User?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  name            String
-  description     String?         @db.Text
-  address         String?
-  city            String
-  region          String?
-  country         String          @default("Cameroun")
-  latitude        Decimal?        @db.Decimal(9, 6)
-  longitude       Decimal?        @db.Decimal(9, 6)
-  starRating      Int?
-  amenities       String[]
-  photos          String[]
-  status          String          @default("active")
-  partnerStatus   String          @default("pending")
-  rooms           HotelRoom[]
-  bookings        HotelBooking[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id            String         @id @default(cuid())
+  ownerId       String?
+  owner         User?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  name          String
+  description   String?        @db.Text
+  address       String?
+  city          String
+  region        String?
+  country       String         @default("Cameroun")
+  latitude      Decimal?       @db.Decimal(9, 6)
+  longitude     Decimal?       @db.Decimal(9, 6)
+  starRating    Int?
+  amenities     String[]
+  photos        String[]
+  status        String         @default("active")
+  partnerStatus String         @default("pending")
+  rooms         HotelRoom[]
+  bookings      HotelBooking[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([city, status])
   @@index([partnerStatus])
 }
 
 model HotelRoom {
-  id              String          @id @default(cuid())
-  hotelId         String
-  hotel           Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
-  name            String
-  description     String?         @db.Text
-  capacity        Int             @default(2)
-  bedType         String?
-  amenities       String[]
-  photos          String[]
-  pricePerNight   Int
-  currency        String          @default("XAF")
-  quantity        Int             @default(1)
-  status          String          @default("available")
-  bookings        HotelBooking[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id            String         @id @default(cuid())
+  hotelId       String
+  hotel         Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?        @db.Text
+  capacity      Int            @default(2)
+  bedType       String?
+  amenities     String[]
+  photos        String[]
+  pricePerNight Int
+  currency      String         @default("XAF")
+  quantity      Int            @default(1)
+  status        String         @default("available")
+  bookings      HotelBooking[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([hotelId, status])
 }
 
 model HotelBooking {
-  id              String              @id @default(cuid())
+  id              String        @id @default(cuid())
   hotelId         String
-  hotel           Hotel               @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  hotel           Hotel         @relation(fields: [hotelId], references: [id], onDelete: Cascade)
   roomTypeId      String
-  roomType        HotelRoom           @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  roomType        HotelRoom     @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
   userId          String
-  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   checkInDate     DateTime
   checkOutDate    DateTime
-  guestCount      Int                 @default(1)
+  guestCount      Int           @default(1)
   totalAmount     Int
-  currency        String              @default("XAF")
-  status          BookingStatus       @default(pending_payment)
+  currency        String        @default("XAF")
+  status          BookingStatus @default(pending_payment)
   guestNames      String[]
-  specialRequests String?             @db.Text
-  paymentId       String?             @unique
-  payment         Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  specialRequests String?       @db.Text
+  paymentId       String?       @unique
+  payment         Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([userId, status])
   @@index([hotelId, status])
@@ -441,30 +441,30 @@ model HotelBooking {
 }
 
 model RentalVehicle {
-  id              String              @id @default(cuid())
-  ownerId         String?
-  owner           User?               @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  category        String
-  make            String
-  model           String
-  year            Int?
-  licensePlate    String?             @unique
-  capacity        Int                 @default(4)
-  transmission    String?
-  fuelType        String?
-  hasDriver       Boolean             @default(false)
-  pricePerUnit    Int
-  durationUnit    RentalDurationUnit  @default(day)
-  currency        String              @default("XAF")
-  pickupCity      String
-  pickupAddress   String?
-  photos          String[]
-  amenities       String[]
-  status          RentalVehicleStatus @default(available)
-  partnerStatus   String              @default("pending")
-  bookings        RentalBooking[]
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id            String              @id @default(cuid())
+  ownerId       String?
+  owner         User?               @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  category      String
+  make          String
+  model         String
+  year          Int?
+  licensePlate  String?             @unique
+  capacity      Int                 @default(4)
+  transmission  String?
+  fuelType      String?
+  hasDriver     Boolean             @default(false)
+  pricePerUnit  Int
+  durationUnit  RentalDurationUnit  @default(day)
+  currency      String              @default("XAF")
+  pickupCity    String
+  pickupAddress String?
+  photos        String[]
+  amenities     String[]
+  status        RentalVehicleStatus @default(available)
+  partnerStatus String              @default("pending")
+  bookings      RentalBooking[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@index([pickupCity, status])
   @@index([category, status])
@@ -473,28 +473,28 @@ model RentalVehicle {
 }
 
 model RentalBooking {
-  id              String                @id @default(cuid())
+  id              String              @id @default(cuid())
   rentalVehicleId String
-  vehicle         RentalVehicle         @relation(fields: [rentalVehicleId], references: [id], onDelete: Cascade)
+  vehicle         RentalVehicle       @relation(fields: [rentalVehicleId], references: [id], onDelete: Cascade)
   userId          String
-  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   startDate       DateTime
   endDate         DateTime
   duration        Int
   durationUnit    RentalDurationUnit
   totalAmount     Int
-  currency        String                @default("XAF")
-  status          RentalBookingStatus   @default(pending_payment)
+  currency        String              @default("XAF")
+  status          RentalBookingStatus @default(pending_payment)
   pickupCity      String
   pickupAddress   String?
   dropoffCity     String?
   dropoffAddress  String?
   driverName      String?
   driverPhone     String?
-  paymentId       String?               @unique
-  payment         Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  paymentId       String?             @unique
+  payment         Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@index([userId, status])
   @@index([rentalVehicleId, status])
@@ -502,51 +502,51 @@ model RentalBooking {
 }
 
 model ParcelOperator {
-  id              String          @id @default(cuid())
-  ownerId         String?
-  owner           User?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  companyName     String
-  contactName     String?
-  phone           String?
-  email           String?         @unique
-  citiesServed    String[]
-  status          String          @default("active")
-  partnerStatus   String          @default("pending")
-  parcels         Parcel[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id            String   @id @default(cuid())
+  ownerId       String?
+  owner         User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  companyName   String
+  contactName   String?
+  phone         String?
+  email         String?  @unique
+  citiesServed  String[]
+  status        String   @default("active")
+  partnerStatus String   @default("pending")
+  parcels       Parcel[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([partnerStatus])
 }
 
 model Parcel {
-  id                String          @id @default(cuid())
-  trackingNumber    String          @unique
-  operatorId        String?
-  operator          ParcelOperator? @relation(fields: [operatorId], references: [id], onDelete: SetNull)
-  userId            String
-  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  senderName        String
-  senderPhone       String
-  senderCity        String
-  recipientName     String
-  recipientPhone    String
-  recipientCity     String
-  recipientAddress  String?
-  parcelType        String
-  weightKg          Decimal?        @db.Decimal(8, 2)
-  dimensionsCm      String?
-  description       String?         @db.Text
-  declaredValue     Int?
-  shippingCost      Int
-  currency          String          @default("XAF")
-  status            ParcelStatus    @default(registered)
-  currentLocation   String?
-  paymentId         String?         @unique
-  payment           Payment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
-  statusHistory     ParcelStatusLog[]
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id               String            @id @default(cuid())
+  trackingNumber   String            @unique
+  operatorId       String?
+  operator         ParcelOperator?   @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  senderName       String
+  senderPhone      String
+  senderCity       String
+  recipientName    String
+  recipientPhone   String
+  recipientCity    String
+  recipientAddress String?
+  parcelType       String
+  weightKg         Decimal?          @db.Decimal(8, 2)
+  dimensionsCm     String?
+  description      String?           @db.Text
+  declaredValue    Int?
+  shippingCost     Int
+  currency         String            @default("XAF")
+  status           ParcelStatus      @default(registered)
+  currentLocation  String?
+  paymentId        String?           @unique
+  payment          Payment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  statusHistory    ParcelStatusLog[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@index([userId, status])
   @@index([trackingNumber])
@@ -554,59 +554,59 @@ model Parcel {
 }
 
 model ParcelStatusLog {
-  id        String      @id @default(cuid())
+  id        String       @id @default(cuid())
   parcelId  String
-  parcel    Parcel      @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  parcel    Parcel       @relation(fields: [parcelId], references: [id], onDelete: Cascade)
   status    ParcelStatus
   location  String?
-  note      String?     @db.Text
-  createdAt DateTime    @default(now())
+  note      String?      @db.Text
+  createdAt DateTime     @default(now())
 
   @@index([parcelId, createdAt])
 }
 
 model InsurancePolicy {
-  id              String              @id @default(cuid())
-  userId          String
-  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  providerName    String
-  coverageType    InsuranceCoverageType
-  destination     String
-  startDate       DateTime
-  endDate         DateTime
-  travelers       Int                 @default(1)
-  premium         Int
-  currency        String              @default("XAF")
-  status          BookingStatus       @default(pending_payment)
-  policyNumber    String?             @unique
-  documentUrl     String?
-  paymentId       String?             @unique
-  payment         Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id           String                @id @default(cuid())
+  userId       String
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerName String
+  coverageType InsuranceCoverageType
+  destination  String
+  startDate    DateTime
+  endDate      DateTime
+  travelers    Int                   @default(1)
+  premium      Int
+  currency     String                @default("XAF")
+  status       BookingStatus         @default(pending_payment)
+  policyNumber String?               @unique
+  documentUrl  String?
+  paymentId    String?               @unique
+  payment      Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
 
   @@index([userId, status])
   @@index([startDate])
 }
 
 model Event {
-  id              String              @id @default(cuid())
-  organizerId     String?
-  organizer       User?               @relation(fields: [organizerId], references: [id], onDelete: SetNull)
-  name            String
-  description     String?             @db.Text
-  eventType       EventType
-  posterUrl       String?
-  venue           String
-  city            String
-  startDate       DateTime
-  endDate         DateTime?
-  status          EventTicketStatus   @default(on_sale)
-  partnerStatus   String              @default("pending")
+  id               String            @id @default(cuid())
+  organizerId      String?
+  organizer        User?             @relation(fields: [organizerId], references: [id], onDelete: SetNull)
+  name             String
+  description      String?           @db.Text
+  eventType        EventType
+  posterUrl        String?
+  venue            String
+  city             String
+  startDate        DateTime
+  endDate          DateTime?
+  status           EventTicketStatus @default(on_sale)
+  partnerStatus    String            @default("pending")
   ticketCategories TicketCategory[]
-  bookings        EventBooking[]
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  bookings         EventBooking[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@index([city, status])
   @@index([eventType])
@@ -614,41 +614,42 @@ model Event {
 }
 
 model TicketCategory {
-  id              String              @id @default(cuid())
-  eventId         String
-  event           Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  name            String
-  description     String?             @db.Text
-  price           Int
-  currency        String              @default("XAF")
-  quantity        Int
-  sold            Int                 @default(0)
-  status          EventTicketStatus   @default(on_sale)
-  bookings        EventBooking[]
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id          String            @id @default(cuid())
+  eventId     String
+  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  description String?           @db.Text
+  price       Int
+  currency    String            @default("XAF")
+  quantity    Int
+  sold        Int               @default(0)
+  held        Int               @default(0)
+  status      EventTicketStatus @default(on_sale)
+  bookings    EventBooking[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   @@index([eventId, status])
 }
 
 model EventBooking {
-  id              String              @id @default(cuid())
-  eventId         String
-  event           Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id               String         @id @default(cuid())
+  eventId          String
+  event            Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   ticketCategoryId String
-  ticketCategory  TicketCategory      @relation(fields: [ticketCategoryId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quantity        Int                 @default(1)
-  totalAmount     Int
-  currency        String              @default("XAF")
-  status          BookingStatus       @default(pending_payment)
-  ticketNumber    String?             @unique
-  qrCode          String?
-  paymentId       String?             @unique
-  payment         Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  ticketCategory   TicketCategory @relation(fields: [ticketCategoryId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quantity         Int            @default(1)
+  totalAmount      Int
+  currency         String         @default("XAF")
+  status           BookingStatus  @default(pending_payment)
+  ticketNumber     String?        @unique
+  qrCode           String?
+  paymentId        String?        @unique
+  payment          Payment?       @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   @@index([userId, status])
   @@index([eventId, status])
@@ -678,16 +679,16 @@ model Ticket {
 }
 
 model Notification {
-  id            String             @id @default(cuid())
+  id            String              @id @default(cuid())
   userId        String?
-  user          User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user          User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   transporterId String?
   channel       NotificationChannel
   type          String
-  status        NotificationStatus @default(queued)
+  status        NotificationStatus  @default(queued)
   payload       Json
   sentAt        DateTime?
-  createdAt     DateTime           @default(now())
+  createdAt     DateTime            @default(now())
 
   @@index([userId, status])
   @@index([createdAt])
@@ -709,35 +710,35 @@ model AuditLog {
 }
 
 model PartnerApplication {
-  id             String                  @id @default(cuid())
-  companyName    String
-  contactName    String
-  phone          String
-  email          String
-  city           String?
-  transportType  String?
-  vehicleCount   Int?
-  routesServed   String[]
-  message        String?
-  status         PartnerApplicationStatus @default(received)
-  transporterId  String?                 @unique
-  transporter    Transporter?            @relation(fields: [transporterId], references: [id], onDelete: SetNull)
-  documents      Document[]
-  createdAt      DateTime                @default(now())
+  id            String                   @id @default(cuid())
+  companyName   String
+  contactName   String
+  phone         String
+  email         String
+  city          String?
+  transportType String?
+  vehicleCount  Int?
+  routesServed  String[]
+  message       String?
+  status        PartnerApplicationStatus @default(received)
+  transporterId String?                  @unique
+  transporter   Transporter?             @relation(fields: [transporterId], references: [id], onDelete: SetNull)
+  documents     Document[]
+  createdAt     DateTime                 @default(now())
 }
 
 model AppSettings {
-  id                String   @id @default("global")
-  commissionPercent Decimal  @default(10) @db.Decimal(5, 2)
-  holdExpiryMinutes Int      @default(15)
-  cancellationPolicy String  @default("Annulation possible jusqu'à 1h avant départ")
-  smtpHost          String?
-  smtpPort          Int?
-  smtpUser          String?
-  smtpPass          String?
-  smtpFrom          String?
-  featureFlags      Json?    @default("{}")
-  maintenanceMode   Boolean  @default(false)
-  updatedAt         DateTime @updatedAt
-  updatedBy         String?
+  id                 String   @id @default("global")
+  commissionPercent  Decimal  @default(10) @db.Decimal(5, 2)
+  holdExpiryMinutes  Int      @default(15)
+  cancellationPolicy String   @default("Annulation possible jusqu'à 1h avant départ")
+  smtpHost           String?
+  smtpPort           Int?
+  smtpUser           String?
+  smtpPass           String?
+  smtpFrom           String?
+  featureFlags       Json?    @default("{}")
+  maintenanceMode    Boolean  @default(false)
+  updatedAt          DateTime @updatedAt
+  updatedBy          String?
 }

@@ -63,6 +63,48 @@ export const CommissionParams = z.object({ id: z.string().cuid() })
 
 export const AuditLogParams = z.object({ id: z.string().cuid() })
 
+export const UserListQuery = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(20),
+  q: z.string().optional(),
+  role: z.enum(["traveler", "transporter_staff", "admin", "super_admin"]).optional(),
+  status: z.enum(["active", "inactive", "pending"]).optional(),
+})
+
+export const TransporterListQuery = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(20),
+  status: TransporterStatusFilter,
+})
+
+export const TripListQuery = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(20),
+  q: z.string().optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  transporterId: z.string().optional(),
+})
+
+export const BookingListQuery = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(200).default(20),
+  q: z.string().optional(),
+  status: z.enum(["pending_payment", "confirmed", "expired", "cancelled", "refunded"]).optional(),
+  transporterId: z.string().optional(),
+})
+
+export const AdminSettingsBody = z.object({
+  commissionPercent: z.number().min(0).max(100).optional(),
+  holdExpiryMinutes: z.number().int().min(1).max(1440).optional(),
+  cancellationPolicy: z.string().optional(),
+  smtpHost: z.string().optional(),
+  smtpPort: z.number().int().optional(),
+  smtpUser: z.string().optional(),
+  smtpFrom: z.string().optional(),
+  featureFlags: z.record(z.string(), z.boolean()).optional(),
+  maintenanceMode: z.boolean().optional(),
+})
+
 export const HotelParams = z.object({ id: z.string().cuid() })
 
 export const HotelAdminUpdateBody = z.object({

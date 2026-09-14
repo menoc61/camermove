@@ -9,6 +9,8 @@
  */
 import type { FastifyInstance } from "fastify"
 import { prisma } from "@camermove/db"
+import { loadEnv } from "@camermove/config"
+import { getCached, setCached } from "../../lib/cache.js"
 import type { Booking, Ticket } from "@camermove/db"
 
 export interface DashboardItem {
@@ -35,6 +37,7 @@ export interface DashboardResponse {
   upcoming: DashboardItem[]
   history: DashboardItem[]
   tickets: DashboardTicketItem[]
+  meta?: { cached: boolean }
 }
 
 type BookingWithTrip = Booking & {
@@ -49,6 +52,13 @@ type TicketWithBooking = Ticket & {
 }
 
 export async function dashboardRoutes(app: FastifyInstance) {
+  const env = loadEnv()
+  // Pagination from env (no hardcoded limits per AGENTS.md §4); upcoming
+  // keeps a fixed small window (10) to keep the payload light.
+  const UPCOMING_TAKE = 10 // fixed window: next 10 upcoming (smaller than default page size)
+  const HISTORY_TAKE = env.PAGINATION_DEFAULT_PER_PAGE
+  const TICKETS_TAKE = env.PAGINATION_DEFAULT_PER_PAGE
+
   app.get("/me/dashboard", { preHandler: app.requireAuth() }, async (req, reply) => {
     const user = (req as unknown as { user: { id: string; role: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
@@ -56,7 +66,36 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
     const now = new Date()
 
+    const fireAudit = (counts?: { upcoming: number; history: number; tickets: number }) => {
+      // Fire-and-forget: audit write must NOT block the read path (write-on-read lag fix).
+      void prisma.auditLog
+        .create({
+          data: {
+            actorId: user.id,
+            action: "me.dashboard",
+            entityType: "Dashboard",
+            entityId: user.id,
+            metadata: {
+              ip: meta.ip,
+              ua: meta.userAgent,
+              ...(counts ? { counts } : {}),
+            } as never,
+          },
+        })
+        .catch(() => {})
+    }
+
+    // Hot-path cache (60s TTL, hotels pattern): cut DB RTT on repeat reads.
+    const cacheKeyStr = `dashboard:${user.id}`
+    const cached = await getCached<DashboardResponse>(cacheKeyStr)
+    if (cached) {
+      fireAudit()
+      return reply.send({ ...cached, meta: { cached: true } } satisfies DashboardResponse)
+    }
+
     // Parallel queries — single roundtrip latency.
+    // Select projection on route (id, originCity, destinationCity) instead of
+    // route:true to shrink the row payload.
     const [upcomingRaw, historyRaw, ticketsRaw] = await Promise.all([
       prisma.booking.findMany({
         where: {
@@ -64,24 +103,36 @@ export async function dashboardRoutes(app: FastifyInstance) {
           status: { in: ["confirmed", "pending_payment"] },
           trip: { departureAt: { gte: now } },
         },
-        include: { trip: { include: { route: true } }, tickets: { select: { id: true }, take: 1 } },
+        include: {
+          trip: { select: { departureAt: true, route: { select: { id: true, originCity: true, destinationCity: true } } } },
+          tickets: { select: { id: true }, take: 1 },
+        },
         orderBy: { trip: { departureAt: "asc" } },
-        take: 10,
+        take: UPCOMING_TAKE,
       }),
       prisma.booking.findMany({
         where: {
           userId: user.id,
           OR: [{ trip: { departureAt: { lt: now } } }, { status: "cancelled" }],
         },
-        include: { trip: { include: { route: true } }, tickets: { select: { id: true }, take: 1 } },
+        include: {
+          trip: { select: { departureAt: true, route: { select: { id: true, originCity: true, destinationCity: true } } } },
+          tickets: { select: { id: true }, take: 1 },
+        },
         orderBy: { trip: { departureAt: "desc" } },
-        take: 20,
+        take: HISTORY_TAKE,
       }),
       prisma.ticket.findMany({
         where: { booking: { userId: user.id } },
-        include: { booking: { include: { trip: { include: { route: true } } } } },
+        include: {
+          booking: {
+            select: {
+              trip: { select: { departureAt: true, route: { select: { id: true, originCity: true, destinationCity: true } } } },
+            },
+          },
+        },
         orderBy: { issuedAt: "desc" },
-        take: 20,
+        take: TICKETS_TAKE,
       }),
     ])
 
@@ -107,25 +158,13 @@ export async function dashboardRoutes(app: FastifyInstance) {
       status: t.status,
     }))
 
-    // Best-effort audit log (per AGENTS.md §2); failures must NOT block.
-    try {
-      await prisma.auditLog.create({
-        data: {
-          actorId: user.id,
-          action: "me.dashboard",
-          entityType: "Dashboard",
-          entityId: user.id,
-          metadata: {
-            ip: meta.ip,
-            ua: meta.userAgent,
-            counts: { upcoming: upcoming.length, history: history.length, tickets: tickets.length },
-          } as never,
-        },
-      })
-    } catch (e) {
-      req.log.warn({ err: (e as Error).message }, "me.dashboard audit log failed (non-blocking)")
-    }
+    // Best-effort audit log (per AGENTS.md §2); fire-and-forget, never blocks.
+    fireAudit({ upcoming: upcoming.length, history: history.length, tickets: tickets.length })
 
-    return reply.send({ upcoming, history, tickets } satisfies DashboardResponse)
+    const result = { upcoming, history, tickets } satisfies DashboardResponse
+    // Populate cache without blocking the response (60s TTL, hotels pattern).
+    void setCached(cacheKeyStr, result, 60).catch(() => {})
+
+    return reply.send({ ...result, meta: { cached: false } } satisfies DashboardResponse)
   })
 }

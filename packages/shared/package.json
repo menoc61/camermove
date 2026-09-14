@@ -15,8 +15,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@camermove/config": "workspace:*",
     "bullmq": "^5.4.0",
-    "ioredis": "^5.6.1"
+    "ioredis": "^5.6.1",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -109,6 +109,7 @@ export default function EventsPage() {
                       <img
                         src={e.posterUrl}
                         alt={e.name}
+                        loading="lazy"
                         className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
                       />
                     ) : (

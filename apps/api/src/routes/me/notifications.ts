@@ -15,6 +15,8 @@ import { NotFoundError } from "@camermove/config"
 const ListQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(20),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
 const IdParams = z.object({ id: z.string().cuid() })
@@ -31,17 +33,27 @@ export async function meNotificationRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, userId: user.id, page: query.page, perPage: query.perPage }, "me.notifications.list")
 
-    const where = { userId: user.id }
+    // AGENTS.md §6: periodic list → dateFrom/dateTo filter on createdAt.
+    // No /me/notifications/export endpoint (owner-scoped, low volume) — gap
+    // documented here instead of a dead export stub.
+    const where: Record<string, unknown> = { userId: user.id }
+    if (query.dateFrom || query.dateTo) {
+      const createdAt: Record<string, Date> = {}
+      if (query.dateFrom) createdAt.gte = new Date(query.dateFrom)
+      if (query.dateTo) createdAt.lte = new Date(query.dateTo + "T23:59:59Z")
+      where.createdAt = createdAt
+    }
     const take = query.perPage
     const skip = (query.page - 1) * take
     const [rows, total] = await Promise.all([
       prisma.notification.findMany({
-        where,
+        where: where as never,
         skip,
         take,
         orderBy: { createdAt: "desc" },
+        select: { id: true, channel: true, type: true, status: true, payload: true, sentAt: true, createdAt: true },
       }),
-      prisma.notification.count({ where }),
+      prisma.notification.count({ where: where as never }),
     ])
     return {
       items: rows.map(withReadFlag),

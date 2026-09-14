@@ -16,8 +16,7 @@ const UpdateSettingsBody = z.object({
 
 export async function adminSettingsRoutes(app: FastifyInstance) {
   app.get("/admin/settings", { preHandler: app.requireAuth("super_admin") }, async (req) => {
-    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
-    req.log.info({ ...meta, actorId: (req as unknown as { user: { id: string } }).user.id }, "admin.settings.get")
+    req.log.info({ ...req.meta, actorId: req.user!.id }, "admin.settings.get")
     let settings = await prisma.appSettings.findUnique({ where: { id: "global" } })
     if (!settings) {
       settings = await prisma.appSettings.create({ data: { id: "global" } })
@@ -27,8 +26,8 @@ export async function adminSettingsRoutes(app: FastifyInstance) {
 
   app.put("/admin/settings", { preHandler: app.requireAuth("super_admin") }, async (req) => {
     const body = UpdateSettingsBody.parse(req.body)
-    const actorId = (req as unknown as { user: { id: string } }).user.id
-    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    const actorId = req.user!.id
+    const meta = req.meta
     req.log.info({ ...meta, actorId, ...body }, "admin.settings.update")
     const settings = await prisma.appSettings.upsert({
       where: { id: "global" },
@@ -36,7 +35,7 @@ export async function adminSettingsRoutes(app: FastifyInstance) {
       create: { id: "global", ...body, updatedBy: actorId },
     })
     await prisma.auditLog.create({
-      data: { actorId, action: "admin.settings.update", entityType: "AppSettings", entityId: "global", metadata: body as never },
+      data: { actorId, action: "admin.settings.update", entityType: "AppSettings", entityId: "global", metadata: body as Record<string, unknown> },
     })
     return settings
   })

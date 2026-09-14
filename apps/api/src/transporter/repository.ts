@@ -1,8 +1,5 @@
-// @ts-nocheck
-// Single data-access layer for the transporter module (AGENTS.md §4).
-// All prisma.* calls for transporter live here; service.ts keeps business rules,
-// routes.ts keeps HTTP/auth/logging concerns.
 import { prisma } from "@camermove/db"
+import type { Prisma } from "@prisma/client"
 
 // ─── Auth / profile ─────────────────────────────────────────────────────────
 
@@ -18,8 +15,8 @@ export async function findTransporterProfile(transporterId: string) {
   })
 }
 
-export async function updateTransporterRow(transporterId: string, data: Record<string, unknown>) {
-  return prisma.transporter.update({ where: { id: transporterId }, data: data as never })
+export async function updateTransporterRow(transporterId: string, data: Prisma.TransporterUpdateInput) {
+  return prisma.transporter.update({ where: { id: transporterId }, data })
 }
 
 // ─── Vehicles ───────────────────────────────────────────────────────────────
@@ -28,16 +25,16 @@ export async function findVehicles(transporterId: string) {
   return prisma.vehicle.findMany({ where: { transporterId }, orderBy: { createdAt: "desc" } })
 }
 
-export async function createVehicleRow(data: Record<string, unknown>) {
-  return prisma.vehicle.create({ data: data as never })
+export async function createVehicleRow(data: Prisma.VehicleUncheckedCreateInput) {
+  return prisma.vehicle.create({ data })
 }
 
 export async function findVehicleById(vehicleId: string) {
   return prisma.vehicle.findUnique({ where: { id: vehicleId } })
 }
 
-export async function updateVehicleRow(vehicleId: string, data: Record<string, unknown>) {
-  return prisma.vehicle.update({ where: { id: vehicleId }, data: data as never })
+export async function updateVehicleRow(vehicleId: string, data: Prisma.VehicleUncheckedUpdateInput) {
+  return prisma.vehicle.update({ where: { id: vehicleId }, data })
 }
 
 export async function deleteVehicleRow(vehicleId: string) {
@@ -68,12 +65,12 @@ export async function findRouteByUnique(transporterId: string, originCity: strin
   })
 }
 
-export async function createRouteRow(data: Record<string, unknown>) {
-  return prisma.route.create({ data: data as never })
+export async function createRouteRow(data: Prisma.RouteUncheckedCreateInput) {
+  return prisma.route.create({ data })
 }
 
-export async function updateRouteRow(routeId: string, data: Record<string, unknown>) {
-  return prisma.route.update({ where: { id: routeId }, data: data as never })
+export async function updateRouteRow(routeId: string, data: Prisma.RouteUncheckedUpdateInput) {
+  return prisma.route.update({ where: { id: routeId }, data })
 }
 
 export async function deleteRouteRow(routeId: string) {
@@ -86,9 +83,9 @@ export async function findActiveTripByRoute(routeId: string) {
 
 // ─── Trips ──────────────────────────────────────────────────────────────────
 
-export async function findTrips(where: Record<string, unknown>, skip: number, take: number) {
+export async function findTrips(where: Prisma.TripWhereInput, skip: number, take: number) {
   return prisma.trip.findMany({
-    where: where as never,
+    where,
     skip,
     take,
     orderBy: { departureAt: "asc" },
@@ -96,8 +93,8 @@ export async function findTrips(where: Record<string, unknown>, skip: number, ta
   })
 }
 
-export async function countTrips(where: Record<string, unknown>) {
-  return prisma.trip.count({ where: where as never })
+export async function countTrips(where: Prisma.TripWhereInput) {
+  return prisma.trip.count({ where })
 }
 
 export async function findTripById(tripId: string) {
@@ -108,17 +105,17 @@ export async function findTripByIdPlain(tripId: string) {
   return prisma.trip.findUnique({ where: { id: tripId } })
 }
 
-export async function createTripRow(data: Record<string, unknown>) {
+export async function createTripRow(data: Prisma.TripUncheckedCreateInput) {
   return prisma.trip.create({
-    data: data as never,
+    data,
     include: { route: true, vehicle: true, seatAvailability: true },
   })
 }
 
-export async function updateTripRow(tripId: string, data: Record<string, unknown>) {
+export async function updateTripRow(tripId: string, data: Prisma.TripUncheckedUpdateInput) {
   return prisma.trip.update({
     where: { id: tripId },
-    data: data as never,
+    data,
     include: { route: true, vehicle: true, seatAvailability: true },
   })
 }
@@ -135,26 +132,26 @@ const bookingDetailInclude = {
   payments: true,
   tickets: true,
   user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
-}
+} satisfies Prisma.BookingInclude
 
-export async function findTransporterBookings(where: Record<string, unknown>, skip: number, take: number) {
+export async function findTransporterBookings(where: Prisma.BookingWhereInput, skip: number, take: number) {
   return prisma.booking.findMany({
-    where: where as never,
+    where,
     skip,
     take,
     orderBy: { createdAt: "desc" },
-    include: bookingDetailInclude as never,
+    include: bookingDetailInclude,
   })
 }
 
-export async function countTransporterBookings(where: Record<string, unknown>) {
-  return prisma.booking.count({ where: where as never })
+export async function countTransporterBookings(where: Prisma.BookingWhereInput) {
+  return prisma.booking.count({ where })
 }
 
 export async function findTransporterBookingById(bookingId: string) {
   return prisma.booking.findUnique({
     where: { id: bookingId },
-    include: { ...bookingDetailInclude, commission: true } as never,
+    include: { ...bookingDetailInclude, commission: true },
   })
 }
 
@@ -185,9 +182,9 @@ export async function createAuditLog(data: {
   action: string
   entityType: string
   entityId: string
-  metadata?: Record<string, unknown>
+  metadata?: Prisma.InputJsonValue
 }) {
   return prisma.auditLog
-    .create({ data: data as never })
-    .catch(() => {})
+    .create({ data: { ...data, metadata: data.metadata ?? undefined } })
+    .catch(() => null)
 }

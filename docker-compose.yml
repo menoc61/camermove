@@ -16,6 +16,8 @@ services:
   redis:
     image: redis:7-alpine
     ports: ["127.0.0.1:6379:6379"]
+    volumes: ["redisdata:/data"]
+    command: redis-server --appendonly yes --save "" --loglevel warning
 
   minio:
     image: minio/minio:latest
@@ -34,7 +36,7 @@ services:
       KAFKA_CFG_PROCESS_ROLES: controller,broker
       KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT://host.docker.internal:9092
       KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
@@ -43,6 +45,7 @@ services:
       KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
       ALLOW_PLAINTEXT_LISTENER: "yes"
     ports: ["127.0.0.1:9092:9092"]
+    volumes: ["kafkapersistence:/bitnami/kafka"]
 
   mailhog:
     image: mailhog/mailhog:latest
@@ -59,8 +62,8 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    volumes: ["./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
-    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes: ["./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "./infra/alerts.yml:/etc/prometheus/alerts.yml:ro"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--web.console.templates=/etc/prometheus/consoles", "--web.console.lists=/etc/prometheus/console_libraries"]
     ports: ["127.0.0.1:9090:9090"]
 
   grafana:
@@ -68,9 +71,11 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ROLE: "Viewer"
     ports: ["127.0.0.1:3001:3000"]
     depends_on: [prometheus]
-    volumes: ["grafanadata:/var/lib/grafana"]
+    volumes: ["grafanadata:/var/lib/grafana", "./infra/dashboards:/etc/grafana/provisioning/dashboards:ro", "./infra/datasources:/etc/grafana/provisioning/datasources:ro"]
 
   # ── App (containerised) ──────────────────────────────────────────────
   api:
@@ -86,6 +91,8 @@ services:
       KAFKA_BROKERS: kafka:9092
       MINIO_ENDPOINT: minio
       API_URL: http://api:3000
+      METRICS_ENABLED: "true"
+      CORS_ALLOWED_ORIGINS: "http://localhost:3002,http://localhost:3000"
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
@@ -138,4 +145,6 @@ services:
 volumes:
   pgdata:
   miniodata:
+  redisdata:
+  kafkapersistence:
   grafanadata:

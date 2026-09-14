@@ -3,11 +3,11 @@ import dynamic from "next/dynamic"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
-import { useState, type ComponentType } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 import type { DashboardResponse } from "../../lib/api/dashboard"
 import { getDashboard } from "../../lib/api/dashboard"
-import { apiFetch } from "../../lib/api/client"
+import { apiBase, apiFetch } from "../../lib/api/client"
 import {
   cancelBooking as cancelTripBooking,
   fetchMyBookings,
@@ -17,8 +17,8 @@ import {
 } from "../../lib/api/bookings"
 import { fetchMyPayments, type MyPaymentItem } from "../../lib/api/payments"
 import { fetchMyNotifications, markNotificationRead, type MyNotification } from "../../lib/api/notifications"
-import { cancelHotelBooking } from "../../lib/api/hotels"
-import { cancelRentalBooking } from "../../lib/api/rentals"
+import { cancelHotelBooking, fetchMyHotelBookings } from "../../lib/api/hotels"
+import { cancelRentalBooking, fetchMyRentalBookings } from "../../lib/api/rentals"
 import { fetchParcels, cancelParcel, type Parcel } from "../../lib/api/parcels"
 import { fetchMyInsurancePolicies, cancelInsurancePolicy, type InsurancePolicy } from "../../lib/api/insurance"
 import { fetchMyEventBookings, cancelEventBooking, type EventBooking } from "../../lib/api/events"
@@ -39,7 +39,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon } from "lucide-react"
 
 const VISIBLE_LIMIT = 3
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
 
 function ListSkeleton({ count = 3 }: { count?: number }) {
   return (
@@ -100,7 +99,7 @@ function ExportControls({ token, endpoint, resource }: { token: string; endpoint
       if (dateFrom) qs.set("dateFrom", dateFrom)
       if (dateTo) qs.set("dateTo", dateTo)
       qs.set("format", format)
-      const res = await fetch(`${API_BASE}${endpoint}?${qs.toString()}`, {
+      const res = await fetch(`${apiBase()}${endpoint}?${qs.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) throw new Error(`Export failed (HTTP ${res.status})`)
@@ -386,22 +385,7 @@ function NotificationCard({ item, onMarkRead, marking }: { item: MyNotification;
   )
 }
 
-function FavoritesMissing() {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-sm text-muted-foreground">Favoris bientôt disponible.</p>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ./FavoritesTab is delivered by a parallel agent — lazy import + skeleton so
-// typecheck and runtime stay green whether or not the file has landed yet.
-const FavoritesTabLazy = dynamic(
-  // @ts-ignore — suppress TS2307 until FavoritesTab.tsx exists (ts-ignore never errors when unused)
-  () => import("./FavoritesTab").then((m) => ((m as { FavoritesTab?: ComponentType<{ token: string }> }).FavoritesTab ?? FavoritesMissing)).catch(() => FavoritesMissing),
-  {
+const FavoritesTabLazy = dynamic(() => import("./FavoritesTab").then((m) => m.FavoritesTab), {
     ssr: false,
     loading: () => (
       <div className="space-y-3">
@@ -461,22 +445,12 @@ export function Dashboard({ initialData, token }: { initialData: DashboardRespon
 
   const { data: hotelData, isLoading: hotelsLoading, isFetching: hotelsFetching } = useQuery<{ items: HotelBookingItem[]; total: number; page: number; perPage: number; totalPages: number }>({
     queryKey: ["dashboard-hotels", token, hotelsPage, TAB_PER_PAGE],
-    queryFn: () => {
-      const qs = new URLSearchParams()
-      qs.set("page", String(hotelsPage))
-      qs.set("perPage", String(TAB_PER_PAGE))
-      return apiFetch<{ items: HotelBookingItem[]; total: number; page: number; perPage: number; totalPages: number }>(`/api/v1/hotels/bookings/me?${qs.toString()}`, { method: "GET", token })
-    },
+    queryFn: () => fetchMyHotelBookings(token, { page: hotelsPage, perPage: TAB_PER_PAGE }),
   })
 
   const { data: rentalData, isLoading: rentalsLoading, isFetching: rentalsFetching } = useQuery<{ items: RentalBookingItem[]; total: number; page: number; perPage: number; totalPages: number }>({
     queryKey: ["dashboard-rentals", token, rentalsPage, TAB_PER_PAGE],
-    queryFn: () => {
-      const qs = new URLSearchParams()
-      qs.set("page", String(rentalsPage))
-      qs.set("perPage", String(TAB_PER_PAGE))
-      return apiFetch<{ items: RentalBookingItem[]; total: number; page: number; perPage: number; totalPages: number }>(`/api/v1/rentals/bookings/me?${qs.toString()}`, { method: "GET", token })
-    },
+    queryFn: () => fetchMyRentalBookings(token, { page: rentalsPage, perPage: TAB_PER_PAGE }),
   })
 
   const { data: parcelData, isLoading: parcelsLoading, error: parcelsError, refetch: refetchParcels, isFetching: parcelsFetching } = useQuery({

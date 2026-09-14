@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 import { useEffect, useState } from "react"
 import { listTrips, createTrip, deleteTrip, bulkCreateTrips, listRoutes } from "@/lib/api/transporter"

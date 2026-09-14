@@ -22,13 +22,17 @@ function isLimitedMemory(key: string, max: number, windowMs: number): boolean {
 async function isLimitedRedis(key: string, max: number, windowMs: number): Promise<boolean> {
   try {
     const redis = getRedis()
-    const now = Date.now()
     const ttl = Math.ceil(windowMs / 1000)
-    const count = await redis.incr(key)
-    if (count === 1) await redis.expire(key, ttl)
-    const remaining = await redis.ttl(key)
-    if (remaining < 0) await redis.expire(key, ttl)
-    return count > max
+    const check = (async (): Promise<boolean> => {
+      const count = await redis.incr(key)
+      if (count === 1) await redis.expire(key, ttl)
+      const remaining = await redis.ttl(key)
+      if (remaining < 0) await redis.expire(key, ttl)
+      return count > max
+    })()
+    // 100ms timeout race: memory fallback must NOT await a hung Redis.
+    const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("rl-redis-timeout")), 100))
+    return await Promise.race([check, timeout])
   } catch {
     return isLimitedMemory(key, max, windowMs)
   }

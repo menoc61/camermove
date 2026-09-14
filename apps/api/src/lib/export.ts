@@ -1,8 +1,28 @@
 import type { FastifyReply } from "fastify"
+import { z } from "zod"
 
-export function toCsv(rows: Record<string, unknown>[], columns: string[]): string {
+export const ExportQuerySchema = z.object({
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  format: z.enum(["json", "csv"]).default("json"),
+  q: z.string().optional(),
+  groupBy: z.string().optional(),
+  orderBy: z.string().optional(),
+  status: z.string().optional(),
+  routeId: z.string().optional(),
+})
+
+function toRecord(row: unknown): Record<string, unknown> {
+  if (row !== null && typeof row === "object") return row as Record<string, unknown>
+  return {}
+}
+
+export function toCsv(rows: unknown[], columns: string[]): string {
   const header = columns.join(",")
-  const lines = rows.map((r) => columns.map((c) => `"${String(r[c] ?? "").replace(/"/g, '""')}"`).join(","))
+  const lines = rows.map((row) => {
+    const r = toRecord(row)
+    return columns.map((c) => `"${String(r[c] ?? "").replace(/"/g, '""')}"`).join(",")
+  })
   return [header, ...lines].join("\n")
 }
 
@@ -12,7 +32,7 @@ export async function sendExport(
   dateFrom: string | undefined,
   dateTo: string | undefined,
   format: "json" | "csv",
-  rows: Record<string, unknown>[],
+  rows: unknown[],
   columns: string[]
 ) {
   const from = dateFrom ?? "all"
@@ -25,12 +45,7 @@ export async function sendExport(
   return reply.header("Content-Disposition", `attachment; filename="${filename}"`).send(rows)
 }
 
-export function parseExportQuery(query: Record<string, unknown>) {
-  const dateFrom = query.dateFrom as string | undefined
-  const dateTo = query.dateTo as string | undefined
-  const format = (query.format as string) === "csv" ? "csv" as const : "json" as const
-  const q = query.q as string | undefined
-  const groupBy = query.groupBy as string | undefined
-  const orderBy = query.orderBy as string | undefined
-  return { dateFrom, dateTo, format, q, groupBy, orderBy }
+export function parseExportQuery(query: unknown) {
+  const parsed = ExportQuerySchema.parse(query ?? {})
+  return parsed
 }

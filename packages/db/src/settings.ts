@@ -1,6 +1,7 @@
 import IORedis from "ioredis"
-import { createLogger } from "@camermove/config"
+import { createLogger, loadEnv } from "@camermove/config"
 import { prisma } from "./prisma"
+import type { AppSettings } from "@prisma/client"
 
 const log = createLogger()
 
@@ -20,13 +21,26 @@ const memoryCache = new Map<string, { value: unknown; expiresAt: number }>()
 let redis: IORedis | null = null
 
 function isTestEnv(): boolean {
-  return process.env.NODE_ENV === "test" || Boolean(process.env.VITEST_WORKER_ID)
+  // Single source of truth via loadEnv(). No direct process.env reads.
+  return loadEnv().NODE_ENV === "test"
+}
+
+function redisUrl(): string {
+  return loadEnv().REDIS_URL
+}
+
+function toCached(settings: AppSettings): AppSettingsCached {
+  return {
+    commissionPercent: settings.commissionPercent,
+    holdExpiryMinutes: settings.holdExpiryMinutes,
+    featureFlags: settings.featureFlags,
+  }
 }
 
 function getRedis(): IORedis | null {
   if (isTestEnv()) return null
   if (redis) return redis
-  const url = process.env.REDIS_URL ?? "redis://localhost:6379"
+  const url = redisUrl()
   redis = new IORedis(url, {
     maxRetriesPerRequest: 2,
     enableReadyCheck: true,
@@ -70,7 +84,7 @@ export async function getAppSettingsCached(ttlSeconds = DEFAULT_TTL_SECONDS): Pr
     }
   }
   if (settings) {
-    const value = settings as unknown as AppSettingsCached
+    const value = toCached(settings)
     memoryCache.set(APP_SETTINGS_CACHE_KEY, { value, expiresAt: Date.now() + ttlSeconds * 1000 })
     if (client) {
       await client.setex(APP_SETTINGS_CACHE_KEY, ttlSeconds, JSON.stringify(settings)).catch((err: unknown) => {

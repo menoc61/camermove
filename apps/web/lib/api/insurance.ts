@@ -45,13 +45,20 @@ export interface InsurancePoliciesParams {
   dateTo?: string
 }
 
-// Backwards-compatible: returns the array shape that existing consumers
-// (app/insurance/page.tsx, InsurancePartnerClient.tsx) expect. The API
-// endpoint returns the paginated envelope at runtime; this loose type just
-// keeps the typecheck green for callers that treat the result as `Policy[]`.
-// The dashboard uses `fetchMyInsurancePolicies` for the typed envelope.
-export async function fetchInsurancePolicies(token: string): Promise<InsurancePolicy[]> {
-  const res = await fetch(`${apiBase()}/api/v1/insurance/policies`, {
+// Paginated envelope — matches GET /api/v1/insurance/policies at runtime.
+// Callers must read `.items` (see app/insurance/page.tsx, InsurancePartnerClient).
+export async function fetchInsurancePolicies(
+  token: string,
+  params: InsurancePoliciesParams = {},
+): Promise<InsurancePoliciesResponse> {
+  const qs = new URLSearchParams()
+  if (params.page) qs.set("page", String(params.page))
+  if (params.perPage) qs.set("perPage", String(params.perPage))
+  if (params.q) qs.set("q", params.q)
+  if (params.coverageType) qs.set("coverageType", params.coverageType)
+  if (params.dateFrom) qs.set("dateFrom", params.dateFrom)
+  if (params.dateTo) qs.set("dateTo", params.dateTo)
+  const res = await fetch(`${apiBase()}/api/v1/insurance/policies${qs.toString() ? `?${qs.toString()}` : ""}`, {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
   })

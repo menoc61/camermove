@@ -37,11 +37,12 @@ export default function InsurancePage() {
   const [lastPolicy, setLastPolicy] = useState<InsurancePolicy | null>(null)
   const [paid, setPaid] = useState(false)
 
-  const { data: policies, isLoading, error } = useQuery({
+  const { data: policiesResp, isLoading, error } = useQuery({
     queryKey: ["insurance-policies", token],
     queryFn: () => fetchInsurancePolicies(token!),
     enabled: !!token,
   })
+  const policies: InsurancePolicy[] = policiesResp?.items ?? []
 
   const subscribe = useMutation({
     mutationFn: () =>

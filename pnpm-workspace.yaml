@@ -7,5 +7,6 @@ allowBuilds:
   argon2: true
   esbuild: true
   msgpackr-extract: true
+  msw: true
   prisma: true
   protobufjs: true

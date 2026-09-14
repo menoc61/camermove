@@ -34,8 +34,6 @@ export interface RentalsParams {
   page?: number
   perPage?: number
   limit?: number
-  startDate?: string
-  endDate?: string
 }
 
 export interface RentalsResponse {
@@ -112,17 +110,33 @@ export interface MyRentalBookingsParams {
   dateTo?: string
 }
 
-// Loose response type — kept identical to the pre-pagination wrapper so
-// external consumers (transporter dashboard, etc.) keep compiling. The
-// dashboard types its own items shape via apiFetch<{ items: RentalBookingItem[]; ... }>.
-export function fetchMyRentalBookings(token: string, params: MyRentalBookingsParams = {}): Promise<{ items: unknown[]; total: number; page: number; perPage: number; totalPages: number }> {
+export interface MyRentalBookingItem {
+  id: string
+  vehicle: { make: string; model: string; pickupCity: string }
+  startDate: string
+  endDate: string
+  totalAmount: number
+  status: string
+  pickupCity: string
+  dropoffCity: string | null
+}
+
+export interface MyRentalBookingsResponse {
+  items: MyRentalBookingItem[]
+  total: number
+  page: number
+  perPage: number
+  totalPages: number
+}
+
+export function fetchMyRentalBookings(token: string, params: MyRentalBookingsParams = {}): Promise<MyRentalBookingsResponse> {
   const qs = new URLSearchParams()
   if (params.page) qs.set("page", String(params.page))
   if (params.perPage) qs.set("perPage", String(params.perPage))
   if (params.q) qs.set("q", params.q)
   if (params.dateFrom) qs.set("dateFrom", params.dateFrom)
   if (params.dateTo) qs.set("dateTo", params.dateTo)
-  return apiFetch<{ items: unknown[]; total: number; page: number; perPage: number; totalPages: number }>(`/api/v1/rentals/bookings/me${qs.toString() ? `?${qs.toString()}` : ""}`, { method: "GET", token })
+  return apiFetch<MyRentalBookingsResponse>(`/api/v1/rentals/bookings/me${qs.toString() ? `?${qs.toString()}` : ""}`, { method: "GET", token })
 }
 
 export function cancelRentalBooking(token: string, id: string) {

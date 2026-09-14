@@ -20,9 +20,9 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // ── Dashboard ───────────────────────────────────────────────────────────────
   app.get("/admin/stats", async (req) => {
-    const user = (req as unknown as { user: { id: string } }).user
-    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
-    req.log.info({ ...meta, actorId: user.id }, "admin.stats")
+    const user = req.user
+    const meta = req.meta ?? {}
+    req.log.info({ ...meta, actorId: user!.id }, "admin.stats")
     return svc.getAdminStats()
   })
 

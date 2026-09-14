@@ -6,8 +6,12 @@
  * Connections are lazy: no Redis I/O happens at import time, so API unit tests
  * that never enqueue never touch Redis.
  */
+import "server-only";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
+import { createLogger, loadEnv } from "@camermove/config";
+
+const log = createLogger();
 
 export const QUEUE_NAMES = {
   holds: "camermove.holds",
@@ -23,7 +27,8 @@ export const REPEAT_INTERVALS_MS = {
 } as const;
 
 function redisUrl(): string {
-  return process.env.REDIS_URL ?? "redis://localhost:6379";
+  // Single source of truth via loadEnv(); defaults to localhost in env.ts.
+  return loadEnv().REDIS_URL;
 }
 
 /**
@@ -32,7 +37,7 @@ function redisUrl(): string {
  */
 export function createQueueConnection(url: string = redisUrl()): IORedis {
   const conn = new IORedis(url, { maxRetriesPerRequest: null });
-  conn.on("error", (err: Error) => console.warn("bullmq redis error", err.message));
+  conn.on("error", (err: Error) => log.warn({ err: err.message }, "bullmq redis error"));
   return conn;
 }
 
@@ -42,7 +47,7 @@ function getQueue(name: QueueName): Queue {
   let q = queues.get(name);
   if (!q) {
     q = new Queue(name, { connection: createQueueConnection() });
-    q.on("error", (err: Error) => console.error(`queue ${name} error`, err));
+    q.on("error", (err: Error) => log.error({ err: err.message, queue: name }, "queue error"));
     queues.set(name, q);
   }
   return q;

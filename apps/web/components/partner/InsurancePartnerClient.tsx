@@ -18,11 +18,12 @@ interface Props { token: string }
 
 export function InsurancePartnerClient({ token }: Props) {
   const qc = useQueryClient()
-  const { data: policies, isLoading, error } = useQuery<Array<any>>({
+  const { data: policiesResp, isLoading, error } = useQuery({
     queryKey: ["partner-insurance-policies"],
     queryFn: () => fetchInsurancePolicies(token),
     enabled: !!token,
   })
+  const policies = policiesResp?.items ?? []
 
   const [destination, setDestination] = useState("")
   const [startDate, setStartDate] = useState("")

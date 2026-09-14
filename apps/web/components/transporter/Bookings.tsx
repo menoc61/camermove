@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client"
 import { useEffect, useState } from "react"
 import { listBookings, listPayments, listCommissions } from "@/lib/api/transporter"

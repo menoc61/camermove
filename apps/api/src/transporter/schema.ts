@@ -76,3 +76,24 @@ export const TransporterPresignInput = z.object({
   mimetype: z.string().min(1),
   size: z.number().int().min(1).max(10 * 1024 * 1024),
 })
+
+export const TransporterTripsQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(20),
+  status: z.string().max(50).optional(),
+  routeId: z.string().cuid().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+})
+
+export const TransporterBookingsQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(200).default(20),
+  status: z.enum(["pending_payment", "confirmed", "expired", "cancelled", "refunded"]).optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+})
+
+export const TransporterTripExportQuery = TransporterTripsQuery.extend({
+  format: z.enum(["json", "csv"]).default("json"),
+})

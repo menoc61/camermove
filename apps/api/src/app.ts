@@ -1,6 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import cors from "@fastify/cors"
 import { loadEnv, AppError } from "@camermove/config"
+import { getStorage } from "@camermove/media"
+import { initTelemetry, startMetricsServer } from "@camermove/observability"
 import { authRoutes } from "./auth/routes"
 import { authPlugin } from "./auth/plugins"
 import { searchRoutes } from "./search/routes"
@@ -34,19 +36,36 @@ import { intraurbanRoutes } from "./intraurban/routes"
 import { contactRoutes } from "./contact/routes"
 import { newsletterRoutes } from "./newsletter/routes"
 import { favoriteRoutes } from "./favorites/routes"
+import { landingRoutes } from "./landing/routes"
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true, trustProxy: true })
-  await app.register(cors, { origin: true, credentials: true })
-  await app.register(swaggerPlugin)
+  // Load env up front so plugins (cors, metrics, telemetry, storage) can read it.
   const env = loadEnv()
-  if ((env as unknown as { METRICS_ENABLED: boolean }).METRICS_ENABLED) {
+  await app.register(cors, {
+    origin: env.CORS_ALLOWED_ORIGINS,
+    credentials: true,
+  })
+  await app.register(swaggerPlugin)
+  if (env.METRICS_ENABLED) {
     await app.register(metricsPlugin)
-  } else if (process.env.NODE_ENV !== "production") {
+  } else if (env.NODE_ENV !== "production") {
     // In dev / staging, expose /metrics by default so Prometheus scrapes and
     // browser dev-tools probes never 404. The env flag stays for prod cost control.
     await app.register(metricsPlugin)
   }
+  // Standalone metrics+health server on env.METRICS_PORT so Prometheus can scrape
+  // a dedicated port without contending with Fastify routes (AGENTS.md §1).
+  let metricsServer: { close: () => Promise<void> } | undefined
+  if (env.METRICS_ENABLED) {
+    metricsServer = startMetricsServer(env)
+    app.log.info({ port: env.METRICS_PORT }, "metrics server listening")
+    app.addHook("onClose", async () => {
+      await metricsServer?.close().catch(() => {})
+    })
+  }
+  // Initialize OpenTelemetry (no-op when METRICS_ENABLED=false or NODE_ENV=test)
+  initTelemetry(env)
   // rawBody must be before metadata/rateLimit so HMAC can use raw string (T-03-14)
   await app.register(rawBodyPlugin)
   await app.register(metadataPlugin)
@@ -63,6 +82,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     req.log.error(err)
     return reply.code(500).send({ error: "INTERNAL", message: "Erreur interne" })
   })
+  // Ensure object storage bucket exists before any route that uploads files runs
+  // (presignPut presumes the bucket is present; transporter/hotels/rentals rely on it).
+  await getStorage().ensureBucket()
   await app.register(authRoutes, { prefix: "/api/v1" })
   await app.register(searchRoutes, { prefix: "/api/v1" })
   await app.register(bookingRoutes, { prefix: "/api/v1" })
@@ -90,6 +112,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(contactRoutes, { prefix: "/api/v1" })
   await app.register(newsletterRoutes, { prefix: "/api/v1" })
   await app.register(favoriteRoutes, { prefix: "/api/v1" })
+  await app.register(landingRoutes, { prefix: "/api/v1" })
   app.get("/health", async () => ({ status: "ok" }))
   return app
 }

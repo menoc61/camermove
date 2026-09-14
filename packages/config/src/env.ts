@@ -59,8 +59,12 @@ const EnvSchema = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().default('no-reply@camermove.cm'),
   SMTP_SECURE: z.string().optional().default("false").transform((v) => v === "true"),
-  METRICS_ENABLED: z.string().optional().default("false").transform((v) => v === "true"),
+  METRICS_ENABLED: z.string().optional().default("true").transform((v) => v === "true"),
+  METRICS_PORT: z.coerce.number().int().positive().default(4000),
+  CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3002,http://localhost:3000').transform((v) => v.split(',').map(s => s.trim()).filter(Boolean)),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().default('http://localhost:4318'),
+  LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
+  NOTIF_DRIVER: z.string().optional(),
   // System maxima — all tunable via .env (no hardcoded limits)
   RATE_LIMIT_IP_GENERAL_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_IP_AUTH_MAX: z.coerce.number().int().positive().default(10),

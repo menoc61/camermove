@@ -14,7 +14,7 @@ import { Inter } from "next/font/google";
 
 const SmoothScroll = dynamic(
   () => import("@/components/smooth-scroll").then((m) => m.SmoothScroll),
-  { ssr: true },
+  { ssr: false },
 );
 
 /* Helvetica-first stack via Inter as a close web analogue.

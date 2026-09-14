@@ -1,4 +1,4 @@
-import { prisma } from "@camermove/db"
+import { fetchLandingRail } from "@/lib/api/landing"
 import { ServiceRail, ServiceRailCard } from "../ServiceRail"
 
 const FALLBACK_IMAGE =
@@ -10,7 +10,8 @@ function priceFr(n: number): string {
 
 /**
  * HotelsRail — 02. Top 8 active, approved hotels with rooms,
- * ordered by star rating. Renders nothing when empty.
+ * ordered by star rating. Fetches via public GET /api/v1/landing/rails?type=hotels.
+ * Renders nothing when empty.
  */
 export async function HotelsRail() {
   let hotels: Array<{
@@ -23,36 +24,11 @@ export async function HotelsRail() {
   }> = []
 
   try {
-    const rows = await prisma.hotel.findMany({
-      where: {
-        status: "active",
-        partnerStatus: "approved",
-        rooms: { some: {} },
-      },
-      orderBy: { starRating: "desc" },
-      take: 8,
-      select: {
-        id: true,
-        name: true,
-        city: true,
-        starRating: true,
-        photos: true,
-        rooms: { select: { pricePerNight: true } },
-      },
-    })
-    hotels = rows
-      .map((h) => ({
-        id: h.id,
-        name: h.name,
-        city: h.city,
-        starRating: h.starRating,
-        image: h.photos[0] ?? FALLBACK_IMAGE,
-        fromPrice:
-          h.rooms.length > 0
-            ? Math.min(...h.rooms.map((r) => r.pricePerNight))
-            : null,
-      }))
-      .filter((h) => h.fromPrice != null)
+    const payload = await fetchLandingRail("hotels")
+    hotels = (payload.items ?? []).map((h) => ({
+      ...h,
+      image: h.image || FALLBACK_IMAGE,
+    }))
   } catch {
     return null
   }

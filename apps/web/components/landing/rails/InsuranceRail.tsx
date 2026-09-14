@@ -1,31 +1,14 @@
-import { prisma } from "@camermove/db"
+import { fetchLandingRail } from "@/lib/api/landing"
 import { ServiceRail, ServiceRailCard } from "../ServiceRail"
 
-// Fallback prices (XAF per traveler) — copy of
+// Fallback prices (XAF per traveler) — mirrors
 // apps/api/src/insurance/service.ts DEFAULT_COVERAGE_PRICES.
-// Overridable at runtime via AppSettings.featureFlags.insurancePricing.
+// The authoritative pricing is served by GET /api/v1/landing/rails?type=insurance.
 const DEFAULT_COVERAGE_PRICES: Record<string, number> = {
   basic: 2500,
   standard: 5000,
   premium: 10000,
   family: 15000,
-}
-
-// Mirrors apps/api/src/insurance/service.ts resolveInsurancePricing.
-function resolveInsurancePricing(
-  featureFlags?: Record<string, unknown> | null,
-): Record<string, number> {
-  const override = (featureFlags?.insurancePricing ?? null) as Record<
-    string,
-    unknown
-  > | null
-  if (!override || typeof override !== "object") return { ...DEFAULT_COVERAGE_PRICES }
-  const resolved: Record<string, number> = { ...DEFAULT_COVERAGE_PRICES }
-  for (const [key, value] of Object.entries(override)) {
-    const n = Number(value)
-    if (Number.isFinite(n) && n >= 0) resolved[key] = Math.round(n)
-  }
-  return resolved
 }
 
 const formatXaf = (v: number) => new Intl.NumberFormat("fr-FR").format(v)
@@ -61,18 +44,17 @@ const COVERAGES = [
   },
 ] as const
 
+/**
+ * InsuranceRail — 06. Coverage cards with server-resolved pricing.
+ * Fetches via public GET /api/v1/landing/rails?type=insurance.
+ */
 export async function InsuranceRail() {
   let pricing: Record<string, number> = { ...DEFAULT_COVERAGE_PRICES }
   try {
-    const settings = await prisma.appSettings.findUnique({
-      where: { id: "global" },
-      select: { featureFlags: true },
-    })
-    pricing = resolveInsurancePricing(
-      (settings?.featureFlags ?? null) as Record<string, unknown> | null,
-    )
+    const payload = await fetchLandingRail("insurance")
+    if (payload.pricing) pricing = { ...DEFAULT_COVERAGE_PRICES, ...payload.pricing }
   } catch {
-    // DB unavailable — fall back to DEFAULT_COVERAGE_PRICES
+    // API unavailable — fall back to DEFAULT_COVERAGE_PRICES
   }
 
   return (

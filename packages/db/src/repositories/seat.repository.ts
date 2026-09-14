@@ -41,3 +41,47 @@ export async function atomicConfirmBookedSeats(tripId: string, count: number): P
     })
   })
 }
+
+/**
+ * Mirror of atomicHoldSeats for event ticket categories. Mirrors the SeatAvailability
+ * pattern with quantity / sold / held columns and a Postgres trigger that rejects
+ * updates leaving the row invalid.
+ */
+export async function atomicHoldTicketCategory(ticketCategoryId: string, count: number): Promise<boolean> {
+  const result = await prisma.$transaction(async (tx: any) => {
+    const rows = await tx.$queryRaw<Array<{ quantity: number; sold: number; held: number }>>`
+      SELECT quantity, sold, held FROM "TicketCategory"
+      WHERE id = ${ticketCategoryId}
+      FOR UPDATE
+    `
+    const row = rows[0]
+    if (!row) throw new ConflictError("Catégorie de billet introuvable")
+    if (row.quantity - row.sold - row.held < count) {
+      throw new ConflictError("Billets insuffisants")
+    }
+    await tx.ticketCategory.update({
+      where: { id: ticketCategoryId },
+      data: { held: { increment: count } },
+    })
+    return true
+  })
+  return result
+}
+
+export async function atomicReleaseHeldTicketCategory(ticketCategoryId: string, count: number): Promise<void> {
+  await prisma.$transaction(async (tx: any) => {
+    await tx.ticketCategory.update({
+      where: { id: ticketCategoryId },
+      data: { held: { decrement: count } },
+    })
+  })
+}
+
+export async function atomicConfirmBookedTicketCategory(ticketCategoryId: string, count: number): Promise<void> {
+  await prisma.$transaction(async (tx: any) => {
+    await tx.ticketCategory.update({
+      where: { id: ticketCategoryId },
+      data: { held: { decrement: count }, sold: { increment: count } },
+    })
+  })
+}

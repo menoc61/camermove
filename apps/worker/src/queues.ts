@@ -41,12 +41,15 @@ export async function startQueues(): Promise<void> {
   workers.push(
     new Worker(QUEUE_NAMES.holds, processHoldExpire, {
       connection: createQueueConnection(),
+      concurrency: 5,
     }),
     new Worker(QUEUE_NAMES.payments, processReconciliation, {
       connection: createQueueConnection(),
+      concurrency: 5,
     }),
     new Worker(QUEUE_NAMES.trips, processTripReminder, {
       connection: createQueueConnection(),
+      concurrency: 5,
     }),
   );
   for (const w of workers) {

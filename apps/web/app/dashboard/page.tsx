@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Dashboard } from "../../components/dashboard/Dashboard"
 import { getDashboard } from "../../lib/api/dashboard"
+import { ApiError } from "../../lib/api/client"
 import type { DashboardResponse } from "../../lib/api/dashboard"
 
 async function DashboardInner() {
@@ -18,7 +19,12 @@ async function DashboardInner() {
   let data: DashboardResponse
   try {
     data = await getDashboard(token)
-  } catch {
+  } catch (error) {
+    // Redirect to login if the token is invalid (401) or expired
+    if (error instanceof ApiError && error.status === 401) {
+      redirect("/login?next=/dashboard")
+    }
+    // For other errors (network, server), return empty data
     data = { upcoming: [], history: [], tickets: [] }
   }
 

@@ -5,6 +5,7 @@ import { SearchQuery } from "./schema"
 import { searchTrips } from "./service"
 import { AdvancedSearchQuery, advancedSearch, BulkActionSchema, bulkTripAction } from "./advanced"
 import { TripStatusActionSchema, setTripStatus } from "./trip-status"
+import { getCached, setCached, cacheKey } from "../lib/cache"
 import { observeSearch } from "@camermove/observability"
 
 const TripIdParams = z.object({ id: z.string().cuid() })
@@ -12,14 +13,37 @@ const TripIdParams = z.object({ id: z.string().cuid() })
 export async function searchRoutes(app: FastifyInstance) {
   app.get("/search", async (req) => {
     const query = SearchQuery.parse(req.query)
+    const meta = (req as unknown as { meta?: Record<string, unknown> }).meta ?? {}
+    req.log.info(
+      { ...meta, origin: query.origin, destination: query.destination, date: query.date, pax: query.pax, sort: query.sortBy, page: query.page, limit: query.perPage, minPrice: query.minPrice, maxPrice: query.maxPrice },
+      "search.list",
+    )
     observeSearch(query.origin, query.destination)
-    return searchTrips(query)
+    const key = cacheKey("search", query as unknown as Record<string, unknown>)
+    const cached = await getCached<Record<string, unknown>>(key)
+    if (cached) return { ...(cached as object), meta: { cached: true } }
+    const result = await searchTrips(query)
+    await setCached(key, result, 60).catch(() => {})
+    return { ...result, meta: { cached: false } }
   })
 
   app.get("/search/advanced", async (req) => {
     const query = AdvancedSearchQuery.parse(req.query)
+    const meta = (req as unknown as { meta?: Record<string, unknown> }).meta ?? {}
+    req.log.info(
+      { ...meta, origin: query.origin, destination: query.destination, q: query.q, pax: query.pax, filters: { minPrice: query.minPrice, maxPrice: query.maxPrice, transporterId: query.transporterId, vehicleType: query.vehicleType }, sort: query.sortBy ?? query.orderBy, page: query.page, limit: query.perPage },
+      "search.advanced",
+    )
     observeSearch(query.origin, query.destination)
-    return advancedSearch(query)
+    const key = cacheKey("search-advanced", query as unknown as Record<string, unknown>)
+    const cached = await getCached<Record<string, unknown>>(key)
+    if (cached) {
+      if (cached && typeof cached === "object" && "meta" in (cached as object)) return { ...(cached as object), meta: { cached: true } }
+      return { ...(cached as object), meta: { cached: true } }
+    }
+    const result = await advancedSearch(query)
+    await setCached(key, result, 60).catch(() => {})
+    return result
   })
 
   // Admin-only bulk primitive — cross-owner operations are never transporter-reachable
@@ -60,7 +84,20 @@ export async function searchRoutes(app: FastifyInstance) {
     const { prisma } = await import("@camermove/db")
     const trip = await prisma.trip.findUnique({
       where: { id },
-      include: { route: true, transport: { select: { companyName: true } }, seatAvailability: true },
+      select: {
+        id: true,
+        departureAt: true,
+        arrivalEstimateAt: true,
+        price: true,
+        totalSeats: true,
+        transportId: true,
+        vehicleTypeInfo: true,
+        departurePointInfo: true,
+        status: true,
+        route: { select: { id: true, originCity: true, destinationCity: true } },
+        transport: { select: { id: true, companyName: true } },
+        seatAvailability: { select: { seatsAvailable: true, seatsHeld: true, seatsBooked: true } },
+      },
     })
     if (!trip) {
       const { NotFoundError } = await import("@camermove/config")

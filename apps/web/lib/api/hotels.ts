@@ -119,19 +119,33 @@ export interface MyHotelBookingsParams {
   dateTo?: string
 }
 
-// Loose response type — kept identical to the pre-pagination wrapper so other
-// consumers (insurance page, partner client) that treat the result as an
-// array keep compiling. The dashboard types its own items shape via
-// apiFetch<{ items: HotelBookingItem[]; total; page; perPage; totalPages }>.
-// At runtime the API always returns the paginated envelope.
-export function fetchMyHotelBookings(token: string, params: MyHotelBookingsParams = {}): Promise<HotelsResponse | { items: unknown[] }> {
+export interface MyHotelBookingItem {
+  id: string
+  hotel: { name: string; city: string }
+  roomType: { name: string; pricePerNight: number }
+  checkInDate: string
+  checkOutDate: string
+  guestCount: number
+  totalAmount: number
+  status: string
+}
+
+export interface MyHotelBookingsResponse {
+  items: MyHotelBookingItem[]
+  total: number
+  page: number
+  perPage: number
+  totalPages: number
+}
+
+export function fetchMyHotelBookings(token: string, params: MyHotelBookingsParams = {}): Promise<MyHotelBookingsResponse> {
   const qs = new URLSearchParams()
   if (params.page) qs.set("page", String(params.page))
   if (params.perPage) qs.set("perPage", String(params.perPage))
   if (params.q) qs.set("q", params.q)
   if (params.dateFrom) qs.set("dateFrom", params.dateFrom)
   if (params.dateTo) qs.set("dateTo", params.dateTo)
-  return apiFetch<HotelsResponse | { items: unknown[] }>(`/api/v1/hotels/bookings/me${qs.toString() ? `?${qs.toString()}` : ""}`, { method: "GET", token })
+  return apiFetch<MyHotelBookingsResponse>(`/api/v1/hotels/bookings/me${qs.toString() ? `?${qs.toString()}` : ""}`, { method: "GET", token })
 }
 
 export function cancelHotelBooking(token: string, id: string) {

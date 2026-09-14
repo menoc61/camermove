@@ -35,6 +35,7 @@ COPY --from=builder /app/apps/worker/dist ./apps/worker/dist
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/packages/db/prisma ./packages/db/prisma
 ENTRYPOINT ["dumb-init", "--"]
+EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD pnpm --filter @camermove/worker exec tsx src/healthcheck.ts
 CMD ["node", "apps/worker/dist/index.js"]

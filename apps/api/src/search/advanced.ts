@@ -99,7 +99,17 @@ export async function advancedSearch(query: AdvancedSearchQuery) {
       orderBy,
       skip: pagination.skip,
       take: pagination.take,
-      include: { route: true, transport: { select: { companyName: true, id: true } }, seatAvailability: true },
+      select: {
+        id: true,
+        departureAt: true,
+        price: true,
+        totalSeats: true,
+        transportId: true,
+        vehicleTypeInfo: true,
+        route: { select: { id: true, originCity: true, destinationCity: true } },
+        transport: { select: { id: true, companyName: true } },
+        seatAvailability: { select: { seatsAvailable: true } },
+      },
     }),
     prisma.trip.count({ where: where as never }),
   ])

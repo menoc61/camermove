@@ -23,8 +23,21 @@ export async function setCached(key: string, value: unknown, ttl = DEFAULT_TTL):
 export async function invalidateCache(pattern: string): Promise<void> {
   try {
     const redis = getRedis()
-    const keys = await redis.keys(pattern)
-    if (keys.length > 0) await redis.del(...keys)
+    // Non-blocking SCAN instead of KEYS (KEYS blocks Redis on large keyspaces).
+    const stream = (redis as unknown as { scanStream: (o: { match: string; count: number }) => AsyncIterable<string[]> }).scanStream({
+      match: pattern,
+      count: 100,
+    })
+    let batch: string[] = []
+    for await (const chunk of stream) {
+      batch.push(...chunk)
+      if (batch.length >= 500) {
+        const toDel = batch
+        batch = []
+        await redis.del(...toDel)
+      }
+    }
+    if (batch.length > 0) await redis.del(...batch)
   } catch {}
 }
 

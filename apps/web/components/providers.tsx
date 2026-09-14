@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 import { useAuthStore, configureAuthApiBaseUrl } from "@camermove/frontend"
+import { ApiError } from "../lib/api/client"
 
 const CM_ACCESS_COOKIE = "cm_access"
 const CM_ACCESS_MAX_AGE_SECONDS = 900 // 15 min — matches JWT access-token TTL
@@ -50,7 +51,45 @@ function AuthCookieSync() {
 }
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
-  const [client] = useState(() => new QueryClient())
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            gcTime: 300_000,
+            retry: 1,
+            refetchOnWindowFocus: false,
+          },
+        },
+      })
+  )
+
+  // Global error handler for 401 errors - try to refresh token or redirect to login
+  useEffect(() => {
+    const unsubscribe = client.getQueryCache().subscribe((event) => {
+      if (event.type === "updated") {
+        const state = event.query.state
+        if (state.status === "error" && state.error instanceof ApiError && state.error.status === 401) {
+          const store = useAuthStore.getState()
+          // Try to refresh the token
+          void store.refreshIfNeeded().then((refreshed) => {
+            if (!refreshed) {
+              // Refresh failed - clear auth and redirect to login
+              store.clearAuth()
+              if (typeof window !== "undefined") {
+                window.location.href = "/login?next=" + encodeURIComponent(window.location.pathname)
+              }
+            }
+          })
+        }
+      }
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [client])
+
   return (
     <QueryClientProvider client={client}>
       <AuthCookieSync />

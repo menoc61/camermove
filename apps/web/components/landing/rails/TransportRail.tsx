@@ -1,4 +1,4 @@
-import { prisma } from "@camermove/db"
+import { fetchLandingRail } from "@/lib/api/landing"
 import { ServiceRail, ServiceRailCard } from "../ServiceRail"
 
 /* Rotating per-transporter bus imagery (Unsplash, stable IDs). */
@@ -8,8 +8,8 @@ const BUS_IMAGES = [
   "https://images.unsplash.com/photo-1494515843206-f3117d3f51b7?auto=format&fit=crop&w=1200&q=70",
 ]
 
-function timeFr(d: Date): string {
-  return d.toLocaleTimeString("fr-FR", {
+function timeFr(iso: string): string {
+  return new Date(iso).toLocaleTimeString("fr-FR", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Africa/Douala",
@@ -22,12 +22,13 @@ function priceFr(n: number): string {
 
 /**
  * TransportRail — 01, dark hero rail. Next 8 active trips with seats.
- * Server component: queries prisma directly. Renders nothing when empty.
+ * Server component: fetches via public GET /api/v1/landing/rails?type=transport.
+ * Renders nothing when empty or when the API is unavailable.
  */
 export async function TransportRail() {
   let trips: Array<{
     id: string
-    departureAt: Date
+    departureAt: string
     price: number
     vehicleTypeInfo: string | null
     seatsAvailable: number
@@ -37,30 +38,8 @@ export async function TransportRail() {
   }> = []
 
   try {
-    const rows = await prisma.trip.findMany({
-      where: {
-        status: "active",
-        departureAt: { gte: new Date() },
-        seatAvailability: { seatsAvailable: { gte: 1 } },
-      },
-      orderBy: { departureAt: "asc" },
-      take: 8,
-      include: {
-        route: { select: { originCity: true, destinationCity: true } },
-        transport: { select: { companyName: true } },
-        seatAvailability: true,
-      },
-    })
-    trips = rows.map((t) => ({
-      id: t.id,
-      departureAt: t.departureAt,
-      price: t.price,
-      vehicleTypeInfo: t.vehicleTypeInfo,
-      seatsAvailable: t.seatAvailability?.seatsAvailable ?? 0,
-      origin: t.route.originCity,
-      destination: t.route.destinationCity,
-      companyName: t.transport.companyName,
-    }))
+    const payload = await fetchLandingRail("transport")
+    trips = payload.items
   } catch {
     return null
   }

@@ -75,7 +75,7 @@ export default function HotelDetailPage() {
         <p className="text-sm text-muted-foreground">{hotel.city} {hotel.starRating ? `· ${hotel.starRating}★` : ""}</p>
         {hotel.description && <p className="mt-2 text-sm leading-relaxed">{hotel.description}</p>}
         <div className="flex flex-wrap gap-1 mt-2">{hotel.amenities.map((a) => <Badge key={a} variant="secondary">{a}</Badge>)}</div>
-        {hotel.photos?.length ? <div className="mt-4 grid grid-cols-2 gap-2">{hotel.photos.slice(0, 4).map((p) => <img key={p} src={p} alt="" className="h-40 object-cover rounded-xl" />)}</div> : null}
+        {hotel.photos?.length ? <div className="mt-4 grid grid-cols-2 gap-2">{hotel.photos.slice(0, 4).map((p) => <img key={p} src={p} alt={`Photo de ${hotel.name}`} loading="lazy" className="h-40 object-cover rounded-xl" />)}</div> : null}
       </div>
 
       <Separator />

@@ -30,7 +30,16 @@ export function findSearchableTrips(input: {
     orderBy: input.sort === "departure_asc" ? { departureAt: "asc" } : { price: input.sort === "price_asc" ? "asc" : "desc" },
     skip: input.skip,
     take: input.take,
-    include: { route: true, transport: { select: { companyName: true, id: true } }, seatAvailability: true },
+    select: {
+      id: true,
+      departureAt: true,
+      price: true,
+      totalSeats: true,
+      transportId: true,
+      vehicleTypeInfo: true,
+      transport: { select: { id: true, companyName: true } },
+      seatAvailability: { select: { seatsAvailable: true } },
+    },
   })
 }
 
