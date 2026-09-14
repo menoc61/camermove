@@ -257,8 +257,11 @@ describe("summary-tabs contract", () => {
     expect(src).toMatch(/TAB_PER_PAGE\s*=\s*20/);
     expect(src).toContain("useSearchParams");
     expect(src).toContain("router.replace");
-    expect(src).toContain("ExportButton");
     expect(src).toContain("PaginationControls");
+    // Export buttons moved to per-section panels (trips/events/payments/…).
+    expect(read(join(here, "panels", "TripsPanel.tsx"))).toContain("ExportButton");
+    expect(read(join(here, "panels", "EventsPanel.tsx"))).toContain("ExportButton");
+    expect(read(join(here, "panels", "PaymentsPanel.tsx"))).toContain("ExportButton");
     for (const key of [
       "dashboard-hotels",
       "dashboard-rentals",

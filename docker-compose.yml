@@ -62,9 +62,9 @@ services:
     depends_on: [kafka]
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.54.1
     volumes: ["./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro", "./infra/alerts.yml:/etc/prometheus/alerts.yml:ro"]
-    command: ["--config.file=/etc/prometheus/prometheus.yml", "--web.console.templates=/etc/prometheus/consoles", "--web.console.lists=/etc/prometheus/console_libraries"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--web.console.templates=/etc/prometheus/consoles"]
     ports: ["127.0.0.1:9090:9090"]
 
   grafana:
@@ -75,7 +75,11 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ROLE: "Viewer"
     ports: ["127.0.0.1:3001:3000"]
-    depends_on: [prometheus]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      kafka: { condition: service_started }
+      api: { condition: service_healthy }
     volumes: ["grafanadata:/var/lib/grafana", "./infra/dashboards:/etc/grafana/provisioning/dashboards:ro", "./infra/datasources:/etc/grafana/provisioning/datasources:ro"]
 
   # ── App (containerised) ──────────────────────────────────────────────

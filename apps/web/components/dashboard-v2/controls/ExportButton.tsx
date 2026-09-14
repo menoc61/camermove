@@ -43,7 +43,7 @@ export async function triggerExportDownload(o: {
   URL.revokeObjectURL(url);
 }
 
-export function ExportButton({ token, endpoint, resource }: { token: string; endpoint: string; resource: string }) {
+export function ExportButton({ token, endpoint, resource }: { token?: string; endpoint?: string; resource: string }) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [format, setFormat] = useState<ExportFormat>("csv");
@@ -51,9 +51,10 @@ export function ExportButton({ token, endpoint, resource }: { token: string; end
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const invalid = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+  const disabled = !token || !endpoint;
 
   async function onExport() {
-    if (invalid || busy) return;
+    if (invalid || busy || !token || !endpoint) return;
     setBusy(true);
     setError(null);
     try {
@@ -68,7 +69,7 @@ export function ExportButton({ token, endpoint, resource }: { token: string; end
 
   return (
     <div className="flex flex-col gap-2">
-      <Button variant="outline" size="sm" aria-expanded={open} aria-controls="export-popover" onClick={() => setOpen((v) => !v)}>
+      <Button variant="outline" size="sm" aria-expanded={open} aria-controls="export-popover" onClick={() => setOpen((v) => !v)} disabled={disabled}>
         <Download data-icon="inline-start" /> Exporter
       </Button>
       {open ? (
@@ -76,19 +77,19 @@ export function ExportButton({ token, endpoint, resource }: { token: string; end
           <FieldGroup>
             <Field data-invalid={invalid || undefined}>
               <FieldLabel htmlFor="exp-from">Du</FieldLabel>
-              <Input id="exp-from" type="date" value={dateFrom} aria-invalid={invalid || undefined} onChange={(e) => setDateFrom(e.target.value)} />
+              <Input id="exp-from" type="date" value={dateFrom} aria-invalid={invalid || undefined} onChange={(e) => setDateFrom(e.target.value)} disabled={disabled} />
             </Field>
             <Field data-invalid={invalid || undefined}>
               <FieldLabel htmlFor="exp-to">Au</FieldLabel>
-              <Input id="exp-to" type="date" value={dateTo} aria-invalid={invalid || undefined} onChange={(e) => setDateTo(e.target.value)} />
+              <Input id="exp-to" type="date" value={dateTo} aria-invalid={invalid || undefined} onChange={(e) => setDateTo(e.target.value)} disabled={disabled} />
             </Field>
             {invalid ? <FieldError>La date de fin précède la date de début.</FieldError> : null}
           </FieldGroup>
-          <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
+          <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)} disabled={disabled}>
             <SelectTrigger aria-label="Format d'export" size="sm"><SelectValue /></SelectTrigger>
             <SelectContent><SelectGroup><SelectItem value="csv">CSV</SelectItem><SelectItem value="json">JSON</SelectItem></SelectGroup></SelectContent>
           </Select>
-          <Button size="sm" onClick={onExport} disabled={busy || invalid}>{busy ? "Export…" : "Télécharger"}</Button>
+          <Button size="sm" onClick={onExport} disabled={busy || invalid || disabled}>{busy ? "Export…" : "Télécharger"}</Button>
           {error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}
         </div>
       ) : null}

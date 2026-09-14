@@ -1,0 +1,33 @@
+name: Deploy Docs to GitHub Pages
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: github-pages
+  url: ${{ github.server_url }}/-/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          pages_source: ./docs
+          return_404: true
+
+      - name: Build and deploy
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs
+
+      - name: Deploy
+        uses: actions/deploy-pages@v4
+
