@@ -1,4 +1,6 @@
-import { apiFetch } from "./client"
+import { resourceClient } from "./resource"
+
+const admin = resourceClient<AdminStats>("/api/v1/admin")
 
 export interface AdminStats {
   totalUsers: number
@@ -156,74 +158,66 @@ export interface AppSettings {
   updatedAt: string
 }
 
-export async function getAdminStats(token: string): Promise<AdminStats> {
-  return apiFetch<AdminStats>("/api/v1/admin/stats", { method: "GET", token })
+export function getAdminStats(token: string): Promise<AdminStats> {
+  return admin.get<AdminStats>("/stats", { token })
 }
 
-export async function listUsers(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<UserItem>> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<PaginatedResponse<UserItem>>(`/api/v1/admin/users${qs ? `?${qs}` : ""}`, { method: "GET", token })
+export function listUsers(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<UserItem>> {
+  return admin.list<UserItem>("/users", { token, params })
 }
 
-export async function updateUser(token: string, id: string, data: Record<string, unknown>): Promise<UserItem> {
-  return apiFetch<UserItem>(`/api/v1/admin/users/${id}`, { method: "PUT", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function updateUser(token: string, id: string, data: Record<string, unknown>): Promise<UserItem> {
+  return admin.update<UserItem>(`/users/${id}`, data, { token })
 }
 
 export async function deleteUser(token: string, id: string): Promise<void> {
-  await apiFetch<void>(`/api/v1/admin/users/${id}`, { method: "DELETE", token })
+  await admin.remove(`/users/${id}`, { token })
 }
 
-export async function listTransporters(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<TransporterItem>> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<PaginatedResponse<TransporterItem>>(`/api/v1/admin/transporters${qs ? `?${qs}` : ""}`, { method: "GET", token })
+export function listTransporters(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<TransporterItem>> {
+  return admin.list<TransporterItem>("/transporters", { token, params })
 }
 
-export async function reviewPartnerApplication(token: string, id: string, data: { status: string; message?: string }): Promise<PartnerApplicationItem> {
-  return apiFetch<PartnerApplicationItem>(`/api/v1/admin/partner-applications/${id}/review`, { method: "POST", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function reviewPartnerApplication(token: string, id: string, data: { status: string; message?: string }): Promise<PartnerApplicationItem> {
+  return admin.create<PartnerApplicationItem>(`/partner-applications/${id}/review`, data, { token })
 }
 
-export async function listPartnerApplications(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<PartnerApplicationItem>> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<PaginatedResponse<PartnerApplicationItem>>(`/api/v1/admin/partner-applications${qs ? `?${qs}` : ""}`, { method: "GET", token })
+export function listPartnerApplications(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<PartnerApplicationItem>> {
+  return admin.list<PartnerApplicationItem>("/partner-applications", { token, params })
 }
 
-export async function listTrips(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<TripItem>> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<PaginatedResponse<TripItem>>(`/api/v1/admin/trips${qs ? `?${qs}` : ""}`, { method: "GET", token })
+export function listTrips(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<TripItem>> {
+  return admin.list<TripItem>("/trips", { token, params })
 }
 
-export async function updateTrip(token: string, id: string, data: Record<string, unknown>): Promise<TripItem> {
-  return apiFetch<TripItem>(`/api/v1/admin/trips/${id}`, { method: "PUT", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function updateTrip(token: string, id: string, data: Record<string, unknown>): Promise<TripItem> {
+  return admin.update<TripItem>(`/trips/${id}`, data, { token })
 }
 
-export async function listBookings(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<BookingItem>> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<PaginatedResponse<BookingItem>>(`/api/v1/admin/bookings${qs ? `?${qs}` : ""}`, { method: "GET", token })
+export function listBookings(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<BookingItem>> {
+  return admin.list<BookingItem>("/bookings", { token, params })
 }
 
-export async function listPayments(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<PaymentItem>> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<PaginatedResponse<PaymentItem>>(`/api/v1/admin/payments${qs ? `?${qs}` : ""}`, { method: "GET", token })
+export function listPayments(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<PaymentItem>> {
+  return admin.list<PaymentItem>("/payments", { token, params })
 }
 
-export async function listCommissions(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<CommissionItem> & { totals: { commission: number; net: number; paid: number; pending: number } }> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch(`/api/v1/admin/commissions${qs ? `?${qs}` : ""}`, { method: "GET", token })
+export function listCommissions(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<CommissionItem> & { totals: { commission: number; net: number; paid: number; pending: number } }> {
+  return admin.get(`/commissions`, { token, params })
 }
 
-export async function markCommissionPaid(token: string, id: string): Promise<CommissionItem> {
-  return apiFetch<CommissionItem>(`/api/v1/admin/commissions/${id}/mark-paid`, { method: "POST", token })
+export function markCommissionPaid(token: string, id: string): Promise<CommissionItem> {
+  return admin.create<CommissionItem>(`/commissions/${id}/mark-paid`, undefined, { token })
 }
 
-export async function listAuditLogs(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<AuditLogItem>> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<PaginatedResponse<AuditLogItem>>(`/api/v1/admin/audit-logs${qs ? `?${qs}` : ""}`, { method: "GET", token })
+export function listAuditLogs(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<AuditLogItem>> {
+  return admin.list<AuditLogItem>("/audit-logs", { token, params })
 }
 
-export async function getSettings(token: string): Promise<AppSettings> {
-  return apiFetch<AppSettings>("/api/v1/admin/settings", { method: "GET", token })
+export function getSettings(token: string): Promise<AppSettings> {
+  return admin.get<AppSettings>("/settings", { token })
 }
 
-export async function updateSettings(token: string, data: Record<string, unknown>): Promise<AppSettings> {
-  return apiFetch<AppSettings>("/api/v1/admin/settings", { method: "PUT", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function updateSettings(token: string, data: Record<string, unknown>): Promise<AppSettings> {
+  return admin.update<AppSettings>("/settings", data, { token })
 }

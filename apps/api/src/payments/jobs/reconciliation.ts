@@ -11,6 +11,7 @@ import { computeCommission } from "../commission.js"
 import { EVENT_TOPICS } from "@camermove/events"
 import { generateAndIssueTicket } from "../../tickets/ticket.service.js"
 import type { IssuedTicket } from "../../tickets/ticket.service.js"
+import { PAYABLE_KINDS_BY_PREFIX, referenceForKind } from "../../booking-kernel/index.js"
 
 class UnrecoverableError extends Error {
   constructor(msg: string) {
@@ -78,13 +79,8 @@ interface NonTripTarget {
   expectedAmount: number
 }
 
-const NON_TRIP_PREFIXES: Array<{ prefix: string; kind: NonTripKind }> = [
-  { prefix: "HOTEL-", kind: "hotel" },
-  { prefix: "RENTAL-", kind: "rental" },
-  { prefix: "PARCEL-", kind: "parcel" },
-  { prefix: "INS-", kind: "insurance" },
-  { prefix: "EVENT-", kind: "event" },
-]
+// Prefix registry lives in the booking-kernel — single source of truth, no drift.
+const NON_TRIP_PREFIXES = PAYABLE_KINDS_BY_PREFIX
 
 async function findEntityByDerivedReference(kind: NonTripKind, reference: string): Promise<{ id: string; paymentId: string | null; total: number } | null> {
   const entry = NON_TRIP_PREFIXES.find((p) => p.kind === kind)
@@ -92,34 +88,17 @@ async function findEntityByDerivedReference(kind: NonTripKind, reference: string
   const suffix = reference.slice(entry.prefix.length)
   if (!/^[A-Za-z0-9]{8}$/.test(suffix)) return null
   const idPrefix = suffix.toLowerCase()
-  if (kind === "hotel") {
-    const { hotelBookingReference } = await import("../../hotels/service.js")
-    const rows = await prisma.hotelBooking.findMany({ where: { id: { startsWith: idPrefix } }, take: 5 })
-    const hit = rows.find((r) => hotelBookingReference(r.id) === reference) as unknown as { id: string; paymentId: string | null; totalAmount: number } | undefined
-    return hit ? { id: hit.id, paymentId: hit.paymentId, total: hit.totalAmount } : null
+  const entityDelegates: Record<NonTripKind, { rows: (where: unknown) => Promise<Array<Record<string, unknown>>>; totalField: string }> = {
+    hotel: { rows: async (w) => prisma.hotelBooking.findMany(w as never) as never, totalField: "totalAmount" },
+    rental: { rows: async (w) => prisma.rentalBooking.findMany(w as never) as never, totalField: "totalAmount" },
+    parcel: { rows: async (w) => prisma.parcel.findMany(w as never) as never, totalField: "shippingCost" },
+    insurance: { rows: async (w) => prisma.insurancePolicy.findMany(w as never) as never, totalField: "premium" },
+    event: { rows: async (w) => prisma.eventBooking.findMany(w as never) as never, totalField: "totalAmount" },
   }
-  if (kind === "rental") {
-    const { rentalBookingReference } = await import("../../rentals/service.js")
-    const rows = await prisma.rentalBooking.findMany({ where: { id: { startsWith: idPrefix } }, take: 5 })
-    const hit = rows.find((r) => rentalBookingReference(r.id) === reference) as unknown as { id: string; paymentId: string | null; totalAmount: number } | undefined
-    return hit ? { id: hit.id, paymentId: hit.paymentId, total: hit.totalAmount } : null
-  }
-  if (kind === "parcel") {
-    const { parcelPaymentReference } = await import("../../parcels/service.js")
-    const rows = await prisma.parcel.findMany({ where: { id: { startsWith: idPrefix } }, take: 5 })
-    const hit = rows.find((r) => parcelPaymentReference(r.id) === reference) as unknown as { id: string; paymentId: string | null; shippingCost: number } | undefined
-    return hit ? { id: hit.id, paymentId: hit.paymentId, total: hit.shippingCost } : null
-  }
-  if (kind === "insurance") {
-    const { insurancePaymentReference } = await import("../../insurance/service.js")
-    const rows = await prisma.insurancePolicy.findMany({ where: { id: { startsWith: idPrefix } }, take: 5 })
-    const hit = rows.find((r) => insurancePaymentReference(r.id) === reference) as unknown as { id: string; paymentId: string | null; premium: number } | undefined
-    return hit ? { id: hit.id, paymentId: hit.paymentId, total: hit.premium } : null
-  }
-  const { eventBookingPaymentReference } = await import("../../events/service.js")
-  const rows = await prisma.eventBooking.findMany({ where: { id: { startsWith: idPrefix } }, take: 5 })
-  const hit = rows.find((r) => eventBookingPaymentReference(r.id) === reference) as unknown as { id: string; paymentId: string | null; totalAmount: number } | undefined
-  return hit ? { id: hit.id, paymentId: hit.paymentId, total: hit.totalAmount } : null
+  const { rows, totalField } = entityDelegates[kind]
+  const found = (await rows({ where: { id: { startsWith: idPrefix } }, take: 5 })) as Array<{ id: string; paymentId: string | null }>
+  const hit = found.find((r) => referenceForKind(kind, r.id) === reference)
+  return hit ? { id: hit.id, paymentId: hit.paymentId, total: Number((hit as Record<string, unknown>)[totalField]) } : null
 }
 
 async function resolveNonTripPayment(reference: string): Promise<NonTripTarget | null> {

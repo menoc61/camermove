@@ -18,6 +18,15 @@ vi.mock("@camermove/events", () => ({
       disconnect: vi.fn().mockResolvedValue(undefined),
     }),
   }),
+  EVENT_TOPICS: {
+    hotelBookingCreated: "camermove.hotel.booking.created",
+    hotelBookingConfirmed: "camermove.hotel.booking.confirmed",
+    bookingStatusChanged: "camermove.booking.status.changed",
+    paymentInitiated: "camermove.payment.initiated",
+  },
+  publishEvent: vi.fn().mockResolvedValue(undefined),
+  makeEvent: (type: string, aggregateId: string, data: unknown) => ({ id: `${type}-${aggregateId}`, type, ts: new Date().toISOString(), aggregateId, data }),
+  makeDataEvent: (type: string, key: string, data: unknown) => ({ id: `${type}-${key}-${Date.now()}`, type, ts: new Date().toISOString(), aggregateId: key, data }),
 }))
 
 // Mock config loadEnv

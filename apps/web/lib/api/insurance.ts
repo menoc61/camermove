@@ -1,6 +1,6 @@
-function apiBase(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
-}
+import { request, resourceClient } from "./resource"
+
+const insurance = resourceClient<InsurancePolicy>("/api/v1/insurance/policies")
 
 export type CoverageType = "basic" | "standard" | "premium" | "family"
 
@@ -45,94 +45,33 @@ export interface InsurancePoliciesParams {
   dateTo?: string
 }
 
-// Paginated envelope — matches GET /api/v1/insurance/policies at runtime.
-// Callers must read `.items` (see app/insurance/page.tsx and the dashboard insurance tab).
-export async function fetchInsurancePolicies(
+export function fetchInsurancePolicies(
   token: string,
   params: InsurancePoliciesParams = {},
 ): Promise<InsurancePoliciesResponse> {
-  const qs = new URLSearchParams()
-  if (params.page) qs.set("page", String(params.page))
-  if (params.perPage) qs.set("perPage", String(params.perPage))
-  if (params.q) qs.set("q", params.q)
-  if (params.coverageType) qs.set("coverageType", params.coverageType)
-  if (params.dateFrom) qs.set("dateFrom", params.dateFrom)
-  if (params.dateTo) qs.set("dateTo", params.dateTo)
-  const res = await fetch(`${apiBase()}/api/v1/insurance/policies${qs.toString() ? `?${qs.toString()}` : ""}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
-  }
-  return res.json()
+  return insurance.request<InsurancePoliciesResponse>("/api/v1/insurance/policies", { token, params })
 }
 
-export async function fetchMyInsurancePolicies(
+export function fetchMyInsurancePolicies(
   token: string,
   params: InsurancePoliciesParams = {},
 ): Promise<InsurancePoliciesResponse> {
-  const qs = new URLSearchParams()
-  if (params.page) qs.set("page", String(params.page))
-  if (params.perPage) qs.set("perPage", String(params.perPage))
-  if (params.q) qs.set("q", params.q)
-  if (params.coverageType) qs.set("coverageType", params.coverageType)
-  if (params.dateFrom) qs.set("dateFrom", params.dateFrom)
-  if (params.dateTo) qs.set("dateTo", params.dateTo)
-  const res = await fetch(`${apiBase()}/api/v1/insurance/policies${qs.toString() ? `?${qs.toString()}` : ""}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
-  }
-  return res.json()
+  return insurance.request<InsurancePoliciesResponse>("/api/v1/insurance/policies", { token, params })
 }
 
-export async function subscribeInsurance(
+export function subscribeInsurance(
   token: string,
   body: SubscribeInsuranceBody
 ): Promise<InsurancePolicy> {
-  const res = await fetch(`${apiBase()}/api/v1/insurance/policies`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": crypto.randomUUID(),
-    },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
-  }
-  return res.json()
+  return insurance.create<InsurancePolicy>("", body, { token })
 }
 
-export async function fetchInsurancePolicy(token: string, id: string): Promise<InsurancePolicy> {
-  const res = await fetch(`${apiBase()}/api/v1/insurance/policies/${id}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
-  }
-  return res.json()
+export function fetchInsurancePolicy(token: string, id: string): Promise<InsurancePolicy> {
+  return insurance.get<InsurancePolicy>(`/${id}`, { token })
 }
 
-export async function cancelInsurancePolicy(token: string, id: string): Promise<{ id: string; status: string }> {
-  const res = await fetch(`${apiBase()}/api/v1/insurance/policies/${id}/cancel`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
-  }
-  return res.json()
+export function cancelInsurancePolicy(token: string, id: string): Promise<{ id: string; status: string }> {
+  return insurance.request<{ id: string; status: string }>(`/api/v1/insurance/policies/${id}/cancel`, { method: "POST", token })
 }
 
 export interface CreateInsurancePaymentOpts {
@@ -142,31 +81,23 @@ export interface CreateInsurancePaymentOpts {
   email?: string
 }
 
-export async function createInsurancePayment(
+export function createInsurancePayment(
   token: string,
   policyId: string,
   opts: CreateInsurancePaymentOpts = {},
   idempotencyKey?: string
 ): Promise<{ payment?: unknown; authorizationUrl?: string | null; paymentUrl?: string | null }> {
-  const res = await fetch(`${apiBase()}/api/v1/insurance/policies/${policyId}/pay`, {
+  return insurance.request(`/api/v1/insurance/policies/${policyId}/pay`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey || crypto.randomUUID(),
-    },
-    body: JSON.stringify({
+    token,
+    idempotencyKey,
+    body: {
       provider: opts.provider ?? "notchpay",
       ...(opts.method ? { method: opts.method } : {}),
       ...(opts.phone ? { phone: opts.phone } : {}),
       ...(opts.email ? { email: opts.email } : {}),
-    }),
+    },
   })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
-  }
-  return res.json()
 }
 
 export const COVERAGE_LABELS: Record<CoverageType, string> = {

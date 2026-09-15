@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { motion, useReducedMotion } from "motion/react"
+import { motion } from "motion/react"
+import { useReelController, useMotionPreference } from "@/lib/motion"
 import { SearchBar } from "../search/search-bar"
 import { Button } from "@/components/ui/button"
 
@@ -93,65 +93,11 @@ function departureLabel(iso?: string): string {
 }
 
 export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
-  const reelRef = useRef<HTMLDivElement>(null)
-  const shouldReduce = useReducedMotion()
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [progress, setProgress] = useState(0)
-
-  // Drive the active video + global progress from the reel container's own scroll.
-  // Manual scroll pauses auto-advance so the user can browse without the reel
-  // jumping back to the previous chapter under their cursor.
-  useEffect(() => {
-    const root = reelRef.current
-    if (!root) return
-    let userPausedUntil = 0
-    const PAUSE_AFTER_SCROLL_MS = 8_000
-
-    const onScroll = () => {
-      const total = root.scrollWidth - root.clientWidth
-      const scrolled = Math.min(Math.max(root.scrollLeft, 0), total)
-      const pct = total > 0 ? scrolled / total : 0
-      setProgress(pct)
-      const idx = Math.min(
-        REEL.length - 1,
-        Math.max(0, Math.round(pct * (REEL.length - 1)))
-      )
-      setActiveIndex(idx)
-      userPausedUntil = Date.now() + PAUSE_AFTER_SCROLL_MS
-    }
-    onScroll()
-    root.addEventListener("scroll", onScroll, { passive: true })
-    window.addEventListener("resize", onScroll)
-
-    // Auto-advance: walk the reel forward at a calm cadence. Respects
-    // prefers-reduced-motion and the manual-scroll pause window.
-    const interval = setInterval(() => {
-      if (shouldReduce) return
-      if (Date.now() < userPausedUntil) return
-      setActiveIndex((i) => {
-        const next = (i + 1) % REEL.length
-        const total = root.scrollWidth - root.clientWidth
-        const targetX = (next / (REEL.length - 1)) * total
-        root.scrollTo({ left: targetX, behavior: "smooth" })
-        return next
-      })
-    }, AUTO_ADVANCE_MS)
-
-    return () => {
-      clearInterval(interval)
-      root.removeEventListener("scroll", onScroll)
-      window.removeEventListener("resize", onScroll)
-    }
-  }, [shouldReduce])
-
-  // Click on a chapter scrolls the reel container there.
-  const goTo = (i: number) => {
-    const root = reelRef.current
-    if (!root) return
-    const total = root.scrollWidth - root.clientWidth
-    const targetX = (i / (REEL.length - 1)) * total
-    root.scrollTo({ left: targetX, behavior: shouldReduce ? "auto" : "smooth" })
-  }
+  const shouldReduce = useMotionPreference()
+  // Reel lifecycle (index, autoplay, scroll sync, pause, keyboard) is owned
+  // by the shared motion adapter — this component only renders it.
+  const reel = useReelController({ slideCount: REEL.length, autoAdvanceMs: AUTO_ADVANCE_MS })
+  const { activeIndex, progress, reduced } = reel
 
   return (
     <section
@@ -209,10 +155,20 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
         </div>
       </div>
 
-      {/* Horizontal video reel — real scroll container with snap */}
+      {/* Horizontal video reel — real scroll container with snap.
+          Keyboard path: ← → Home End move between chapters. */}
       <div
-        ref={reelRef}
-        className="relative z-0 flex w-full snap-x snap-mandatory select-none overflow-x-auto no-scrollbar"
+        ref={reel.containerRef}
+        tabIndex={0}
+        role="group"
+        aria-roledescription="carrousel"
+        aria-label="Services CamerMove — utilisez les flèches pour naviguer"
+        onKeyDown={reel.onKeyDown}
+        onMouseEnter={reel.onMouseEnter}
+        onMouseLeave={reel.onMouseLeave}
+        onFocus={reel.onFocus}
+        onBlur={reel.onBlur}
+        className="relative z-0 flex w-full snap-x snap-mandatory select-none overflow-x-auto no-scrollbar outline-none focus-visible:ring-2 focus-visible:ring-paper/60"
         style={{ height: "min(78vh, 760px)" }}
       >
         {REEL.map((item, i) => (
@@ -235,7 +191,7 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
                 src={item.poster}
                 alt=""
                 loading={i === 0 ? "eager" : "lazy"}
-                className={`h-full w-full object-cover ${i === activeIndex && !shouldReduce ? "kenburns" : ""}`}
+                className={`h-full w-full object-cover ${i === activeIndex && !reduced ? "kenburns" : ""}`}
               />
             </div>
             {/* Service badge — keeps the reel legible over the imagery */}
@@ -280,11 +236,20 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
       <div className="sticky top-[72px] z-10 border-t border-white/10 bg-ink/85 backdrop-blur lg:top-24">
         <div className="mx-auto flex max-w-[1560px] flex-col gap-4 px-6 py-4 sm:px-8 md:flex-row md:items-center md:gap-8 md:px-12">
           <div className="no-scrollbar flex items-center gap-3 overflow-x-auto md:flex-1">
+            <button
+              type="button"
+              onClick={reel.prev}
+              aria-label="Chapitre précédent"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-paper/70 transition-colors hover:text-paper"
+            >
+              ←
+            </button>
             {REEL.map((item, i) => (
               <button
                 key={item.chapter}
-                onClick={() => goTo(i)}
+                onClick={() => reel.goTo(i)}
                 aria-current={i === activeIndex}
+                aria-label={`Aller au chapitre ${item.chapter} — ${item.label}`}
                 className="group flex min-h-[44px] shrink-0 items-center gap-2 px-4 py-1 text-left"
               >
                 <span
@@ -309,6 +274,14 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
                 </span>
               </button>
             ))}
+            <button
+              type="button"
+              onClick={reel.next}
+              aria-label="Chapitre suivant"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-paper/70 transition-colors hover:text-paper"
+            >
+              →
+            </button>
           </div>
           <div
             className="relative h-px w-full bg-white/10 md:w-48"

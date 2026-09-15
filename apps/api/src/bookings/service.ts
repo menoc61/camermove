@@ -1,7 +1,8 @@
 import { prisma } from "@camermove/db"
 import { atomicHoldSeats, atomicReleaseHeldSeats, atomicConfirmBookedSeats } from "@camermove/db"
-import { ConflictError, NotFoundError, createLogger, loadEnv } from "@camermove/config"
+import { ConflictError, NotFoundError, createLogger } from "@camermove/config"
 import { scheduleHoldExpiry } from "@camermove/shared/queues"
+import { EVENT_TOPICS, makeDataEvent, publishEvent } from "@camermove/events"
 import { randomUUID } from "node:crypto"
 import { findExpiredHolds } from "./repository"
 
@@ -12,21 +13,10 @@ export function generateReference(): string {
 }
 
 async function publishBookingCreated(booking: { id: string; reference: string; tripId: string; userId: string }) {
-  try {
-    const env = loadEnv() as unknown as Record<string, unknown>
-    const { createKafkaClient } = await import("@camermove/events")
-    const { EVENT_TOPICS } = await import("@camermove/events")
-    const kafka = createKafkaClient(env as never)
-    const producer = kafka.producer({ idempotent: true })
-    await producer.connect().catch(() => {})
-    await producer
-      .send({
-        topic: EVENT_TOPICS.bookingCreated,
-        messages: [{ key: booking.id, value: JSON.stringify({ id: booking.id, type: "booking.created", ts: new Date().toISOString(), aggregateId: booking.id, data: booking }) }],
-      })
-      .catch(() => {})
-    await producer.disconnect().catch(() => {})
-  } catch {}
+  await publishEvent(
+    EVENT_TOPICS.bookingCreated,
+    makeDataEvent("booking.created", booking.id, { ...booking, type: "booking.created", ts: new Date().toISOString() }),
+  )
 }
 
 export async function createBooking(input: { tripId: string; userId: string; seatCount: number; passengers: Array<{ fullName: string; phone?: string }> }) {

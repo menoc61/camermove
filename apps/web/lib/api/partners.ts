@@ -1,10 +1,6 @@
-/**
- * Partner services API — typed wrapper around GET /api/v1/me/partner-services.
- * Tells the /partner hub which services the authenticated user actually
- * partners on (ownership-derived) plus per-service KPIs, so the UI only ever
- * shows dashboards for services the user is a partner on.
- */
-import { apiFetch } from "./client"
+import { request, resourceClient } from "./resource"
+
+const partner = resourceClient<PartnerServicesResponse>("/api/v1/partner")
 
 export type PartnerServiceId = "transporter" | "hotels" | "rentals" | "parcels" | "events"
 
@@ -37,7 +33,7 @@ export interface PartnerServicesResponse {
 }
 
 export function getPartnerServices(token: string): Promise<PartnerServicesResponse> {
-  return apiFetch<PartnerServicesResponse>("/api/v1/me/partner-services", { method: "GET", token })
+  return request<PartnerServicesResponse>("/api/v1/me/partner-services", { token })
 }
 
 /** Operator-scoped parcel list for the parcels partner page. */
@@ -57,9 +53,9 @@ export interface PartnerParcelItem {
 }
 
 export function getPartnerParcels(token: string, page = 1) {
-  return apiFetch<{ items: PartnerParcelItem[]; total: number; page: number; perPage: number; totalPages: number; operators: Array<{ id: string; companyName: string; status: string; partnerStatus: string }> }>(
-    `/api/v1/partner/parcels?page=${page}`,
-    { method: "GET", token },
+  return partner.get<{ items: PartnerParcelItem[]; total: number; page: number; perPage: number; totalPages: number; operators: Array<{ id: string; companyName: string; status: string; partnerStatus: string }> }>(
+    "/parcels",
+    { token, params: { page } },
   )
 }
 
@@ -79,8 +75,8 @@ export interface PartnerEventItem {
 }
 
 export function getPartnerEvents(token: string, page = 1) {
-  return apiFetch<{ items: PartnerEventItem[]; total: number; page: number; perPage: number; totalPages: number }>(
-    `/api/v1/partner/events?page=${page}`,
-    { method: "GET", token },
+  return partner.get<{ items: PartnerEventItem[]; total: number; page: number; perPage: number; totalPages: number }>(
+    "/events",
+    { token, params: { page } },
   )
 }

@@ -1,3 +1,5 @@
+import { request } from "./resource"
+
 export interface SearchResultItem {
   id: string
   departureAt: string
@@ -20,13 +22,21 @@ export interface SearchParams {
   perPage?: number
   vehicleType?: string
 }
-export async function fetchSearch(params: SearchParams): Promise<{ items: SearchResultItem[]; total: number; page: number; perPage: number; totalPages: number; meta?: Record<string, unknown> }> {
-  const qs = new URLSearchParams({ origin: params.origin, destination: params.destination, date: params.date, pax: String(params.pax), sortBy: params.sortBy ?? "price_asc", page: String(params.page ?? 1), perPage: String(params.perPage ?? 20) })
-  if (params.minPrice != null) qs.set("minPrice", String(params.minPrice))
-  if (params.maxPrice != null) qs.set("maxPrice", String(params.maxPrice))
-  if (params.vehicleType) qs.set("vehicleType", params.vehicleType)
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
-  const res = await fetch(`${base}/api/v1/search?${qs.toString()}`, { cache: "no-store" })
-  if (!res.ok) throw new Error("search failed")
-  return res.json()
+export function fetchSearch(params: SearchParams): Promise<{ items: SearchResultItem[]; total: number; page: number; perPage: number; totalPages: number; meta?: Record<string, unknown> }> {
+  return request("/api/v1/search", {
+    cache: "no-store",
+    errorLabel: "search failed",
+    params: {
+      origin: params.origin,
+      destination: params.destination,
+      date: params.date,
+      pax: params.pax,
+      sortBy: params.sortBy ?? "price_asc",
+      page: params.page ?? 1,
+      perPage: params.perPage ?? 20,
+      minPrice: params.minPrice,
+      maxPrice: params.maxPrice,
+      vehicleType: params.vehicleType,
+    },
+  })
 }

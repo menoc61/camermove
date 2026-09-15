@@ -16,7 +16,15 @@ vi.mock("@camermove/events", () => ({
       disconnect: vi.fn().mockResolvedValue(undefined),
     }),
   }),
-  EVENT_TOPICS: { paymentInitiated: "camermove.payment.initiated" },
+  EVENT_TOPICS: {
+    insurancePolicyCreated: "camermove.insurance.policy.created",
+    insurancePolicyIssued: "camermove.insurance.policy.issued",
+    bookingStatusChanged: "camermove.booking.status.changed",
+    paymentInitiated: "camermove.payment.initiated",
+  },
+  publishEvent: vi.fn().mockResolvedValue(undefined),
+  makeEvent: (type: string, aggregateId: string, data: unknown) => ({ id: `${type}-${aggregateId}`, type, ts: new Date().toISOString(), aggregateId, data }),
+  makeDataEvent: (type: string, key: string, data: unknown) => ({ id: `${type}-${key}-${Date.now()}`, type, ts: new Date().toISOString(), aggregateId: key, data }),
 }))
 
 vi.mock("@camermove/config", async (importOriginal) => {

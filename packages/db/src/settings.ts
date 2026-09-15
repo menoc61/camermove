@@ -1,6 +1,7 @@
 import IORedis from "ioredis"
 import { createLogger, loadEnv } from "@camermove/config"
 import { prisma } from "./prisma"
+import { getSharedRedis } from "./redis"
 import type { AppSettings } from "@prisma/client"
 
 const log = createLogger()
@@ -18,15 +19,9 @@ export interface AppSettingsCached {
 // Process-local fast path (also the only cache layer in test env).
 const memoryCache = new Map<string, { value: unknown; expiresAt: number }>()
 
-let redis: IORedis | null = null
-
 function isTestEnv(): boolean {
   // Single source of truth via loadEnv(). No direct process.env reads.
   return loadEnv().NODE_ENV === "test"
-}
-
-function redisUrl(): string {
-  return loadEnv().REDIS_URL
 }
 
 function toCached(settings: AppSettings): AppSettingsCached {
@@ -39,15 +34,7 @@ function toCached(settings: AppSettings): AppSettingsCached {
 
 function getRedis(): IORedis | null {
   if (isTestEnv()) return null
-  if (redis) return redis
-  const url = redisUrl()
-  redis = new IORedis(url, {
-    maxRetriesPerRequest: 2,
-    enableReadyCheck: true,
-    lazyConnect: true,
-  })
-  redis.on("error", (err: Error) => log.warn({ err: err.message }, "db settings redis error"))
-  return redis
+  return getSharedRedis()
 }
 
 /**

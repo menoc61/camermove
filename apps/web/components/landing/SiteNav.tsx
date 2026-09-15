@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
-import { motion, useMotionValueEvent, useScroll, useReducedMotion } from "motion/react"
+import { useState } from "react"
+import { motion, useMotionValueEvent, useScroll } from "motion/react"
+import { useOverlayNav } from "@/lib/motion"
 import { useAuthStore } from "@camermove/frontend"
 import { cn } from "@/lib/utils"
 
@@ -24,118 +25,25 @@ const NAV_LINKS: { href: string; label: string }[] = [
  */
 export function SiteNav() {
   const accessToken = useAuthStore((s) => s.accessToken)
-  const shouldReduce = useReducedMotion()
   const [scrolled, setScrolled] = useState(false)
-  const [isOpen, setIsOpen] = useState(false)
-  const overlayRef = useRef<HTMLDivElement>(null)
-  const linksRef = useRef<(HTMLAnchorElement | null)[]>([])
-  const hamburgerRef = useRef<HTMLButtonElement>(null)
-  const linesRef = useRef<(HTMLSpanElement | null)[]>([])
+  // Overlay open/close, hamburger morph, GSAP timelines, scroll-lock,
+  // Escape + focus trap — all owned by the shared motion adapter.
+  const nav = useOverlayNav()
+  const {
+    isOpen,
+    close: closeNav,
+    toggle,
+    hamburgerRef,
+    linesRef,
+    overlayRef,
+    linksRef,
+    onKeyDown,
+  } = nav
   const { scrollY } = useScroll()
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     setScrolled(latest > 20)
   })
-
-  // ── Hamburger morph (3 lines → X), transform-only → compositor ──
-  const animateHamburger = useCallback(
-    async (open: boolean) => {
-      if (shouldReduce) return
-      const gsap = (await import("gsap")).default
-      const [l1, l2, l3] = linesRef.current
-      if (!l1 || !l2 || !l3) return
-      if (open) {
-        gsap.to(l1, { y: 8, rotate: 45, duration: 0.3, ease: "power2.out" })
-        gsap.to(l2, { opacity: 0, scaleX: 0, duration: 0.2, ease: "power2.out" })
-        gsap.to(l3, { y: -8, rotate: -45, duration: 0.3, ease: "power2.out" })
-      } else {
-        gsap.to(l1, { y: 0, rotate: 0, duration: 0.3, ease: "power2.out" })
-        gsap.to(l2, { opacity: 1, scaleX: 1, duration: 0.2, ease: "power2.out" })
-        gsap.to(l3, { y: 0, rotate: 0, duration: 0.3, ease: "power2.out" })
-      }
-    },
-    [shouldReduce]
-  )
-
-  // ── Overlay open: expo.inOut slide + staggered links (yolo timeline) ──
-  const openNav = useCallback(async () => {
-    animateHamburger(true)
-    setIsOpen(true)
-    document.body.style.overflow = "hidden"
-    if (shouldReduce) return
-    const overlay = overlayRef.current
-    if (!overlay) return
-    const gsap = (await import("gsap")).default
-    gsap.set(overlay, { y: "-100%" })
-    gsap.set(linksRef.current, { y: "110%", opacity: 0 })
-    const tl = gsap.timeline()
-    tl.to(overlay, { y: "0%", duration: 0.75, ease: "expo.inOut" }).fromTo(
-      linksRef.current,
-      { y: "110%", opacity: 0 },
-      { y: "0%", opacity: 1, duration: 0.7, ease: "expo.out", stagger: 0.07 },
-      "-=0.4"
-    )
-  }, [shouldReduce, animateHamburger])
-
-  // ── Overlay close: reverse, then hide + unlock scroll ──
-  const closeNav = useCallback(async () => {
-    animateHamburger(false)
-    if (shouldReduce) {
-      setIsOpen(false)
-      document.body.style.overflow = ""
-      return
-    }
-    const overlay = overlayRef.current
-    if (!overlay) return
-    const gsap = (await import("gsap")).default
-    const tl = gsap.timeline({
-      onComplete: () => {
-        setIsOpen(false)
-        gsap.set(overlay, { y: "-100%" })
-        document.body.style.overflow = ""
-      },
-    })
-    tl.to(overlay, { y: "-100%", duration: 0.6, ease: "expo.inOut" })
-  }, [shouldReduce, animateHamburger])
-
-  // Escape closes and returns focus to the hamburger; focus moves into the
-  // overlay on open (keyboard users must not lose their place).
-  useEffect(() => {
-    if (!isOpen) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        closeNav()
-        hamburgerRef.current?.focus()
-      }
-    }
-    window.addEventListener("keydown", handler)
-    const first = overlayRef.current?.querySelector<HTMLElement>("a")
-    first?.focus()
-    return () => window.removeEventListener("keydown", handler)
-  }, [isOpen, closeNav])
-
-  // Minimal focus trap: Tab cycles within the overlay instead of escaping.
-  function onOverlayKeyDown(e: React.KeyboardEvent) {
-    if (e.key !== "Tab" || !overlayRef.current) return
-    const focusables = overlayRef.current.querySelectorAll<HTMLElement>("a[href], button")
-    if (focusables.length === 0) return
-    const first = focusables[0]
-    const last = focusables[focusables.length - 1]
-    if (!first || !last) return
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
-
-  useEffect(() => {
-    return () => {
-      document.body.style.overflow = ""
-    }
-  }, [])
 
   return (
     <>
@@ -190,7 +98,7 @@ export function SiteNav() {
 
             <motion.button
               ref={hamburgerRef}
-              onClick={() => (isOpen ? closeNav() : openNav())}
+              onClick={toggle}
               aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
               aria-expanded={isOpen}
               aria-controls="cm-nav-overlay"
@@ -229,7 +137,7 @@ export function SiteNav() {
       <div
         id="cm-nav-overlay"
         ref={overlayRef}
-        onKeyDown={onOverlayKeyDown}
+        onKeyDown={onKeyDown}
         className={cn("nav-overlay", isOpen && "is-open")}
         aria-hidden={!isOpen}
       >

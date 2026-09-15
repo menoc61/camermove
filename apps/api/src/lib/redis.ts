@@ -1,25 +1,6 @@
-import IORedis from "ioredis"
-import { createLogger, loadEnv } from "@camermove/config"
+// Single shared Redis client lives in @camermove/db — this module re-exports
+// it for API-local call sites (rate limiting, idempotency, webhook dedup, cache).
+import { getSharedRedis, closeSharedRedis } from "@camermove/db"
 
-const log = createLogger()
-
-let client: IORedis | null = null
-
-export function getRedis(): IORedis {
-  if (client) return client
-  const env = loadEnv()
-  client = new IORedis(env.REDIS_URL, {
-    maxRetriesPerRequest: 2,
-    enableReadyCheck: true,
-    lazyConnect: true,
-  })
-  client.on("error", (err: Error) => log.warn({ err: err.message }, "redis error"))
-  return client
-}
-
-export async function closeRedis() {
-  if (client) {
-    await client.quit()
-    client = null
-  }
-}
+export const getRedis = getSharedRedis
+export const closeRedis = closeSharedRedis

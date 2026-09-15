@@ -1,8 +1,6 @@
-import { apiFetch } from "./client"
+import { request, resourceClient } from "./resource"
 
-function apiBase(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
-}
+const hotels = resourceClient<HotelItem>("/api/v1/hotels")
 
 export interface HotelRoom {
   id: string
@@ -55,26 +53,25 @@ export interface HotelsResponse {
 }
 
 export async function fetchHotels(params: HotelsParams): Promise<HotelsResponse> {
-  const qs = new URLSearchParams()
-  if (params.city) qs.set("city", params.city)
-  if (params.checkIn) qs.set("checkIn", params.checkIn)
-  if (params.checkOut) qs.set("checkOut", params.checkOut)
-  if (params.guests != null) qs.set("guests", String(params.guests))
-  if (params.minPrice != null) qs.set("minPrice", String(params.minPrice))
-  if (params.maxPrice != null) qs.set("maxPrice", String(params.maxPrice))
-  if (params.q) qs.set("q", params.q)
-  qs.set("page", String(params.page ?? 1))
-  qs.set("perPage", String(params.perPage ?? params.limit ?? 20))
-  if (params.orderBy) qs.set("orderBy", params.orderBy)
-  const res = await fetch(`${apiBase()}/api/v1/hotels?${qs.toString()}`, { cache: "no-store" })
-  if (!res.ok) throw new Error("hotels search failed")
-  return res.json()
+  return hotels.request<HotelsResponse>("/api/v1/hotels", {
+    cache: "no-store",
+    params: {
+      city: params.city,
+      checkIn: params.checkIn,
+      checkOut: params.checkOut,
+      guests: params.guests,
+      minPrice: params.minPrice,
+      maxPrice: params.maxPrice,
+      q: params.q,
+      page: params.page ?? 1,
+      perPage: params.perPage ?? params.limit ?? 20,
+      orderBy: params.orderBy,
+    },
+  })
 }
 
 export async function fetchHotel(id: string): Promise<HotelItem> {
-  const res = await fetch(`${apiBase()}/api/v1/hotels/${id}`, { cache: "no-store" })
-  if (!res.ok) throw new Error("hotel not found")
-  return res.json()
+  return hotels.get<HotelItem>(`/${id}`, { cache: "no-store" })
 }
 
 export interface CreateHotelBookingBody {
@@ -88,17 +85,11 @@ export interface CreateHotelBookingBody {
 }
 
 export function createHotelBooking(token: string, body: CreateHotelBookingBody) {
-  const headers: Record<string, string> = { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() }
-  return apiFetch<{ id: string; totalAmount: number; status: string }>(`/api/v1/hotels/bookings`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    token,
-  })
+  return hotels.create<{ id: string; totalAmount: number; status: string }>("/bookings", body, { token })
 }
 
 export function fetchHotelBooking(token: string, id: string) {
-  return apiFetch<{
+  return hotels.get<{
     id: string
     status: string
     checkIn: string
@@ -108,7 +99,7 @@ export function fetchHotelBooking(token: string, id: string) {
     hotel?: { id: string; name: string; city: string } | null
     roomType?: { id: string; name: string } | null
     payment?: { status: string } | null
-  }>(`/api/v1/hotels/bookings/${id}`, { method: "GET", token })
+  }>(`/bookings/${id}`, { token })
 }
 
 export interface MyHotelBookingsParams {
@@ -139,21 +130,11 @@ export interface MyHotelBookingsResponse {
 }
 
 export function fetchMyHotelBookings(token: string, params: MyHotelBookingsParams = {}): Promise<MyHotelBookingsResponse> {
-  const qs = new URLSearchParams()
-  if (params.page) qs.set("page", String(params.page))
-  if (params.perPage) qs.set("perPage", String(params.perPage))
-  if (params.q) qs.set("q", params.q)
-  if (params.dateFrom) qs.set("dateFrom", params.dateFrom)
-  if (params.dateTo) qs.set("dateTo", params.dateTo)
-  return apiFetch<MyHotelBookingsResponse>(`/api/v1/hotels/bookings/me${qs.toString() ? `?${qs.toString()}` : ""}`, { method: "GET", token })
+  return hotels.request<MyHotelBookingsResponse>(`/api/v1/hotels/bookings/me`, { token, params })
 }
 
 export function cancelHotelBooking(token: string, id: string) {
-  return apiFetch<{ id: string; status: string }>(`/api/v1/hotels/bookings/${id}/cancel`, {
-    method: "POST",
-    headers: { "Idempotency-Key": crypto.randomUUID() },
-    token,
-  })
+  return hotels.request<{ id: string; status: string }>(`/api/v1/hotels/bookings/${id}/cancel`, { method: "POST", token })
 }
 
 export interface HotelPaymentOpts {
@@ -174,13 +155,12 @@ export async function createHotelPayment(
   bookingId: string,
   opts: HotelPaymentOpts
 ): Promise<HotelPaymentResult> {
-  const res = await apiFetch<{ payment: { id: string }; authorizationUrl: string | null; paymentUrl?: string | null }>(
+  const res = await hotels.request<{ payment: { id: string }; authorizationUrl: string | null; paymentUrl?: string | null }>(
     `/api/v1/hotels/bookings/${bookingId}/pay`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
-      body: JSON.stringify({ provider: opts.provider, method: opts.method, phone: opts.phone, email: opts.email }),
       token,
+      body: { provider: opts.provider, method: opts.method, phone: opts.phone, email: opts.email },
     }
   )
   return { payment: res.payment, authorizationUrl: res.authorizationUrl, paymentUrl: res.paymentUrl ?? res.authorizationUrl }

@@ -1,3 +1,5 @@
+import { request } from "./resource"
+
 export interface Agency {
   id: string
   companyName: string
@@ -8,12 +10,9 @@ export interface Agency {
 }
 
 export async function fetchAgencies(city: string): Promise<Agency[]> {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
-  const res = await fetch(
-    `${base}/api/v1/agencies?city=${encodeURIComponent(city)}`,
-    { cache: "no-store" }
-  )
-  if (!res.ok) throw new Error("agencies failed")
-  const data = await res.json()
+  const data = await request<{ items?: Agency[]; agencies?: Agency[] }>("/api/v1/agencies", {
+    cache: "no-store",
+    params: { city },
+  })
   return (data.items ?? data.agencies ?? []) as Agency[]
 }

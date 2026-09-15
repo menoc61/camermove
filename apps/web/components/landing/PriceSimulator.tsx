@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useState } from "react"
 import { ArrowUpDown, Search } from "lucide-react"
 
-import { motion, AnimatePresence } from "motion/react"
+import { motion, AnimatePresence, animate } from "motion/react"
 import { fetchSearch } from "../../lib/api/search"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +19,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { CityAutocomplete } from "@/components/search/CityAutocomplete"
 import { priceXaf } from "@camermove/shared"
-import { scaleIn, spring } from "@/lib/animations"
+import { scaleIn } from "@/lib/motion"
 
 function todayPlus(days: number): string {
   const d = new Date()
@@ -44,13 +44,13 @@ export function PriceSimulator() {
     setDestination(origin)
     setSwapKey((k) => k + 1)
     if (swapIconRef.current) {
-      const gsapModule = await import("gsap")
-      const gsap = gsapModule.default
-      gsap.to(swapIconRef.current, {
-        rotation: "+=180",
-        duration: 0.35,
-        ease: "back.out(1.7)",
-      })
+      // Spring spin via motion/react — motion lives in the shared adapter's
+      // vocabulary; no per-component GSAP.
+      animate(
+        swapIconRef.current,
+        { rotate: [0, 180] },
+        { duration: 0.35, ease: "backOut" }
+      )
     }
   }, [origin, destination])
 

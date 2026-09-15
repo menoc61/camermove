@@ -1,3 +1,5 @@
+import { request } from "./resource"
+
 export interface Place {
   displayName: string
   city?: string
@@ -8,12 +10,10 @@ export interface Place {
 
 export async function fetchPlaces(q: string): Promise<Place[]> {
   if (!q || q.length < 2) return []
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
-  const res = await fetch(
-    `${base}/api/v1/places/autocomplete?q=${encodeURIComponent(q)}&countrycodes=cm&limit=5`,
-    { cache: "no-store" }
-  )
-  if (!res.ok) throw new Error("places failed")
-  const data = await res.json()
+  const data = await request<{ places: Place[] }>("/api/v1/places/autocomplete", {
+    cache: "no-store",
+    errorLabel: "places failed",
+    params: { q, countrycodes: "cm", limit: 5 },
+  })
   return data.places
 }

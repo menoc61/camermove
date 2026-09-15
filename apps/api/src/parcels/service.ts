@@ -1,6 +1,8 @@
 import { getAppSettingsCached, prisma } from "@camermove/db"
-import { BadRequestError, ConflictError, NotFoundError, ForbiddenError, loadEnv } from "@camermove/config"
+import { BadRequestError, ConflictError, NotFoundError, ForbiddenError } from "@camermove/config"
 import { invalidateCache } from "../lib/cache.js"
+import { initiateEntityPayment, type PaymentProvider } from "../payments/initiate.js"
+import { confirmPaymentSuccess, cancelIfPending, referenceForKind, type ConfirmPaymentAdapter, type CancelPendingAdapter, type ConfirmLink } from "../booking-kernel/index.js"
 
 export async function calcShippingCost(input: {
   parcelType: string
@@ -61,53 +63,7 @@ export function isValidTransition(from: string, to: string): boolean {
 }
 
 export function parcelPaymentReference(parcelId: string): string {
-  return `PARCEL-${parcelId.slice(0, 8).toUpperCase()}`
-}
-
-async function publishParcelEvent(topic: string, data: Record<string, unknown>) {
-  try {
-    const env = loadEnv() as unknown as Record<string, unknown>
-    const { createKafkaClient } = await import("@camermove/events")
-    const kafka = createKafkaClient(env as never)
-    const producer = kafka.producer({ idempotent: true })
-    await producer.connect().catch(() => {})
-    await producer
-      .send({
-        topic: topic as never,
-        messages: [{ key: String(data.id ?? data.trackingNumber ?? ""), value: JSON.stringify({ type: topic, ts: new Date().toISOString(), data }) }],
-      })
-      .catch(() => {})
-    await producer.disconnect().catch(() => {})
-  } catch {}
-}
-
-/** Publish a typed NotificationEvent (shared contract) for the worker dispatcher fan-out. */
-async function publishParcelTypedEvent(topic: string, type: string, typedEvent: Record<string, unknown>, key: string) {
-  try {
-    const env = loadEnv() as unknown as Record<string, unknown>
-    const { createKafkaClient } = await import("@camermove/events")
-    const kafka = createKafkaClient(env as never)
-    const producer = kafka.producer({ idempotent: true })
-    await producer.connect().catch(() => {})
-    await producer
-      .send({
-        topic: topic as never,
-        messages: [
-          {
-            key,
-            value: JSON.stringify({
-              id: `${type}-${key}-${Date.now()}`,
-              type,
-              ts: new Date().toISOString(),
-              aggregateId: key,
-              data: typedEvent,
-            }),
-          },
-        ],
-      })
-      .catch(() => {})
-    await producer.disconnect().catch(() => {})
-  } catch {}
+  return referenceForKind("parcel", parcelId)
 }
 
 export async function createParcel(input: {
@@ -185,15 +141,19 @@ export async function createParcel(input: {
     })
   } catch {}
 
-  await publishParcelEvent("parcel.created", {
-    id: created.id,
-    trackingNumber,
-    userId: input.userId,
-    senderCity: input.senderCity,
-    recipientCity: input.recipientCity,
-    parcelType: input.parcelType,
-    shippingCost,
-  })
+  const { publishEvent, makeDataEvent, EVENT_TOPICS } = await import("@camermove/events")
+  await publishEvent(
+    EVENT_TOPICS.parcelCreated,
+    makeDataEvent("parcel.created", created.id, {
+      id: created.id,
+      trackingNumber,
+      userId: input.userId,
+      senderCity: input.senderCity,
+      recipientCity: input.recipientCity,
+      parcelType: input.parcelType,
+      shippingCost,
+    }),
+  )
 
   try {
     await invalidateCache("parcels*")
@@ -232,7 +192,7 @@ export async function advanceParcelStatus(input: {
     if (!isValidTransition(current, input.nextStatus)) {
       throw new BadRequestError(`Transition invalide: ${current} → ${input.nextStatus}`)
     }
-    const log = await t.parcelStatusLog.create({
+    const statusLog = await t.parcelStatusLog.create({
       data: { parcelId: input.parcelId, status: input.nextStatus as never, location: input.location, note: input.note },
     })
     const upd = await t.parcel.update({
@@ -240,7 +200,7 @@ export async function advanceParcelStatus(input: {
       data: { status: input.nextStatus as never, currentLocation: input.location ?? undefined },
       include: { statusHistory: { orderBy: { createdAt: "asc" } } },
     })
-    return { upd, log }
+    return { upd, log: statusLog }
   })
 
   const upd = (updated as { upd: { id: string } }).upd
@@ -252,16 +212,20 @@ export async function advanceParcelStatus(input: {
         action: "parcel.status.update",
         entityType: "Parcel",
         entityId: input.parcelId,
-        metadata: { from: (updated as unknown as { upd: { status: string } }).upd ? undefined : undefined, nextStatus: input.nextStatus, location: input.location, note: input.note, ...(input.meta ?? {}) } as never,
+        metadata: { nextStatus: input.nextStatus, location: input.location, note: input.note, ...(input.meta ?? {}) } as never,
       },
     })
   } catch {}
-  await publishParcelEvent("parcel.status.updated", { id: input.parcelId, status: input.nextStatus, location: input.location })
+
+  const { publishEvent, makeDataEvent, EVENT_TOPICS } = await import("@camermove/events")
+  await publishEvent(
+    EVENT_TOPICS.parcelStatusUpdated,
+    makeDataEvent("parcel.status.updated", input.parcelId, { id: input.parcelId, status: input.nextStatus, location: input.location }),
+  )
   const parcelAfter = (upd as unknown as { id: string; userId: string; trackingNumber: string; currentLocation: string | null })
-  await publishParcelTypedEvent(
-    "camermove.parcel.status.changed",
-    "parcel.status.changed",
-    {
+  await publishEvent(
+    EVENT_TOPICS.parcelStatusChanged,
+    makeDataEvent("parcel.status.changed", input.parcelId, {
       type: "parcel.status.changed",
       userId: parcelAfter.userId,
       payload: {
@@ -271,8 +235,7 @@ export async function advanceParcelStatus(input: {
         status: input.nextStatus,
         location: parcelAfter.currentLocation ?? input.location,
       },
-    },
-    input.parcelId,
+    }),
   )
   try {
     await invalidateCache("parcels*")
@@ -300,246 +263,120 @@ export async function createParcelPayment(input: {
   if (parcel.userId !== input.userId) {
     throw new ForbiddenError("Accès refusé")
   }
-  const amount = parcel.shippingCost
-  if (input.provider === "cinetpay" && amount % 5 !== 0) throw new BadRequestError("Montant doit être multiple de 5 (XAF)")
 
-  const existing = await prisma.payment.findFirst({ where: { id: parcel.paymentId ?? undefined } as never }).catch(() => null)
-  if (existing && ["pending", "processing"].includes((existing as unknown as { status: string }).status)) {
-    const authUrl = ((existing as unknown as { webhookPayload: Record<string, unknown> | null }).webhookPayload)?.authorizationUrl as string | undefined
-    return { payment: existing, authorizationUrl: authUrl ?? null }
-  }
-
-  const env = loadEnv()
-  const reference = parcelPaymentReference(input.parcelId)
-  const baseUrl = env.API_URL as string | undefined
-  const frontendUrl = env.FRONTEND_URL as string | undefined
-  const callbackBase = (frontendUrl ?? baseUrl ?? "https://camermove.cm") as string
-  const callbackUrl = `${String(callbackBase).replace(/\/$/, "")}/payment/callback?reference=${reference}`
-  const notifyUrl = `${String((baseUrl ?? "https://camermove.cm") as string).replace(/\/$/, "")}/api/v1/webhooks/${input.provider}`
-  const methodToChannels = (m?: string): "ALL" | "MOBILE_MONEY" | "CREDIT_CARD" | "WALLET" => {
-    if (m === "mobile_money") return "MOBILE_MONEY"
-    if (m === "card") return "CREDIT_CARD"
-    if (m === "bank_transfer") return "WALLET"
-    return "ALL"
-  }
-  const { getProvider } = await import("../payments/providers/index.js")
-  const provider = getProvider(input.provider as never)
-  const result = await provider.createPayment({
-    bookingId: input.parcelId,
-    reference,
-    amount,
-    currency: "XAF",
-    email: input.email,
+  return initiateEntityPayment({
+    kind: "parcel",
+    entityId: input.parcelId,
+    userId: input.userId,
+    provider: input.provider as PaymentProvider,
+    amount: parcel.shippingCost,
+    reference: parcelPaymentReference(input.parcelId),
+    description: `CamerMove Parcel ${parcelPaymentReference(input.parcelId)}`,
     phone: input.phone,
-    description: `CamerMove Parcel ${reference}`,
-    callbackUrl,
-    notifyUrl,
-    channels: methodToChannels(input.method),
+    email: input.email,
+    method: input.method,
+    meta: input.meta,
+    notFoundMessage: "Colis introuvable",
+    findFresh: async (tx) => (tx as typeof prisma).parcel.findUnique({ where: { id: input.parcelId } }) as unknown as { paymentId: string | null } | null,
+    linkPayment: async (tx, paymentId) => {
+      await (tx as typeof prisma).parcel.update({ where: { id: input.parcelId }, data: { paymentId } as never })
+    },
+    auditEntityMeta: { parcelId: input.parcelId },
   })
+}
 
-  const payment = await prisma.$transaction(async (tx: unknown) => {
-    const t = tx as {
-      parcel: { findUnique: (a: unknown) => Promise<unknown> }
-      payment: { findUnique: (a: unknown) => Promise<unknown>; create: (a: unknown) => Promise<unknown> }
-      auditLog: { create: (a: unknown) => Promise<unknown> }
-    }
-    const fresh = (await (t.parcel as unknown as { findUnique: (a: unknown) => Promise<unknown> }).findUnique({ where: { id: input.parcelId } })) as unknown as { paymentId: string | null } | null
-    if (!fresh) throw new NotFoundError("Colis introuvable")
-    if (fresh.paymentId) {
-      const linked = await t.payment.findUnique({ where: { id: fresh.paymentId } }).catch(() => null)
-      if (linked && ["pending", "processing"].includes((linked as { status: string }).status)) return linked
-    }
-    const created = await t.payment.create({
-      data: {
-        bookingId: null as never,
-        provider: input.provider as never,
-        providerRef: result.providerRef,
-        amount,
-        currency: "XAF",
-        method: (input.method as never) ?? "mobile_money",
-        status: "pending" as never,
-        webhookPayload: { ...((result.rawResponse as Record<string, unknown>) ?? {}), authorizationUrl: result.authorizationUrl, bookingReference: reference, entityKind: "parcel" } as never,
-      },
-    })
-    // Need to link via tx.parcel.update but prisma.$transaction with tx object — use tx.parcel.update if available, else prisma.parcel.update
-    const txParcel = (tx as unknown as { parcel: { update: (a: unknown) => Promise<unknown> } }).parcel
-    if (txParcel?.update) {
-      await txParcel.update({ where: { id: input.parcelId }, data: { paymentId: (created as { id: string }).id } as never })
-    } else {
-      await prisma.parcel.update({ where: { id: input.parcelId }, data: { paymentId: (created as { id: string }).id } as never })
-    }
-    await t.auditLog.create({
-      data: {
-        actorId: input.userId,
-        action: "payment.create",
-        entityType: "Payment",
-        entityId: (created as { id: string }).id,
-        metadata: { parcelId: input.parcelId, provider: input.provider, amount, ip: (input.meta as Record<string, unknown> | undefined)?.ip, ua: (input.meta as Record<string, unknown> | undefined)?.userAgent } as never,
-      },
-    })
-    return created
-  })
-
-  try {
-    const { createKafkaClient } = await import("@camermove/events")
-    const { EVENT_TOPICS } = await import("@camermove/events")
-    const kafka = createKafkaClient(env as never)
-    const producer = kafka.producer({ idempotent: true })
-    await producer.connect().catch(() => {})
-    await producer
-      .send({
-        topic: (EVENT_TOPICS as unknown as Record<string, string>).paymentInitiated ?? "camermove.payment.initiated",
-        messages: [{ key: (payment as { id: string }).id, value: JSON.stringify({ paymentId: (payment as { id: string }).id, parcelId: input.parcelId, provider: input.provider, amount }) }],
-      })
-      .catch(() => {})
-    await producer.disconnect().catch(() => {})
-  } catch {}
-
-  return { payment, authorizationUrl: result.authorizationUrl }
+const confirmAdapter: ConfirmPaymentAdapter = {
+  kind: "parcel",
+  notFoundMessage: "Colis introuvable pour ce paiement",
+  table: "Parcel",
+  // Parcel has no pending_payment status — it stays `registered`; the paid flag is Payment.status.
+  isConfirmable: () => true,
+  findLink: async (paymentId, tx?) => {
+    const client = (tx ?? prisma) as typeof prisma
+    return (await client.parcel.findFirst({ where: { paymentId } })) as unknown as (ConfirmLink & {
+      trackingNumber: string
+    }) | null
+  },
+  confirm: async () => {},
+  notification: (link) => ({
+    topic: "camermove.payment.confirmed" as const,
+    type: "payment.confirmed",
+    userId: link.userId,
+    payload: {
+      bookingId: link.id,
+      reference: (link as unknown as { trackingNumber: string }).trackingNumber,
+      amount: link.totalAmount,
+    },
+  }),
 }
 
 /**
  * Confirm a parcel payment after success (webhook / reconciliation).
- * Parcel has no pending_payment status — it stays `registered`; the paid flag
- * is Payment.status. ACID via $transaction with SELECT ... FOR UPDATE.
  * Idempotent: replay returns { confirmed: false } but still re-publishes the
  * payment.confirmed notification event for fan-out safety.
+ * ACID ceremony lives in the booking-kernel.
  */
 export async function confirmParcelPaymentSuccess(paymentId: string, event: unknown): Promise<{ confirmed: boolean; parcelId: string }> {
-  const link = (await prisma.parcel.findFirst({ where: { paymentId } })) as unknown as {
-    id: string
-    userId: string
-    trackingNumber: string
-    shippingCost: number
-  } | null
-  if (!link) throw new NotFoundError("Colis introuvable pour ce paiement")
+  const { entityId, confirmed } = await confirmPaymentSuccess(confirmAdapter, paymentId, event)
+  return { confirmed, parcelId: entityId }
+}
 
-  let wasNew = false
-  await prisma.$transaction(async (tx: unknown) => {
-    const t = tx as {
-      parcel: { findUnique: (a: unknown) => Promise<unknown> }
-      payment: { findUnique: (a: unknown) => Promise<unknown>; update: (a: unknown) => Promise<unknown> }
-      auditLog: { create: (a: unknown) => Promise<unknown> }
+const cancelAdapter: CancelPendingAdapter<{ id: string; userId: string; status: string; totalAmount: number; trackingNumber: string; senderCity: string; recipientCity: string; shippingCost: number; paymentId: string | null }> = {
+  notFoundMessage: "Colis introuvable",
+  table: "Parcel",
+  find: async (id) => {
+    const row = (await prisma.parcel.findUnique({ where: { id } })) as unknown as { id: string; userId: string; status: string; trackingNumber: string; senderCity: string; recipientCity: string; shippingCost: number; paymentId: string | null } | null
+    return row ? { ...row, totalAmount: row.shippingCost } : null
+  },
+  findFresh: async (tx, id) => {
+    const row = (await (tx as typeof prisma).parcel.findUnique({ where: { id } })) as unknown as { id: string; userId: string; status: string; trackingNumber: string; shippingCost: number; paymentId: string | null } | null
+    return row ? { ...row, totalAmount: row.shippingCost } : null
+  },
+  assertCancellable: async (entity) => {
+    if (entity.status !== "registered") {
+      throw new ConflictError(`Colis non annulable — statut: ${entity.status}`)
     }
-    await (tx as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Parcel" WHERE "id"=${link.id} FOR UPDATE`
-    await (tx as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Payment" WHERE "id"=${paymentId} FOR UPDATE`
-    const freshPayment = (await t.payment.findUnique({ where: { id: paymentId } })) as unknown as { status: string; provider: string } | null
-    const freshParcel = await t.parcel.findUnique({ where: { id: link.id } })
-    if (!freshPayment || !freshParcel) return
-    if (freshPayment.status === "success") return
-    if (["failed", "expired", "refunded"].includes(freshPayment.status as string)) return
-    await t.payment.update({ where: { id: paymentId }, data: { status: "success", webhookPayload: event as never } })
-    try {
-      await t.auditLog.create({
-        data: {
-          actorId: "system",
-          action: "payment.success",
-          entityType: "Payment",
-          entityId: paymentId,
-          metadata: { provider: freshPayment.provider, parcelId: link.id, deliveryId: (event as Record<string, unknown>)?.id ?? null } as never,
-        },
-      })
-    } catch {}
-    wasNew = true
-  })
-
-  // Reuse the generic payment.confirmed channel (tracking number as reference).
-  await publishParcelTypedEvent(
-    "camermove.payment.confirmed",
-    "payment.confirmed",
-    {
-      type: "payment.confirmed",
-      userId: link.userId,
-      payload: { bookingId: link.id, reference: link.trackingNumber, amount: link.shippingCost },
+    if (entity.paymentId) {
+      const payment = await prisma.payment.findUnique({ where: { id: entity.paymentId } }).catch(() => null)
+      if (payment && (payment as unknown as { status: string }).status === "success") {
+        throw new ConflictError("Colis déjà payé — contactez le support pour toute annulation")
+      }
+    }
+  },
+  cancel: async (tx, entity) => {
+    const t = tx as typeof prisma
+    await t.parcelStatusLog.create({
+      data: { parcelId: entity.id, status: "cancelled" as never, note: "Annulation par l'utilisateur" },
+    })
+    return t.parcel.update({ where: { id: entity.id }, data: { status: "cancelled" as never } })
+  },
+  auditAction: "parcel.booking.cancel",
+  auditEntityType: "Parcel",
+  auditExtra: (entity) => ({ trackingNumber: entity.trackingNumber, shippingCost: entity.shippingCost }),
+  notification: (entity) => ({
+    topic: "camermove.booking.status.changed" as const,
+    type: "booking.status.changed",
+    userId: entity.userId,
+    payload: {
+      parcelId: entity.id,
+      trackingNumber: entity.trackingNumber,
+      reference: entity.trackingNumber,
+      amount: entity.shippingCost,
+      serviceLabel: "Colis",
+      entityLabel: `${entity.senderCity} → ${entity.recipientCity}`,
+      newStatus: "cancelled",
+      status: "cancelled",
     },
-    link.id,
-  )
-  return { confirmed: wasNew, parcelId: link.id }
+  }),
 }
 
 /**
  * User cancellation for a parcel. Cancellable only from `registered` with no
  * successful payment — a paid or in-transit parcel must go through support (409).
- * ACID: status flip + history row inside $transaction with SELECT ... FOR UPDATE.
+ * ACID ceremony lives in the booking-kernel.
  */
 export async function cancelParcel(id: string, actorId: string, actorRole = "traveler") {
-  const parcel = (await prisma.parcel.findUnique({ where: { id } })) as unknown as {
-    id: string
-    userId: string
-    status: string
-    trackingNumber: string
-    senderCity: string
-    recipientCity: string
-    shippingCost: number
-    paymentId: string | null
-  } | null
-  if (!parcel) throw new NotFoundError("Colis introuvable")
-  const isAdmin = actorRole === "admin" || actorRole === "super_admin"
-  if (!isAdmin && parcel.userId !== actorId) throw new ForbiddenError("Accès refusé")
-  if (parcel.status !== "registered") {
-    throw new ConflictError(`Colis non annulable — statut: ${parcel.status}`)
-  }
-  if (parcel.paymentId) {
-    const payment = await prisma.payment.findUnique({ where: { id: parcel.paymentId } }).catch(() => null)
-    if (payment && (payment as unknown as { status: string }).status === "success") {
-      throw new ConflictError("Colis déjà payé — contactez le support pour toute annulation")
-    }
-  }
-
-  const updated = await prisma.$transaction(async (tx: unknown) => {
-    const t = tx as {
-      parcel: { findUnique: (a: unknown) => Promise<unknown>; update: (a: unknown) => Promise<unknown> }
-      payment: { findUnique: (a: unknown) => Promise<unknown> }
-      parcelStatusLog: { create: (a: unknown) => Promise<unknown> }
-    }
-    await (tx as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Parcel" WHERE "id"=${id} FOR UPDATE`
-    const fresh = (await t.parcel.findUnique({ where: { id } })) as unknown as { status: string; paymentId: string | null } | null
-    if (!fresh) throw new NotFoundError("Colis introuvable")
-    if (fresh.status !== "registered") {
-      throw new ConflictError(`Colis non annulable — statut: ${fresh.status}`)
-    }
-    if (fresh.paymentId) {
-      const linked = (await t.payment.findUnique({ where: { id: fresh.paymentId } }).catch(() => null)) as unknown as { status: string } | null
-      if (linked && linked.status === "success") {
-        throw new ConflictError("Colis déjà payé — contactez le support pour toute annulation")
-      }
-    }
-    await t.parcelStatusLog.create({
-      data: { parcelId: id, status: "cancelled" as never, note: "Annulation par l'utilisateur" },
-    })
-    return t.parcel.update({ where: { id }, data: { status: "cancelled" as never } })
-  })
-
-  try {
-    await prisma.auditLog.create({
-      data: {
-        actorId,
-        action: "parcel.booking.cancel",
-        entityType: "Parcel",
-        entityId: id,
-        metadata: { userId: parcel.userId, status: "cancelled", trackingNumber: parcel.trackingNumber, shippingCost: parcel.shippingCost } as never,
-      },
-    })
-  } catch {}
-  await publishParcelTypedEvent(
-    "camermove.booking.status.changed",
-    "booking.status.changed",
-    {
-      type: "booking.status.changed",
-      userId: parcel.userId,
-      payload: {
-        parcelId: id,
-        trackingNumber: parcel.trackingNumber,
-        reference: parcel.trackingNumber,
-        amount: parcel.shippingCost,
-        serviceLabel: "Colis",
-        entityLabel: `${parcel.senderCity} → ${parcel.recipientCity}`,
-        newStatus: "cancelled",
-        status: "cancelled",
-      },
-    },
-    id,
-  )
+  const updated = await cancelIfPending(cancelAdapter, id, actorId, actorRole)
   try {
     await invalidateCache("parcels*")
     await invalidateCache("search*")
