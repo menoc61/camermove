@@ -1,8 +1,10 @@
-import { prisma } from "@camermove/db"
+import { prisma, atomicHoldSeats } from "@camermove/db"
 import { ConflictError, ForbiddenError, NotFoundError, createLogger } from "@camermove/config"
 import { EVENT_TOPICS, makeEvent, publishEvent } from "@camermove/events"
 import { referenceForKind, tripReference, type PayableKind } from "./references.js"
 import type { ConfirmLink, ConfirmNotification, CancelEntity } from "./types.js"
+import { generateAndIssueTicket } from "../tickets/ticket.service.js"
+import { computeCommission } from "../payments/commission.js"
 
 const log = createLogger()
 
@@ -14,7 +16,7 @@ export interface AdapterInstance {
   find: (id: string) => Promise<Record<string, unknown> | null>
   findLink: (paymentId: string, tx?: unknown) => Promise<ConfirmLink | null>
   isConfirmable: (entity: ConfirmLink) => boolean
-  confirm: (tx: unknown, entityId: string) => Promise<void>
+  confirm: (tx: unknown, link: ConfirmLink, event: unknown) => Promise<void>
   notification: (entity: Record<string, unknown>) => ConfirmNotification
   findEntityByPaymentId: (paymentId: string) => Promise<Record<string, unknown> | null>
   makeReference: (id: string) => string
@@ -67,9 +69,9 @@ export const hotelAdapter: AdapterInstance = {
 
   isConfirmable(entity: ConfirmLink) { return entity.status === "pending_payment" },
 
-  async confirm(tx: unknown, entityId: string) {
+  async confirm(tx: unknown, link: ConfirmLink, _event: unknown) {
     await (tx as { hotelBooking: { update: (a: unknown) => Promise<unknown> } }).hotelBooking.update({
-      where: { id: entityId }, data: { status: "confirmed" },
+      where: { id: link.id }, data: { status: "confirmed" },
     })
   },
 
@@ -132,9 +134,9 @@ export const rentalAdapter: AdapterInstance = {
 
   isConfirmable(entity: ConfirmLink) { return entity.status === "pending_payment" },
 
-  async confirm(tx: unknown, entityId: string) {
+  async confirm(tx: unknown, link: ConfirmLink, _event: unknown) {
     await (tx as { rentalBooking: { update: (a: unknown) => Promise<unknown> } }).rentalBooking.update({
-      where: { id: entityId }, data: { status: "confirmed" },
+      where: { id: link.id }, data: { status: "confirmed" },
     })
   },
 
@@ -198,9 +200,9 @@ export const eventAdapter: AdapterInstance = {
 
   isConfirmable(entity: ConfirmLink) { return entity.status === "pending_payment" },
 
-  async confirm(tx: unknown, entityId: string) {
+  async confirm(tx: unknown, link: ConfirmLink, _event: unknown) {
     await (tx as { eventBooking: { update: (a: unknown) => Promise<unknown> } }).eventBooking.update({
-      where: { id: entityId }, data: { status: "confirmed" },
+      where: { id: link.id }, data: { status: "confirmed" },
     })
   },
 
@@ -266,9 +268,9 @@ export const parcelAdapter: AdapterInstance = {
 
   isConfirmable() { return true },
 
-  async confirm(tx: unknown, entityId: string) {
+  async confirm(tx: unknown, link: ConfirmLink, _event: unknown) {
     await (tx as { parcel: { update: (a: unknown) => Promise<unknown> } }).parcel.update({
-      where: { id: entityId }, data: { paymentId: entityId },
+      where: { id: link.id }, data: { paymentId: link.id },
     })
   },
 
@@ -311,26 +313,112 @@ export const parcelAdapter: AdapterInstance = {
 
 export const tripAdapter: AdapterInstance = {
   kind: "trip",
-  table: "Booking",
-  idField: "tripId",
-  notFoundMessage: "Réservation introuvable",
+  table: "Trip",
+  idField: "id",
+  notFoundMessage: "Trajet introuvable",
 
   async find(id: string) {
-    return prisma.booking.findUnique({ where: { id } })
+    return prisma.trip.findUnique({ where: { id }, include: { seatAvailability: true } })
+  },
+
+  async checkAvailability(entity: Record<string, unknown>, input: { meta: Record<string, unknown> }, tx: unknown) {
+    const seatCount = Number(input.meta?.seatCount ?? 1)
+    const tripId = entity.id as string
+    if (!entity.seatAvailability) throw new ConflictError("Aucune disponibilité pour ce trajet")
+    await atomicHoldSeats(tripId, seatCount, tx as never)
   },
 
   async findLink(paymentId: string, tx?: unknown) {
-    const p = tx ? (tx as { payment: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).payment.findUnique({ where: { id: paymentId }, include: { booking: true } })
-      : await prisma.payment.findUnique({ where: { id: paymentId }, include: { booking: true } })
-    return toConfirmLink(p as Record<string, unknown>)
+    const t = tx as { payment: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } } | undefined
+    const p = t ? t.payment.findUnique({ where: { id: paymentId }, include: { booking: { include: { trip: true } } } })
+      : await prisma.payment.findUnique({ where: { id: paymentId }, include: { booking: { include: { trip: true } } } })
+    if (!p) return null
+    const link = toConfirmLink(p as Record<string, unknown>)
+    if (!link) return null
+    const booking = (p as unknown as { booking: { id: string; tripId: string; seatCount: number; totalAmount: number; reference: string; trip: { transportId: string } } | null }).booking
+    if (booking) {
+      link.tripId = booking.tripId
+      link.seatCount = booking.seatCount
+      link.transportId = booking.trip.transportId
+      link.reference = booking.reference
+    }
+    return link
   },
 
   isConfirmable(entity: ConfirmLink) { return entity.status === "pending_payment" },
 
-  async confirm(tx: unknown, entityId: string) {
-    await (tx as { booking: { update: (a: unknown) => Promise<unknown> } }).booking.update({
-      where: { id: entityId }, data: { status: "confirmed" },
-    })
+  async confirm(tx: unknown, link: ConfirmLink, event: unknown) {
+    const t = tx as { booking: { update: (a: unknown) => Promise<unknown> }
+      seatAvailability: { findUnique: (a: unknown) => Promise<{ seatsHeld: number; seatsBooked: number } | null>; update: (a: unknown) => Promise<unknown> }
+      $queryRawUnsafe: (q: string, ...v: unknown[]) => Promise<unknown>
+      commission: { create: (a: unknown) => Promise<unknown> }
+      auditLog: { create: (a: unknown) => Promise<unknown> }
+      ticket: { updateMany: (a: unknown) => Promise<unknown> } }
+    const tripId = link.tripId as string
+    const seatCount = link.seatCount as number
+    const totalAmount = link.totalAmount as number
+    const transportId = link.transportId as string
+    const bookingId = link.id as string
+
+    // Lock seat inventory + transition held → booked (with clamping)
+    await t.$queryRawUnsafe(`SELECT "tripId" FROM "SeatAvailability" WHERE "tripId" = $1 FOR UPDATE`, tripId)
+    const sa = await t.seatAvailability.findUnique({ where: { tripId } })
+    if (sa) {
+      const held = sa.seatsHeld ?? 0
+      const dec = Math.min(seatCount, held)
+      if (held < seatCount) {
+        log.warn({ held, seatCount, tripId }, "seatsHeld below seatCount, clamping")
+      }
+      await t.seatAvailability.update({
+        where: { tripId },
+        data: { seatsHeld: { decrement: dec }, seatsBooked: { increment: seatCount } },
+      })
+    }
+
+    // Flip booking status
+    await t.booking.update({ where: { id: bookingId }, data: { status: "confirmed" } })
+
+    // Commission — rely on @unique(bookingId) to prevent duplicate on retry
+    const c = await computeCommission(totalAmount, transportId)
+    try {
+      await t.commission.create({
+        data: {
+          bookingId,
+          grossAmount: totalAmount,
+          commissionAmount: c.commissionAmount,
+          netAmount: c.netAmount,
+          percentApplied: c.percentApplied,
+          payoutStatus: "pending",
+        },
+      })
+    } catch (e: unknown) {
+      const msg = (e as Error).message ?? ""
+      if (msg.includes("Unique constraint") || msg.includes("unique") || msg.includes("bookingId")) {
+        // idempotent success — commission already exists
+      } else throw e
+    }
+
+    // Generate ticket inside the same transaction (ACID per AGENTS.md §1).
+    const issuedTicket = await generateAndIssueTicket(tx as never, bookingId)
+
+    // Ticket creation audit (only if newly created)
+    if (issuedTicket.createdNew) {
+      try {
+        await t.auditLog.create({
+          data: {
+            actorId: "system",
+            action: "ticket.create",
+            entityType: "Ticket",
+            entityId: issuedTicket.id,
+            metadata: {
+              bookingId,
+              ticketId: issuedTicket.id,
+              userId: link.userId,
+            } as never,
+          },
+        })
+      } catch {}
+    }
   },
 
   notification(entity: Record<string, unknown>): ConfirmNotification {
@@ -344,19 +432,46 @@ export const tripAdapter: AdapterInstance = {
 
   makeReference(id: string) { return tripReference(id) },
 
-  calcTotalAmount(entity: Record<string, unknown>) {
-    return Number(entity.totalAmount ?? 0)
+  calcTotalAmount(entity: Record<string, unknown>, input?: { meta?: Record<string, unknown> }) {
+    const price = Number(entity.price ?? 0)
+    const seatCount = Number(input?.meta?.seatCount ?? 1)
+    return price * seatCount
   },
 
   async create(data: Record<string, unknown>, tx: unknown) {
     const t = tx as { booking: { create: (a: unknown) => Promise<Record<string, unknown>> } }
-    return t.booking.create({ data })
+    // The kernel spreads meta into `data`. For trip, meta carries `id: tripId`
+    // (used by the kernel to lock the Trip row), plus `seatCount` and `passengers`.
+    // Booking.create only accepts the tripId/seatCount/passengers columns — strip
+    // the alias `id` so Prisma doesn't choke on the unknown column.
+    const { passengers, id: _id, ...rest } = data as { passengers?: Array<{ fullName: string; phone?: string }>; id?: string } & Record<string, unknown>
+    return t.booking.create({
+      data: {
+        ...rest,
+        ...(Array.isArray(passengers) ? { passengers: { create: passengers } } : {}),
+      },
+    })
   },
 
   assertCancellable() {},
   async findFresh(tx, id) { return (tx as { booking: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).booking.findUnique({ where: { id } }) as unknown as Promise<Partial<CancelEntity> & CancelEntity | null> },
-  async releaseInventory() {},
-  async cancel(tx, entity) { return entity as unknown as Record<string, unknown> },
+  async releaseInventory(tx, entity) {
+    // Fail path: release held seats back to seatsAvailable. Booking link carries tripId + seatCount
+    // (populated by findLink above), so we don't need a second round-trip.
+    const tripId = (entity as unknown as { tripId?: string }).tripId
+    const seatCount = (entity as unknown as { seatCount?: number }).seatCount ?? 0
+    if (!tripId || seatCount <= 0) return
+    const t = tx as { seatAvailability: { update: (a: unknown) => Promise<unknown> } }
+    await t.seatAvailability.update({
+      where: { tripId },
+      data: { seatsAvailable: { increment: seatCount }, seatsHeld: { decrement: seatCount } },
+    })
+  },
+  async cancel(tx, entity) {
+    const t = tx as { booking: { update: (a: unknown) => Promise<unknown> } }
+    const bookingId = (entity as { id: string }).id
+    return t.booking.update({ where: { id: bookingId }, data: { status: "cancelled" } }) as unknown as Record<string, unknown>
+  },
   auditAction: "booking.cancel",
   auditEntityType: "Booking",
 }
@@ -381,9 +496,9 @@ export const insuranceAdapter: AdapterInstance = {
 
   isConfirmable(entity: ConfirmLink) { return entity.status === "pending_payment" },
 
-  async confirm(tx: unknown, entityId: string) {
+  async confirm(tx: unknown, link: ConfirmLink, _event: unknown) {
     await (tx as { insurancePolicy: { update: (a: unknown) => Promise<unknown> } }).insurancePolicy.update({
-      where: { id: entityId }, data: { status: "confirmed" },
+      where: { id: link.id }, data: { status: "confirmed" },
     })
   },
 

@@ -86,22 +86,6 @@ export async function createRentalBookingPayment(input: {
  */
 export async function confirmRentalPaymentSuccess(paymentId: string, event: unknown): Promise<{ confirmed: boolean; bookingId: string }> {
   const result = await confirmPaymentSuccess("rental", paymentId, event)
-
-  // Publish rental-specific confirmed notification
-  const { publishBookingConfirmed } = await import("@camermove/events/outbox")
-  const link = await rentalAdapter.findEntityByPaymentId(paymentId) as { id: string; userId: string; totalAmount: number; pickupCity?: string; dropoffCity?: string; startDate?: Date; endDate?: Date } | null
-  if (link) {
-    await publishBookingConfirmed("rental", link.id, link.userId, {
-      bookingId: link.id,
-      reference: rentalBookingReference(link.id),
-      amount: link.totalAmount,
-      pickupCity: link.pickupCity,
-      dropoffCity: link.dropoffCity,
-      startDate: link.startDate?.toISOString().slice(0, 10),
-      endDate: link.endDate?.toISOString().slice(0, 10),
-    })
-  }
-
   return { confirmed: result.confirmed, bookingId: result.entityId }
 }
 

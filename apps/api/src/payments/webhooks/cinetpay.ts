@@ -7,7 +7,7 @@ import type { FastifyInstance } from "fastify"
 import { loadEnv } from "@camermove/config"
 import { verifyCinetToken } from "./verify.js"
 import { getRedis } from "../../lib/redis.js"
-import { EVENT_TOPICS } from "@camermove/events"
+import { EVENT_TOPICS, publishEvent, makeEvent } from "@camermove/events"
 import crypto from "node:crypto"
 
 const memoryDedup = new Map<string, number>()
@@ -97,18 +97,13 @@ export async function cinetpayWebhookRoutes(app: FastifyInstance) {
       }
 
       try {
-        const { createKafkaClient } = await import("@camermove/events")
-        const env = loadEnv()
-        const kafka = createKafkaClient(env as never)
-        const producer = kafka.producer({ idempotent: true })
-        await producer.connect().catch(() => {})
-        await producer.send({
-          topic: EVENT_TOPICS.paymentWebhookReceived,
-          messages: [{ key: domainEvent.aggregateId, value: JSON.stringify(domainEvent) }],
-        })
-        await producer.disconnect().catch(() => {})
+        // Typed outbox (C4) replaces the hand-rolled kafkajs ceremony.
+        await publishEvent(
+          EVENT_TOPICS.paymentWebhookReceived,
+          makeEvent("payment.webhook.received", domainEvent.aggregateId, parsed as Record<string, unknown>),
+        )
       } catch (err) {
-        req.log.warn({ err, deliveryId }, "kafka publish failed, fallback to redis queue")
+        req.log.warn({ err, deliveryId }, "outbox publish failed, fallback to redis queue")
         try {
           const redis = getRedis()
           await redis.lpush("payment-webhooks", JSON.stringify(domainEvent))

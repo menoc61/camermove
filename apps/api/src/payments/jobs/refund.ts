@@ -1,5 +1,6 @@
 import { prisma } from "@camermove/db"
 import { calcRefund } from "@camermove/shared"
+import { publishEvent, makeEvent, EVENT_TOPICS } from "@camermove/events"
 /**
  * Refund a confirmed payment/booking.
  * Guarded to prevent double refund and negative seat counts.
@@ -73,16 +74,18 @@ export async function refundPayment(paymentId: string, actorId: string, reason?:
     // Commission payoutStatus to pending_refund or keep pending — publish event after tx
   })
 
-  // Publish refund event best-effort
+  // Publish refund event best-effort via the typed outbox (C4).
+  // Single envelope, single seam — no more hand-rolled kafkajs ceremony.
   try {
-    const { createKafkaClient, EVENT_TOPICS } = await import("@camermove/events")
-    const { loadEnv } = await import("@camermove/config")
-    const env = loadEnv() as never
-    const kafka = createKafkaClient(env)
-    const producer = kafka.producer({ idempotent: true })
-    await producer.connect().catch(() => {})
-    await producer.send({ topic: EVENT_TOPICS.paymentRefunded, messages: [{ key: booking.id, value: JSON.stringify({ id: paymentId, type: "payment.refunded", ts: new Date().toISOString(), aggregateId: booking.id, data: { paymentId, bookingId: booking.id, refundAmount } }) }] }).catch(() => {})
-    await producer.disconnect().catch(() => {})
+    await publishEvent(
+      EVENT_TOPICS.paymentRefunded,
+      makeEvent("payment.refunded", booking.id, {
+        type: "payment.refunded",
+        paymentId,
+        bookingId: booking.id,
+        refundAmount,
+      }),
+    )
   } catch {}
 
   return { refundAmount }

@@ -74,22 +74,6 @@ export async function createHotelBookingPayment(input: {
  */
 export async function confirmHotelPaymentSuccess(paymentId: string, event: unknown): Promise<{ confirmed: boolean; bookingId: string }> {
   const result = await confirmPaymentSuccess("hotel", paymentId, event)
-
-  // Publish hotel-specific confirmed notification
-  const { publishBookingConfirmed } = await import("@camermove/events/outbox")
-  const link = await hotelAdapter.findEntityByPaymentId(paymentId) as { id: string; userId: string; totalAmount: number; hotel?: { name: string }; roomType?: { name: string }; checkInDate?: Date; checkOutDate?: Date } | null
-  if (link) {
-    await publishBookingConfirmed("hotel", link.id, link.userId, {
-      bookingId: link.id,
-      reference: hotelBookingReference(link.id),
-      amount: link.totalAmount,
-      hotelName: link.hotel?.name,
-      roomName: link.roomType?.name,
-      checkInDate: link.checkInDate?.toISOString().slice(0, 10),
-      checkOutDate: link.checkOutDate?.toISOString().slice(0, 10),
-    })
-  }
-
   return { confirmed: result.confirmed, bookingId: result.entityId }
 }
 

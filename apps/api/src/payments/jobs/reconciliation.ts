@@ -8,10 +8,10 @@ import { createLogger } from "@camermove/config"
 import { getProvider } from "../providers/index.js"
 import type { SupportedProvider } from "../providers/types.js"
 import { computeCommission } from "../commission.js"
-import { EVENT_TOPICS } from "@camermove/events"
+import { EVENT_TOPICS, publishPaymentConfirmed, publishTicketIssued } from "@camermove/events"
 import { generateAndIssueTicket } from "../../tickets/ticket.service.js"
 import type { IssuedTicket } from "../../tickets/ticket.service.js"
-import { PAYABLE_KINDS_BY_PREFIX, referenceForKind } from "../../booking-kernel/index.js"
+import { PAYABLE_KINDS_BY_PREFIX, referenceForKind, confirmPaymentSuccess as kernelConfirm, failPayment as kernelFail } from "../../booking-kernel/index.js"
 
 class UnrecoverableError extends Error {
   constructor(msg: string) {
@@ -294,132 +294,28 @@ export async function confirmPaymentSuccess(payment: { id: string; bookingId: st
     }
   })
 
-  // Publish Kafka events after tx commit (best-effort)
-  try {
-    const { createKafkaClient } = await import("@camermove/events")
-    const { loadEnv } = await import("@camermove/config")
-    const env = loadEnv() as unknown as { KAFKA_BROKERS: string }
-    const kafka = createKafkaClient(env as never)
-    const producer = kafka.producer({ idempotent: true })
-    await producer.connect().catch(() => {})
-    const payload = { paymentId: p.id, bookingId: booking.id, amount: booking.totalAmount }
-    await producer.send({ topic: EVENT_TOPICS.paymentCompleted, messages: [{ key: booking.id, value: JSON.stringify({ id: p.id, type: "payment.completed", ts: new Date().toISOString(), aggregateId: booking.id, data: payload }) }] }).catch(() => {})
-
-    // Phase 4: publish typed NotificationEvent (not the bare {userId, bookingId} of Phase 3).
-    // When a new ticket was just issued, fire ticket.issued; otherwise fire payment.confirmed.
-    const candidate: IssuedTicket | null = ticketCreateSucceeded ? (issuedTicket as IssuedTicket | null) : null
-    const justIssuedTicket: IssuedTicket | null = candidate && candidate.createdNew ? candidate : null
-    if (justIssuedTicket) {
-      const typedEvent = {
-        type: "ticket.issued",
-        userId: booking.userId,
-        payload: {
-          bookingId: booking.id,
-          reference: booking.reference,
-          ticketId: justIssuedTicket.id,
-          verificationCode: justIssuedTicket.verificationCode,
-          amount: booking.totalAmount,
-          tripId: booking.tripId,
-        },
-      }
-      await producer
-        .send({
-          topic: EVENT_TOPICS.ticketIssued,
-          messages: [
-            {
-              key: booking.id,
-              value: JSON.stringify({
-                id: `ticket-${justIssuedTicket.id}`,
-                type: "ticket.issued",
-                ts: new Date().toISOString(),
-                aggregateId: booking.id,
-                data: typedEvent,
-              }),
-            },
-          ],
-        })
-        .catch(() => {})
-
-      // Also fire payment.confirmed (channels still need to send an "amount received" notification)
-      const paymentEvent = {
-        type: "payment.confirmed",
-        userId: booking.userId,
-        payload: { bookingId: booking.id, reference: booking.reference, amount: booking.totalAmount },
-      }
-      await producer
-        .send({
-          topic: EVENT_TOPICS.paymentConfirmed,
-          messages: [
-            {
-              key: booking.id,
-              value: JSON.stringify({
-                id: `payment-confirmed-${p.id}`,
-                type: "payment.confirmed",
-                ts: new Date().toISOString(),
-                aggregateId: booking.id,
-                data: paymentEvent,
-              }),
-            },
-          ],
-        })
-        .catch(() => {})
-
-      // Also fire booking.confirmed (channels can use a different template for the full booking confirmation)
-      const bookingEvent = {
-        type: "booking.confirmed",
-        userId: booking.userId,
-        payload: {
-          bookingId: booking.id,
-          reference: booking.reference,
-          amount: booking.totalAmount,
-          tripId: booking.tripId,
-        },
-      }
-      await producer
-        .send({
-          topic: EVENT_TOPICS.bookingConfirmed,
-          messages: [
-            {
-              key: booking.id,
-              value: JSON.stringify({
-                id: `booking-confirmed-${p.id}`,
-                type: "booking.confirmed",
-                ts: new Date().toISOString(),
-                aggregateId: booking.id,
-                data: bookingEvent,
-              }),
-            },
-          ],
-        })
-        .catch(() => {})
-    } else {
-      // Replay (idempotent): no new ticket, but still fire payment.confirmed for the
-      // notification fan-out in case the previous run crashed before publishing.
-      const paymentEvent = {
-        type: "payment.confirmed",
-        userId: booking.userId,
-        payload: { bookingId: booking.id, reference: booking.reference, amount: booking.totalAmount },
-      }
-      await producer
-        .send({
-          topic: EVENT_TOPICS.paymentConfirmed,
-          messages: [
-            {
-              key: booking.id,
-              value: JSON.stringify({
-                id: `payment-confirmed-${p.id}`,
-                type: "payment.confirmed",
-                ts: new Date().toISOString(),
-                aggregateId: booking.id,
-                data: paymentEvent,
-              }),
-            },
-          ],
-        })
-        .catch(() => {})
-    }
-    await producer.disconnect().catch(() => {})
-  } catch {}
+  // Publish Kafka events after tx commit (best-effort).
+  // Replaces the inline producer ceremony (C4) — single envelope, single seam.
+  const candidate: IssuedTicket | null = ticketCreateSucceeded ? (issuedTicket as IssuedTicket | null) : null
+  const justIssuedTicket: IssuedTicket | null = candidate && candidate.createdNew ? candidate : null
+  if (justIssuedTicket) {
+    await publishTicketIssued(booking.id, booking.userId, {
+      bookingId: booking.id,
+      reference: booking.reference,
+      ticketId: justIssuedTicket.id,
+      verificationCode: justIssuedTicket.verificationCode,
+      amount: booking.totalAmount,
+      tripId: booking.tripId,
+    })
+  }
+  // Always fire payment.confirmed — channels need the "amount received" notification
+  // on both first issue and replay so retrying consumer-side catches any lost publish.
+  await publishPaymentConfirmed(booking.id, booking.userId, {
+    bookingId: booking.id,
+    reference: booking.reference,
+    amount: booking.totalAmount,
+    tripId: booking.tripId,
+  })
 }
 
 export async function failPayment(payment: { id: string; bookingId: string }, event: unknown, targetStatus: "failed" | "expired" = "failed"): Promise<void> {
@@ -469,19 +365,8 @@ export async function failPayment(payment: { id: string; bookingId: string }, ev
       })
     } catch {}
 
-    // Publish failed event best-effort after tx
+    // publishPaymentConfirmed already used by the kernel fail path — no inline producer here.
   })
-
-  try {
-    const { createKafkaClient } = await import("@camermove/events")
-    const { loadEnv } = await import("@camermove/config")
-    const env = loadEnv() as never
-    const kafka = createKafkaClient(env)
-    const producer = kafka.producer({ idempotent: true })
-    await producer.connect().catch(() => {})
-    await producer.send({ topic: EVENT_TOPICS.paymentFailed, messages: [{ key: p.bookingId, value: JSON.stringify({ id: p.id, type: "payment.failed", ts: new Date().toISOString(), aggregateId: p.bookingId, data: { paymentId: p.id, bookingId: p.bookingId, status: targetStatus } }) }] }).catch(() => {})
-    await producer.disconnect().catch(() => {})
-  } catch {}
 }
 
 /**
@@ -549,9 +434,9 @@ export async function processPaymentWebhook(event: { id: string; type: string; a
   const verifyResult = await mustVerifyProvider(pay as never, booking as never)
 
   if (verifyResult.status === "success") {
-    await confirmPaymentSuccess(pay, event)
+    await kernelConfirm("trip", (pay as unknown as { id: string }).id, event)
   } else if (verifyResult.status === "failed" || verifyResult.status === "expired") {
-    await failPayment(pay, event, verifyResult.status as "failed" | "expired")
+    await kernelFail("trip", (pay as unknown as { id: string }).id, event, verifyResult.status as "failed" | "expired")
   } else {
     // pending — leave for reconciliation
     return
@@ -589,13 +474,13 @@ export async function reconcileStalePayments(): Promise<number> {
         } else if (p.provider === "cinetpay") {
           const booking = await prisma.booking.findUnique({ where: { id: p.bookingId } })
           if (booking && verified.amount !== booking.totalAmount) {
-            await failPayment(p as never, verified.rawPayload, "failed")
+            await kernelFail("trip", (p as unknown as { id: string }).id, verified.rawPayload, "failed")
             count++
             continue
           }
-          await confirmPaymentSuccess(p as never, verified.rawPayload)
+          await kernelConfirm("trip", (p as unknown as { id: string }).id, verified.rawPayload)
         } else {
-          await confirmPaymentSuccess(p as never, verified.rawPayload)
+          await kernelConfirm("trip", (p as unknown as { id: string }).id, verified.rawPayload)
         }
       } else if (verified.status === "failed" || verified.status === "expired") {
         if (!p.bookingId) {
@@ -603,7 +488,7 @@ export async function reconcileStalePayments(): Promise<number> {
           if (!target) continue
           await failNonTripPayment(target, verified.rawPayload, verified.status as never)
         } else {
-          await failPayment(p as never, verified.rawPayload, verified.status as never)
+          await kernelFail("trip", (p as unknown as { id: string }).id, verified.rawPayload, verified.status as "failed" | "expired")
         }
       } else {
         // still pending — leave

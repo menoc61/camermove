@@ -1,11 +1,9 @@
 import { prisma } from "@camermove/db"
-import { atomicHoldSeats, atomicReleaseHeldSeats, atomicConfirmBookedSeats } from "@camermove/db"
+import { atomicReleaseHeldSeats, atomicConfirmBookedSeats } from "@camermove/db"
 import { ConflictError, NotFoundError, createLogger } from "@camermove/config"
-import { scheduleHoldExpiry } from "@camermove/shared/queues"
-import { EVENT_TOPICS, makeDataEvent, publishEvent } from "@camermove/events"
 import { randomUUID } from "node:crypto"
 import { findExpiredHolds } from "./repository"
-import { expireHold, expireHolds as kernelExpireHolds } from "../booking-kernel/index.js"
+import { expireHold, expireHolds as kernelExpireHolds, reserve as kernelReserve } from "../booking-kernel/index.js"
 
 const log = createLogger()
 
@@ -13,69 +11,44 @@ export function generateReference(): string {
   return `CM-${randomUUID().slice(0, 8).toUpperCase()}`
 }
 
-async function publishBookingCreated(booking: { id: string; reference: string; tripId: string; userId: string }) {
-  await publishEvent(
-    EVENT_TOPICS.bookingCreated,
-    makeDataEvent("booking.created", booking.id, { ...booking, type: "booking.created", ts: new Date().toISOString() }),
-  )
-}
-
 export async function createBooking(input: { tripId: string; userId: string; seatCount: number; passengers: Array<{ fullName: string; phone?: string }> }) {
   if (input.passengers.length !== input.seatCount) throw new ConflictError("Le nombre de passagers doit correspondre au nombre de places")
-  const trip = await prisma.trip.findUnique({ where: { id: input.tripId }, include: { seatAvailability: true } })
-  if (!trip) throw new NotFoundError("Trajet introuvable")
-  if (trip.status !== "active") throw new ConflictError("Trajet non disponible")
 
-  await atomicHoldSeats(input.tripId, input.seatCount)
+  // Kernel reserve owns: trip row lock + seatAvailability FOR UPDATE atomic hold +
+  // booking row create + passengers nested create + booking.created event publish +
+  // hold-expiry BullMQ schedule. See apps/api/src/booking-kernel/reserve.ts.
+  const result = await kernelReserve({
+    kind: "trip",
+    userId: input.userId,
+    meta: {
+      id: input.tripId,
+      seatCount: input.seatCount,
+      passengers: input.passengers,
+    },
+  })
 
+  // Reload with the kernel's booking id so the route returns the same shape it used to
+  // (passengers + trip joined). Kernel create already wrote the booking + passengers;
+  // we just re-read.
+  const booking = await prisma.booking.findUnique({
+    where: { id: result.id },
+    include: { passengers: true, trip: true },
+  })
+  if (!booking) throw new NotFoundError("Réservation introuvable après création")
+
+  // Audit log is best-effort and post-commit so it never blocks the booking creation
   try {
-    const reference = generateReference()
-    const totalAmount = trip.price * input.seatCount
-    let holdMinutes = 15
-    try {
-      const settings = await prisma.appSettings.findUnique({ where: { id: "global" } })
-      if (settings?.holdExpiryMinutes) holdMinutes = Number(settings.holdExpiryMinutes)
-    } catch {}
-    const holdExpiresAt = new Date(Date.now() + holdMinutes * 60 * 1000)
-
-    const booking = await prisma.booking.create({
+    await prisma.auditLog.create({
       data: {
-        reference,
-        tripId: input.tripId,
-        userId: input.userId,
-        seatCount: input.seatCount,
-        totalAmount,
-        status: "pending_payment",
-        holdExpiresAt,
-        passengers: { create: input.passengers.map((p) => ({ fullName: p.fullName, phone: p.phone })) },
+        actorId: input.userId,
+        action: "booking.create",
+        entityType: "Booking",
+        entityId: booking.id,
+        metadata: { tripId: input.tripId, seatCount: input.seatCount, passengerCount: input.passengers.length, totalAmount: booking.totalAmount, reference: booking.reference } as never,
       },
-      include: { passengers: true, trip: true },
     })
-    // AuditLog + Kafka — best-effort, never block booking success
-    try {
-      await prisma.auditLog.create({
-        data: {
-          actorId: input.userId,
-          action: "booking.create",
-          entityType: "Booking",
-          entityId: booking.id,
-          metadata: { tripId: input.tripId, seatCount: input.seatCount, passengerCount: input.passengers.length, totalAmount, reference } as never,
-        },
-      })
-    } catch {}
-    await publishBookingCreated({ id: booking.id, reference: booking.reference, tripId: booking.tripId, userId: booking.userId })
-    // BullMQ owns hold expiry (AGENTS.md §1): schedule a delayed single-shot job.
-    // Best-effort — the error is logged (surfaces in tests/logs) but never blocks booking success.
-    try {
-      await scheduleHoldExpiry(booking.id, holdExpiresAt.getTime() - Date.now())
-    } catch (e) {
-      log.error({ err: (e as Error).message, bookingId: booking.id }, "scheduleHoldExpiry failed")
-    }
-    return booking
-  } catch (e) {
-    await atomicReleaseHeldSeats(input.tripId, input.seatCount).catch(() => {})
-    throw e
-  }
+  } catch {}
+  return booking
 }
 
 /** Expire a single hold by id. Uses booking-kernel's expireHold for consistency. */

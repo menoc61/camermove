@@ -109,23 +109,6 @@ export async function createEventBookingPayment(input: {
  */
 export async function confirmEventPaymentSuccess(paymentId: string, event: unknown): Promise<{ confirmed: boolean; bookingId: string }> {
   const result = await confirmPaymentSuccess("event", paymentId, event)
-
-  // Publish event-specific confirmed notification
-  const { publishBookingConfirmed } = await import("@camermove/events/outbox")
-  const link = await eventAdapter.findEntityByPaymentId(paymentId) as { id: string; userId: string; totalAmount: number; ticketNumber?: string; quantity?: number; event?: { name: string; venue: string; startDate: Date } } | null
-  if (link) {
-    await publishBookingConfirmed("event", link.id, link.userId, {
-      bookingId: link.id,
-      reference: link.ticketNumber,
-      ticketNumber: link.ticketNumber,
-      amount: link.totalAmount,
-      quantity: link.quantity,
-      eventName: link.event?.name,
-      venue: link.event?.venue,
-      startDate: link.event?.startDate?.toISOString().slice(0, 10),
-    })
-  }
-
   return { confirmed: result.confirmed, bookingId: result.entityId }
 }
 

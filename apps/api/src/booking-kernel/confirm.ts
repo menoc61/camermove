@@ -17,7 +17,7 @@ export interface ConfirmPaymentAdapter {
   findLink: (paymentId: string, tx?: unknown) => Promise<ConfirmLink | null>
   table: string
   isConfirmable: (entity: ConfirmLink) => boolean
-  confirm: (tx: unknown, entityId: string) => Promise<void>
+  confirm: (tx: unknown, link: ConfirmLink, event: unknown) => Promise<void>
   notification: (link: ConfirmLink) => ConfirmNotification
 }
 
@@ -46,7 +46,7 @@ export async function confirmPaymentSuccess(
     const freshEntity = await adapter.findLink(paymentId, tx)
     if (!freshEntity || !adapter.isConfirmable(freshEntity)) return
     await t.payment.update({ where: { id: paymentId }, data: { status: "success", webhookPayload: event as never } })
-    await adapter.confirm(tx, link.id)
+    await adapter.confirm(tx, freshEntity, event)
     try {
       await t.auditLog.create({
         data: {
