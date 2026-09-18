@@ -8,13 +8,26 @@ import { Button } from "@/components/ui/button"
 
 /* Reel chapters: each paints a CamerMove service with an on-brand gradient +
  * a stable Unsplash poster (Ken Burns motion). The gradient stays on-brand
- * while the poster loads; no CDN hard dependency for layout. */
+ * while the poster loads; no CDN hard dependency for layout.
+ *
+ * Per the user directive ("the main app activity should be on the intra urban
+ * transport"), intra-urban is the FIRST chapter — the hero opens on transit,
+ * not on inter-city travel. */
 const REEL = [
+  {
+    label: "Bus & BRT urbains",
+    title: "Trans-Yaoundé & BRT Douala — votre trajet quotidien, dès 250 XAF",
+    poster: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=1600&q=70",
+    chapter: "01",
+    eyebrow: "Intra-urbain · Tap&Go",
+    gradient: "linear-gradient(135deg, #0E5C40 0%, #15715A 50%, #A6E8B0 100%)",
+    accent: "#A6E8B0",
+  },
   {
     label: "Transport interurbain",
     title: "Yaoundé ⇄ Douala, billets comparés en un clin d'œil",
     poster: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1600&q=70",
-    chapter: "01",
+    chapter: "02",
     eyebrow: "Bus & voiture",
     gradient: "linear-gradient(135deg, #0E0E0E 0%, #1F3A5F 55%, #C2772A 100%)",
     accent: "#E8A548",
@@ -23,7 +36,7 @@ const REEL = [
     label: "Hôtels vérifiés",
     title: "Suites et chambres climatisées, de Yaoundé à Kribi",
     poster: "https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=1600&q=70",
-    chapter: "02",
+    chapter: "03",
     eyebrow: "Hébergement",
     gradient: "linear-gradient(135deg, #1B1B1B 0%, #5C2A2A 50%, #C28A3A 100%)",
     accent: "#F1C27D",
@@ -32,7 +45,7 @@ const REEL = [
     label: "Colis & courses",
     title: "Envoyez un colis de Douala à Bafoussam, suivi en direct",
     poster: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1600&q=70",
-    chapter: "03",
+    chapter: "04",
     eyebrow: "Logistique",
     gradient: "linear-gradient(135deg, #0E1A1F 0%, #134E5E 60%, #71B280 100%)",
     accent: "#9DE0A5",
@@ -41,7 +54,7 @@ const REEL = [
     label: "Location de véhicules",
     title: "Prise en charge aéroport, retour libre — sans paperasse",
     poster: "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&w=1600&q=70",
-    chapter: "04",
+    chapter: "05",
     eyebrow: "Mobilité",
     gradient: "linear-gradient(135deg, #101524 0%, #2A2F6E 55%, #6F4FB8 100%)",
     accent: "#A48BF0",
@@ -50,7 +63,7 @@ const REEL = [
     label: "Assurance voyage",
     title: "Couverture santé, bagages et rapatriement, dès 2 500 XAF",
     poster: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=70",
-    chapter: "05",
+    chapter: "06",
     eyebrow: "Protection",
     gradient: "linear-gradient(135deg, #0A1320 0%, #1B3B6F 50%, #3FA7D6 100%)",
     accent: "#7DD3FC",
@@ -59,7 +72,7 @@ const REEL = [
     label: "Billetterie événementielle",
     title: "Concerts, matchs et festivals — billets mobiles authentiques",
     poster: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1600&q=70",
-    chapter: "06",
+    chapter: "07",
     eyebrow: "Loisirs",
     gradient: "linear-gradient(135deg, #1A0F1F 0%, #5B1E5B 55%, #E255A1 100%)",
     accent: "#F9A8D4",
@@ -68,7 +81,7 @@ const REEL = [
     label: "Mobile Money & carte",
     title: "Orange Money, MTN MoMo, carte Visa — paiement unifié",
     poster: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?auto=format&fit=crop&w=1600&q=70",
-    chapter: "07",
+    chapter: "08",
     eyebrow: "Paiement",
     gradient: "linear-gradient(135deg, #1A1300 0%, #4D3800 55%, #FFB000 100%)",
     accent: "#FFD75E",

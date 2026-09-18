@@ -331,6 +331,9 @@ importers:
       '@camermove/config':
         specifier: workspace:*
         version: link:../config
+      '@camermove/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@prisma/client':
         specifier: ^6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
@@ -474,6 +477,9 @@ importers:
       ioredis:
         specifier: ^5.6.1
         version: 5.11.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

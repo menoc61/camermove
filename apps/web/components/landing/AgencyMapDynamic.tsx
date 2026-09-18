@@ -13,6 +13,11 @@ const AgencyMapInner = dynamic(
 
 import type { Agency } from "@/lib/api/agencies"
 
-export function AgencyMapDynamic(props: { agencies: Agency[]; city?: string; lat?: number; lon?: number }) {
-  return <AgencyMapInner {...props} />
+export function AgencyMapDynamic(props: {
+  agencies: Array<{ id: string; companyName: string; city: string | null; lat: number | null; lon: number | null; tagline?: string | null; departurePointInfo?: string | null }>
+  city?: string
+  lat?: number
+  lon?: number
+}) {
+  return <AgencyMapInner {...(props as unknown as { agencies: Agency[]; city?: string; lat?: number; lon?: number })} />
 }

@@ -9,7 +9,9 @@ import { cn } from "@/lib/utils"
 
 const NAV_LINKS: { href: string; label: string }[] = [
   { href: "/", label: "Accueil" },
+  { href: "/intraurban", label: "Bus & BRT urbains" },
   { href: "/results", label: "Transport interurbain" },
+  { href: "/agencies", label: "Agences partenaires" },
   { href: "/hotels", label: "Hôtels & apparts" },
   { href: "/rentals", label: "Location véhicules" },
   { href: "/parcels", label: "Transport colis" },
@@ -184,6 +186,11 @@ export function SiteNav() {
               <li>
                 <Link href="/faq" onClick={closeNav}>
                   FAQ
+                </Link>
+              </li>
+              <li>
+                <Link href="/agencies" onClick={closeNav}>
+                  Agences partenaires
                 </Link>
               </li>
               <li>

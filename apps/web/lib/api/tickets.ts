@@ -17,7 +17,22 @@ export interface TicketDetailResponse {
     arrivalAt: string | null
     vehiclePlate: string | null
     seatCount: number
+    vehicleTypeInfo: string | null
   }
-  passengers: Array<{ firstName: string; lastName: string; seatNumber: number }>
+  passengers: Array<{ firstName: string; lastName: string; seatNumber: string }>
+  agency: {
+    companyName: string
+    brandColor: string
+    accentGlyph: string
+    phone: string | null
+    tagline: string | null
+  }
+  boardingStop: { name: string; offsetMinutes: number } | null
+  dropOffStop: { name: string; offsetMinutes: number } | null
+  seatLabels: string[]
+  ratingContext: {
+    tripId: string
+    transporterId: string
+    bookingId: string
+  }
 }
-

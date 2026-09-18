@@ -79,9 +79,7 @@ function AgencyMapInner({ city, lat, lon, agencies }: AgencyMapProps) {
                 <Popup>
                   <div className="rounded-xl shadow-lg p-4 min-w-[180px] text-sm">
                     <p className="font-semibold">{a.companyName}</p>
-                    {a.departurePointInfo && (
-                      <p className="text-muted-foreground">{a.departurePointInfo}</p>
-                    )}
+                    {a.tagline && <p className="text-muted-foreground">{a.tagline}</p>}
                     {a.city && <p className="text-muted-foreground">{a.city}</p>}
                     <Link
                       href={`/results?origin=${encodeURIComponent(a.city ?? "")}&pax=1`}

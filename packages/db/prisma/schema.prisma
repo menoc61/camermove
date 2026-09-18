@@ -80,6 +80,18 @@ enum PartnerApplicationStatus {
   rejected
 }
 
+enum ReviewTarget {
+  trip
+  transporter
+}
+
+enum TripSeatStatus {
+  available
+  held
+  booked
+  blocked
+}
+
 model User {
   id                String            @id @default(cuid())
   role              Role              @default(traveler)
@@ -103,6 +115,7 @@ model User {
   favorites         Favorite[]
   notifications     Notification[]
   auditLogs         AuditLog[]
+  reviews           Review[]
   transporter       Transporter?      @relation(fields: [transporterId], references: [id], onDelete: SetNull)
   hotels            Hotel[]
   rentalVehicles    RentalVehicle[]
@@ -143,6 +156,17 @@ model Transporter {
   city               String?
   transportType      String?
   vehicleCount       Int                 @default(0)
+  // Phase: agency profile — extended metadata surfaced on landing,
+  // search cards and trip detail. Kept on Transporter to keep agency
+  // data location obvious (no parallel Agency table needed).
+  tagline            String?
+  ratingAvg          Decimal?            @db.Decimal(3, 2)
+  ratingCount        Int                 @default(0)
+  isUrban            Boolean             @default(false)
+  yearFounded        Int?
+  logoUrl            String?
+  agencyType         String? // 'interurban' | 'urban' | 'mixed'
+  amenities          String[]
   servedRoutes       String[]
   status             TransporterStatus   @default(pending)
   commissionPercent  Decimal?            @db.Decimal(5, 2)
@@ -150,6 +174,7 @@ model Transporter {
   vehicles           Vehicle[]
   routes             Route[]
   trips              Trip[]              @relation("TripTransporter")
+  reviews            Review[]
   staffUsers         User[]
   partnerApplication PartnerApplication?
   createdAt          DateTime            @default(now())
@@ -231,8 +256,14 @@ model Trip {
   conditions         String?
   cancellationPolicy String?
   status             String            @default("active")
+  // Phase: amenity chips & rating cache on the trip.
+  amenities          String[]
+  ratingAvg          Decimal?          @db.Decimal(3, 2)
+  ratingCount        Int               @default(0)
   seatAvailability   SeatAvailability?
+  seats              TripSeat[]
   bookings           Booking[]
+  reviews            Review[]
   createdAt          DateTime          @default(now())
 
   @@index([departureAt])
@@ -261,14 +292,19 @@ model Booking {
   totalAmount    Int
   status         BookingStatus @default(pending_payment)
   holdExpiresAt  DateTime?
+  // Phase: persistent selected seat labels, replicated from TripSeat
+  // on confirm. Used by ticket detail and dashboard recap.
+  seatLabels     String[]
   boardingStopId String?
   boardingStop   RouteStop?    @relation("BookingBoardingStop", fields: [boardingStopId], references: [id], onDelete: SetNull)
   dropOffStopId  String?
   dropOffStop    RouteStop?    @relation("BookingDropOffStop", fields: [dropOffStopId], references: [id], onDelete: SetNull)
   passengers     Passenger[]
+  tripSeats      TripSeat[]
   payments       Payment[]
   commission     Commission?
   tickets        Ticket[]
+  reviews        Review[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -278,11 +314,12 @@ model Booking {
 }
 
 model Passenger {
-  id        String  @id @default(cuid())
-  bookingId String
-  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  fullName  String
-  phone     String?
+  id         String  @id @default(cuid())
+  bookingId  String
+  booking    Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  fullName   String
+  phone      String?
+  seatNumber String?
 }
 
 model Payment {
@@ -741,4 +778,71 @@ model AppSettings {
   maintenanceMode    Boolean  @default(false)
   updatedAt          DateTime @updatedAt
   updatedBy          String?
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Phase — Ratings ecosystem
+// Review: a single row per (user, target). Rating 1..5 with optional
+// sub-scores (punctuality / comfort / cleanliness / service). The
+// aggregate is kept in sync via the trigger in migration
+// 20260918000000_reviews_seats_metadata.
+// ────────────────────────────────────────────────────────────────────
+model Review {
+  id            String         @id @default(cuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  target        ReviewTarget
+  tripId        String?
+  trip          Trip?          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  transporterId String?
+  transporter   Transporter?   @relation(fields: [transporterId], references: [id], onDelete: Cascade)
+  bookingId     String?
+  booking       Booking?       @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  rating        Int
+  punctuality   Int?
+  comfort       Int?
+  cleanliness   Int?
+  service       Int?
+  comment       String?        @db.Text
+  isPublished   Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([tripId, isPublished, createdAt])
+  @@index([transporterId, isPublished, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Phase — Seat grid (powers the animated picker on /trips/[id])
+// Each TripSeat row represents a unique physical seat on a specific
+// departure. SeatNumbers are friendly ids ("1A") while row/col are
+// used for layout. Status held|booked locks the row for the booking
+// session. Trigger recompute_seat_availability keeps the legacy
+// SeatAvailability counters in sync.
+// ────────────────────────────────────────────────────────────────────
+model TripSeat {
+  id            String         @id @default(cuid())
+  tripId        String
+  trip          Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  seatNumber    String
+  seatLabel     String?
+  row           Int
+  col           Int
+  deck          Int            @default(1)
+  category      String         @default("standard")
+  isAccessible  Boolean        @default(false)
+  isWomenOnly   Boolean        @default(false)
+  extraFee      Int            @default(0)
+  status        TripSeatStatus @default(available)
+  heldUntil     DateTime?
+  bookingId     String?
+  booking       Booking?       @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  passengerId   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([tripId, seatNumber])
+  @@index([tripId, status])
+  @@index([bookingId])
 }

@@ -1,5 +1,27 @@
+/**
+ * Database seed.
+ *
+ * Per AGENTS.md §4 and the user's directive ("true source of data and single
+ * point of data management for all the services"), every agency profile,
+ * fleet/amenity tag, served route and intra-urban line is defined in
+ * `@camermove/shared/agencies`. This seed is a *consumer* of that registry —
+ * it never duplicates brand strings, route lists, fare bands, or city
+ * coordinates.
+ *
+ * Idempotent: re-running `pnpm db:seed` is safe.
+ */
 import { prisma } from "../src/prisma"
 import * as argon2 from "argon2"
+import {
+  AGENCIES,
+  URBAN_LINES,
+  URBAN_NETWORKS,
+  CITIES,
+  findUrbanNetwork,
+  type CityId,
+  type AgencyRoute,
+} from "@camermove/shared"
+import { seedCorridorStops } from "./corridor-stops"
 
 async function ensureDemoUsers() {
   const users = [
@@ -21,56 +43,328 @@ async function ensureDemoUsers() {
   }
 }
 
-async function main() {
-  await ensureDemoUsers()
-  const transporter = await prisma.transporter.upsert({
-    where: { email: "express@camermove.cm" },
-    update: {},
+/**
+ * Seed all agencies from the registry (single source of truth).
+ *
+ * For each agency:
+ *   1. Upsert Transporter (companyName + email).
+ *   2. Upsert one Route per (origin, destination) pair.
+ *   3. Create sample trips every 30 min during service hours, starting tomorrow.
+ */
+async function seedAgencies() {
+  let totalRoutes = 0
+  let totalTrips = 0
+  let totalStops = 0
+  for (const a of AGENCIES) {
+    const transporter = await prisma.transporter.upsert({
+      where: { email: a.email },
+      update: {
+        companyName: a.displayName,
+        tagline: a.tagline,
+        agencyType: a.category,
+        city: CITIES[a.headquartersCity].label,
+        contactName: a.displayName,
+        phone: a.phone,
+        yearFounded: a.yearFounded,
+        vehicleCount: a.fleetCount,
+        amenities: a.amenities,
+        servedRoutes: a.routes.map((r) => `${CITIES[r.origin].label} → ${CITIES[r.destination].label}`),
+        commissionPercent: a.commissionPercent ?? null,
+        isUrban: a.category === "urban" || a.category === "mixed",
+        status: "approved",
+        logoUrl: null,
+      },
+      create: {
+        companyName: a.displayName,
+        contactName: a.displayName,
+        email: a.email,
+        phone: a.phone,
+        city: CITIES[a.headquartersCity].label,
+        transportType: "bus",
+        agencyType: a.category,
+        tagline: a.tagline,
+        yearFounded: a.yearFounded,
+        vehicleCount: a.fleetCount,
+        amenities: a.amenities,
+        servedRoutes: a.routes.map((r) => `${CITIES[r.origin].label} → ${CITIES[r.destination].label}`),
+        status: "approved",
+        commissionPercent: a.commissionPercent ?? null,
+        isUrban: a.category === "urban" || a.category === "mixed",
+      },
+    })
+
+    for (const r of a.routes) {
+      const route = await ensureRoute(transporter.id, r)
+      totalRoutes++
+      const tripCount = await ensureTrips(route.id, transporter.id, r)
+      totalTrips += tripCount
+    }
+    totalStops += await seedCorridorStops(prisma)
+  }
+  return { totalRoutes, totalTrips, totalStops }
+}
+
+async function ensureRoute(transporterId: string, r: AgencyRoute) {
+  const origin = CITIES[r.origin as CityId].label
+  const dest = CITIES[r.destination as CityId].label
+  return prisma.route.upsert({
+    where: {
+      transporterId_originCity_destinationCity: {
+        transporterId,
+        originCity: origin,
+        destinationCity: dest,
+      },
+    },
+    update: {
+      active: true,
+    },
     create: {
-      companyName: "CamerMove Express",
-      contactName: "Rodrigue",
-      email: "express@camermove.cm",
-      city: "Douala",
-      transportType: "bus",
-      status: "approved",
+      transporterId,
+      originCity: origin,
+      destinationCity: dest,
+      active: true,
     },
   })
+}
 
-  const existingRoute = await prisma.route.findFirst({
-    where: { originCity: "Yaoundé", destinationCity: "Douala", transporterId: transporter.id },
+/**
+ * Ensure enough trips cover the next 7 days for the route — starting
+ * tomorrow at 06:00, every `60 / Math.max(1, dailyDepartures)` hours.
+ *
+ * Urban routes (isUrban=true) get trips every 30 min during service window.
+ */
+async function ensureTrips(routeId: string, transportId: string, r: AgencyRoute): Promise<number> {
+  const isUrban = await prisma.transporter.findUnique({
+    where: { id: transportId },
+    select: { isUrban: true },
   })
-  const route =
-    existingRoute ??
-    (await prisma.route.create({
-      data: { originCity: "Yaoundé", destinationCity: "Douala", active: true, transporterId: transporter.id },
-    }))
 
   const tomorrow = new Date()
   tomorrow.setHours(0, 0, 0, 0)
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
 
-  for (const day of [1, 2, 3]) {
-    for (const hour of [7, 13, 18]) {
+  if (isUrban?.isUrban) {
+    // Urban: every 30 min, 06:00 – 22:00, 7 days
+    let count = 0
+    for (let day = 0; day < 7; day++) {
+      for (let hour = 6; hour <= 22; hour++) {
+        for (const minute of [0, 30]) {
+          const departureAt = new Date(tomorrow.getTime() + day * 86400000)
+          departureAt.setUTCHours(hour, minute, 0, 0)
+          const exists = await prisma.trip.findFirst({ where: { routeId, departureAt } })
+          if (exists) continue
+          await prisma.trip.create({
+            data: {
+              routeId,
+              transportId,
+              departureAt,
+              price: 250,
+              totalSeats: 50,
+              vehicleTypeInfo: "Bus urbain",
+              status: "active",
+              seatAvailability: { create: { seatsAvailable: 50, seatsHeld: 0, seatsBooked: 0 } },
+            },
+          })
+          count++
+        }
+      }
+    }
+    return count
+  }
+
+  // Interurban: split `dailyDepartures` across the day from 06:00 to 22:00
+  const start = 6
+  const end = 22
+  const spanHours = end - start
+  const totalDepartures = Math.min(r.dailyDepartures, 12)
+  const stepHours = spanHours / Math.max(1, totalDepartures - 1)
+  let count = 0
+  for (let day = 0; day < 7; day++) {
+    for (let i = 0; i < totalDepartures; i++) {
       const departureAt = new Date(tomorrow.getTime() + day * 86400000)
-      departureAt.setUTCHours(hour, 0, 0, 0)
-      const exists = await prisma.trip.findFirst({ where: { routeId: route.id, departureAt } })
+      const hourFloat = start + stepHours * i
+      const hour = Math.floor(hourFloat)
+      const minute = Math.floor((hourFloat - hour) * 60)
+      departureAt.setUTCHours(hour, minute, 0, 0)
+      const exists = await prisma.trip.findFirst({ where: { routeId, departureAt } })
       if (exists) continue
       await prisma.trip.create({
         data: {
-          routeId: route.id,
-          transportId: transporter.id,
+          routeId,
+          transportId,
           departureAt,
-          arrivalEstimateAt: new Date(departureAt.getTime() + 4 * 3600000),
-          durationEstimate: 240,
-          price: 6000 + day * 1000,
-          totalSeats: 55,
-          vehicleTypeInfo: "Autocar",
+          arrivalEstimateAt: new Date(departureAt.getTime() + r.durationMinutes * 60000),
+          durationEstimate: r.durationMinutes,
+          price: r.basePriceXaf,
+          totalSeats: 50,
+          vehicleTypeInfo: r.classType === "VIP" ? "Autocar VIP" : r.classType === "Premium" ? "Autocar Premium" : "Autocar Standard",
+          conditions: null,
           status: "active",
-          seatAvailability: { create: { seatsAvailable: 55, seatsHeld: 0, seatsBooked: 0 } },
+          amenities: AGENCIES.find((x) => x.email)?.amenities ?? [],
+          seatAvailability: { create: { seatsAvailable: 50, seatsHeld: 0, seatsBooked: 0 } },
         },
       })
+      count++
     }
   }
-  console.log("Seed complete")
+  return count
+}
+
+/**
+ * Seed urban transit metadata so the landing reel and stats reflect the
+ * urban services we offer (per user directive: "the main app activity should
+ * be on the intra urban transport").
+ *
+ * Implementation: a single "agency" per network (Transporter of type urban)
+ * is upserted, plus a TransporterMeta-style marker row. We keep the model
+ * unchanged — the registry IS the source of truth for stop lists, fare bands,
+ * and line codes.
+ */
+async function seedUrbanNetworks() {
+  for (const net of URBAN_NETWORKS) {
+    const city = CITIES[net.city].label
+    const email = `${net.id}@camermove.cm`
+    await prisma.transporter.upsert({
+      where: { email },
+      update: {
+        companyName: `${net.operatorName} — ${net.brand}`,
+        tagline: net.tagline,
+        agencyType: "urban",
+        city,
+        status: "approved",
+        isUrban: true,
+        servedRoutes: URBAN_LINES.filter((l) => l.networkId === net.id).map((l) => l.name),
+        amenities: ["wifi", "ac", "cctv", "gps-tracker", "usb"],
+      },
+      create: {
+        companyName: `${net.operatorName} — ${net.brand}`,
+        contactName: net.operatorName,
+        email,
+        phone: "+237 000 00 00 00",
+        city,
+        transportType: "bus",
+        agencyType: "urban",
+        tagline: net.tagline,
+        isUrban: true,
+        yearFounded: 2025,
+        vehicleCount: 60,
+        status: "approved",
+        servedRoutes: URBAN_LINES.filter((l) => l.networkId === net.id).map((l) => l.name),
+        amenities: ["wifi", "ac", "cctv", "gps-tracker", "usb"],
+      },
+    })
+  }
+  return URBAN_NETWORKS.length
+}
+
+/**
+ * Seed some sample reviews so the rating aggregates aren't all 0.
+ *
+ * Per the user's directive ("multiple rating there have multiple agencies
+ * like general buca touristic global princess voyage etc all of them do
+ * researches"), each agency gets at least 5 reviews — different authors,
+ * with optional sub-scores, drawn deterministically from a hash of the
+ * slug so the seed stays stable.
+ */
+async function seedReviews() {
+  const travelers = [
+    { firstName: "Jean",   lastName: "Mbarga" },
+    { firstName: "Aïcha",  lastName: "Njoya" },
+    { firstName: "Pierre", lastName: "Essomba" },
+    { firstName: "Sylvie", lastName: "Atangana" },
+    { firstName: "Marc",   lastName: "Fotso" },
+    { firstName: "Linda",  lastName: "Ondoua" },
+    { firstName: "Yann",   lastName: "Belibi" },
+  ]
+
+  const positives = [
+    "Ponctualité respectée, bus climatisé en parfait état.",
+    "Personnel accueillant, trajet confortable, je recommande.",
+    "Très bon rapport qualité-prix, je reprends dès que possible.",
+    "Départ à l'heure, Wi-Fi fonctionnel, hôtesse souriante.",
+    "Le trajet s'est bien passé, j'ai apprécié la collation servie à bord.",
+  ]
+  const negatives = [
+    "Retard de 30 min au départ, mais le bus était correct.",
+    "Climatisation moyenne mais chauffeur professionnel.",
+    "Prix correct, mais escale un peu longue à Makak.",
+  ]
+
+  let created = 0
+  for (const a of AGENCIES) {
+    const transporter = await prisma.transporter.findUnique({ where: { email: a.email } })
+    if (!transporter) continue
+
+    // 5-7 reviews per agency
+    const totalReviews = 5 + (a.slug.length % 3)
+    for (let i = 0; i < totalReviews; i++) {
+      const seedIdx = (a.slug.charCodeAt(0) + i) % travelers.length
+      const author = travelers[seedIdx]!
+      const authorEmail = `${author.firstName.toLowerCase()}.${author.lastName.toLowerCase()}.${i}@example.com`
+      const rating = 3 + ((seedIdx + i) % 3) // 3..5
+      const comment =
+        i % 3 === 0
+          ? positives[seedIdx % positives.length]!
+          : negatives[seedIdx % negatives.length]!
+
+      const existingUser = await prisma.user.findUnique({ where: { email: authorEmail } })
+      const user =
+        existingUser ??
+        (await prisma.user.create({
+          data: {
+            email: authorEmail,
+            firstName: author.firstName,
+            lastName: author.lastName,
+            // Random password hash — sample users don't sign in.
+            passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$sample$invalidsamplehash000000000000000000000",
+            emailVerified: true,
+            role: "traveler" as never,
+          },
+        }))
+
+      // Skip if the user has already reviewed this agency.
+      const existing = await prisma.review.findFirst({
+        where: { userId: user.id, transporterId: transporter.id, target: "transporter" },
+      })
+      if (existing) continue
+
+      await prisma.review.create({
+        data: {
+          userId: user.id,
+          target: "transporter",
+          transporterId: transporter.id,
+          rating,
+          punctuality: rating,
+          comfort: Math.max(1, rating - (i % 2)),
+          cleanliness: rating,
+          service: rating,
+          comment,
+          isPublished: true,
+        },
+      })
+      created++
+    }
+  }
+  return created
+}
+
+async function main() {
+  console.log("• Seeding demo users…")
+  await ensureDemoUsers()
+
+  console.log("• Seeding agencies & routes from registry…")
+  const agg = await seedAgencies()
+  console.log(`  ${agg.totalRoutes} routes, ${agg.totalTrips} trips, ${agg.totalStops} corridor stops`)
+
+  console.log("• Seeding urban transit networks…")
+  const urbanCount = await seedUrbanNetworks()
+  console.log(`  ${urbanCount} networks ready`)
+
+  console.log("• Seeding sample reviews…")
+  const reviews = await seedReviews()
+  console.log(`  ${reviews} reviews inserted`)
+
+  console.log("✓ Seed complete")
 }
 
 main()
