@@ -1,6 +1,6 @@
-import { getAppSettingsCached, prisma } from "@camermove/db"
+import { getAppSettingsCached, prisma, Prisma } from "@camermove/db"
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, loadEnv, createLogger } from "@camermove/config"
-import { findPendingPaymentByBookingId, findPaymentById } from "./repository.js"
+import { findPaymentById } from "./repository.js"
 import { getProvider } from "./providers/index.js"
 import type { SupportedProvider } from "./providers/types.js"
 import { scheduleHoldExpiry } from "@camermove/shared/queues"
@@ -9,6 +9,12 @@ import { EVENT_TOPICS, makeEvent, publishEvent } from "@camermove/events"
 import { referenceForKind } from "../booking-kernel/index.js"
 
 const log = createLogger()
+
+// Named model-shape aliases for dynamic Prisma model access (per-kind polymorphism).
+type PaymentIdModel = { findUnique: (a: unknown) => Promise<{ paymentId: string | null } | null> }
+type HoldModel = { findUnique: (a: unknown) => Promise<{ holdExpiresAt: Date | null } | null>; update: (a: unknown) => Promise<unknown> }
+type EntityModel = { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> }
+type UpdateModel = { update: (a: unknown) => Promise<unknown> }
 
 /** Single source of truth for method-to-channels mapping. */
 export function methodToChannels(method?: string): "ALL" | "MOBILE_MONEY" | "CREDIT_CARD" | "WALLET" {
@@ -88,16 +94,14 @@ export async function initiatePayment(input: InitiatePaymentInput): Promise<Init
   })
 
   // 4. Persist atomically with hold extension + dedup guard inside transaction
-  const payment = await prisma.$transaction(async (tx: unknown): Promise<{ id: string; status: string; providerRef: string | null; authorizationUrl: string | null }> => {
-    const t = tx as Record<string, unknown>
-
+  const payment = await prisma.$transaction(async (tx: Prisma.TransactionClient): Promise<{ id: string; status: string; providerRef: string | null; authorizationUrl: string | null }> => {
     // Re-check one-pending inside tx to guard race (SELECT FOR UPDATE on entity)
-    await t.$queryRawUnsafe(`SELECT "id" FROM "${getTableName(input.kind)}" WHERE "id" = $1 FOR UPDATE`, input.entityId)
-    const dup = await findPendingPaymentByEntityIdInTx(t, input.kind, input.entityId)
+    await tx.$queryRawUnsafe(`SELECT "id" FROM "${getTableName(input.kind)}" WHERE "id" = $1 FOR UPDATE`, input.entityId)
+    const dup = await findPendingPaymentByEntityIdInTx(tx, input.kind, input.entityId)
     if (dup) return dup
 
     // Create payment record
-    const created = await t.payment.create({
+    const created = await tx.payment.create({
       data: {
         bookingId: input.kind === "trip" ? input.entityId : null,
         provider: input.provider as never,
@@ -115,29 +119,32 @@ export async function initiatePayment(input: InitiatePaymentInput): Promise<Init
       },
     })
 
-    // Link payment to entity
-    await linkPaymentToEntity(t, input.kind, input.entityId, created.id)
+// Link payment to entity
+    await linkPaymentToEntity(tx, input.kind, input.entityId, created.id)
 
-    // Extend hold if near expiry (<5 min)
-    const entityFresh = await t[`${input.kind}Booking`]?.findUnique({ where: { id: input.entityId } })
-    if (entityFresh?.holdExpiresAt) {
-      const nearExpiry = entityFresh.holdExpiresAt.getTime() < Date.now() + 5 * 60 * 1000
-      if (nearExpiry) {
-        const settings: any = await getAppSettingsCached().catch(() => ({ holdExpiryMinutes: 15 }))
-        const mins = Number(settings.holdExpiryMinutes ?? 15)
-        await t[`${input.kind}Booking`].update({
-          where: { id: input.entityId },
-          data: { holdExpiresAt: new Date(Date.now() + mins * 60 * 1000) },
-        })
-        // Reschedule BullMQ job
-        await scheduleHoldExpiry(input.entityId, mins * 60 * 1000).catch((e) => {
-          log.error({ err: e.message, entityId: input.entityId }, "rescheduleHoldExpiry failed")
-        })
+    // Extend hold if near expiry (<5 min) — only for kinds with holdExpiresAt
+    if (input.kind !== "parcel" && input.kind !== "insurance") {
+      const models = tx as unknown as Record<string, { findUnique: (a: unknown) => Promise<{ holdExpiresAt: Date | null } | null>; update: (a: unknown) => Promise<unknown> } | undefined>
+      const entityFresh = await models[`${input.kind}Booking`]?.findUnique({ where: { id: input.entityId } })
+      if (entityFresh?.holdExpiresAt) {
+        const nearExpiry = entityFresh.holdExpiresAt.getTime() < Date.now() + 5 * 60 * 1000
+        if (nearExpiry) {
+          const settings = await getAppSettingsCached().catch(() => ({ holdExpiryMinutes: 15 }))
+          const mins = Number(settings.holdExpiryMinutes ?? 15)
+          await models[`${input.kind}Booking`]!.update({
+            where: { id: input.entityId },
+            data: { holdExpiresAt: new Date(Date.now() + mins * 60 * 1000) },
+          })
+          // Reschedule BullMQ job
+          await scheduleHoldExpiry(input.entityId, mins * 60 * 1000).catch((e) => {
+            log.error({ err: e.message, entityId: input.entityId }, "rescheduleHoldExpiry failed")
+          })
+        }
       }
     }
 
     // AuditLog
-    await t.auditLog.create({
+    await tx.auditLog.create({
       data: {
         actorId: input.userId,
         action: "payment.create",
@@ -153,7 +160,7 @@ export async function initiatePayment(input: InitiatePaymentInput): Promise<Init
       },
     })
 
-    return created
+    return { ...created, authorizationUrl: result.authorizationUrl }
   })
 
   // 5. Publish Kafka event (best-effort)
@@ -194,21 +201,38 @@ async function loadEntityAndValidate(input: InitiatePaymentInput): Promise<{ ent
 
 /** Find entity by ID (per-kind). */
 async function findEntityById(kind: string, entityId: string): Promise<Record<string, unknown> | null> {
+  if (kind === "parcel") {
+    return prisma.parcel.findUnique({ where: { id: entityId } })
+  }
+  if (kind === "insurance") {
+    return prisma.insurancePolicy.findUnique({ where: { id: entityId } })
+  }
   const modelName = `${capitalize(kind)}Booking`
-  return (prisma as Record<string, unknown>)[modelName]?.findUnique({ where: { id: entityId } }) as Promise<Record<string, unknown> | null>
+  const models = prisma as unknown as Record<string, EntityModel | undefined>
+  return models[modelName]?.findUnique({ where: { id: entityId } }) ?? null
 }
 
 /** Find pending payment by entity ID (per-kind). */
 async function findPendingPaymentByEntityId(kind: string, entityId: string): Promise<{ id: string; status: string; providerRef: string | null; authorizationUrl: string | null; webhookPayload: unknown } | null> {
-  const modelName = `${capitalize(kind)}Booking`
-  const entity = await (prisma as Record<string, unknown>)[modelName]?.findUnique({
-    where: { id: entityId },
-    select: { paymentId: true },
-  }) as { paymentId: string | null } | null
+  let paymentId: string | null = null
+  if (kind === "parcel") {
+    const parcel = await prisma.parcel.findUnique({ where: { id: entityId }, select: { paymentId: true } })
+    paymentId = parcel?.paymentId ?? null
+  } else if (kind === "insurance") {
+    const policy = await prisma.insurancePolicy.findUnique({ where: { id: entityId }, select: { paymentId: true } })
+    paymentId = policy?.paymentId ?? null
+  } else {
+    const modelName = `${capitalize(kind)}Booking`
+    const entity = await (prisma as unknown as Record<string, PaymentIdModel | undefined>)[modelName]?.findUnique({
+      where: { id: entityId },
+      select: { paymentId: true },
+    })
+    paymentId = entity?.paymentId ?? null
+  }
 
-  if (!entity?.paymentId) return null
+  if (!paymentId) return null
 
-  const payment = await prisma.payment.findUnique({ where: { id: entity.paymentId } })
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId } })
   if (!payment || !["pending", "processing"].includes(payment.status)) return null
 
   const authUrl = (payment.webhookPayload as Record<string, unknown> | null)?.authorizationUrl as string | undefined
@@ -216,16 +240,27 @@ async function findPendingPaymentByEntityId(kind: string, entityId: string): Pro
 }
 
 /** Find pending payment by entity ID inside transaction. */
-async function findPendingPaymentByEntityIdInTx(tx: Record<string, unknown>, kind: string, entityId: string): Promise<{ id: string; status: string; providerRef: string | null; authorizationUrl: string | null; webhookPayload: unknown } | null> {
-  const modelName = `${capitalize(kind)}Booking`
-  const entity = await tx[modelName]?.findUnique({
-    where: { id: entityId },
-    select: { paymentId: true },
-  }) as { paymentId: string | null } | null
+async function findPendingPaymentByEntityIdInTx(tx: Prisma.TransactionClient, kind: string, entityId: string): Promise<{ id: string; status: string; providerRef: string | null; authorizationUrl: string | null; webhookPayload: unknown } | null> {
+  let paymentId: string | null = null
+  if (kind === "parcel") {
+    const parcel = await tx.parcel.findUnique({ where: { id: entityId }, select: { paymentId: true } })
+    paymentId = parcel?.paymentId ?? null
+  } else if (kind === "insurance") {
+    const policy = await tx.insurancePolicy.findUnique({ where: { id: entityId }, select: { paymentId: true } })
+    paymentId = policy?.paymentId ?? null
+  } else {
+    const modelName = `${capitalize(kind)}Booking`
+    const models = tx as unknown as Record<string, PaymentIdModel | undefined>
+    const entity = await models[modelName]?.findUnique({
+      where: { id: entityId },
+      select: { paymentId: true },
+    })
+    paymentId = entity?.paymentId ?? null
+  }
 
-  if (!entity?.paymentId) return null
+  if (!paymentId) return null
 
-  const payment = await tx.payment.findUnique({ where: { id: entity.paymentId } })
+  const payment = await tx.payment.findUnique({ where: { id: paymentId } })
   if (!payment || !["pending", "processing"].includes(payment.status)) return null
 
   const authUrl = (payment.webhookPayload as Record<string, unknown> | null)?.authorizationUrl as string | undefined
@@ -239,9 +274,16 @@ function getTableName(kind: string): string {
 }
 
 /** Link payment to entity (per-kind). */
-async function linkPaymentToEntity(tx: Record<string, unknown>, kind: string, entityId: string, paymentId: string): Promise<void> {
-  const modelName = `${capitalize(kind)}Booking`
-  await tx[modelName]?.update({ where: { id: entityId }, data: { paymentId } as never })
+async function linkPaymentToEntity(tx: Prisma.TransactionClient, kind: string, entityId: string, paymentId: string): Promise<void> {
+  if (kind === "parcel") {
+    await tx.parcel.update({ where: { id: entityId }, data: { paymentId } as never })
+  } else if (kind === "insurance") {
+    await tx.insurancePolicy.update({ where: { id: entityId }, data: { paymentId } as never })
+  } else {
+    const modelName = `${capitalize(kind)}Booking`
+    const models = tx as unknown as Record<string, UpdateModel | undefined>
+    await models[modelName]?.update({ where: { id: entityId }, data: { paymentId } as never })
+  }
 }
 
 function capitalize(s: string): string {

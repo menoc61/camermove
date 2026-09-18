@@ -1,4 +1,4 @@
-import { prisma } from "@camermove/db"
+import { prisma, getAppSettingsCached } from "@camermove/db"
 
 export type CancelActor = "traveler" | "transporter" | "admin" | "super_admin" | "system"
 export type CancelResult = {
@@ -33,8 +33,8 @@ export const DEFAULT_TIERS: CancellationTier[] = [
 
 export async function getCancellationTiers(): Promise<CancellationTier[]> {
   try {
-    const settings = await prisma.appSettings.findUnique({ where: { id: "global" } })
-    const flags = settings?.featureFlags as Record<string, unknown> | null
+    const settings = await getAppSettingsCached()
+    const flags = (settings?.featureFlags ?? null) as Record<string, unknown> | null
     const tiers = (flags?.cancellationTiers as CancellationTier[] | undefined)
     if (Array.isArray(tiers) && tiers.length > 0) return tiers
   } catch {}

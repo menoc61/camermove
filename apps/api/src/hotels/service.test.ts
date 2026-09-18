@@ -62,16 +62,16 @@ describe("hotels/service ACID", () => {
     vi.spyOn(prisma.appSettings, "findUnique").mockResolvedValue({ id: "global", holdExpiryMinutes: 15 } as never)
 
     // Quantity=1, overlapping=1 should conflict
-    const txCount = vi.fn().mockResolvedValue(1) // overlapping >= quantity
-    const txQueryRaw = vi.fn().mockResolvedValue([{ id: roomTypeId, hotelId, quantity: 1, pricePerNight: 15000 }])
-    // @ts-ignore mock transaction for test
-    vi.spyOn(prisma as unknown as { $transaction: unknown }, "$transaction" as never).mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
-      const tx = {
-        $queryRaw: txQueryRaw,
-        hotelBooking: { count: txCount, create: vi.fn().mockResolvedValue({ id: "hb1", totalAmount: 15000 }) },
-      }
-      return cb(tx as never)
-    })
+const txCount = vi.fn().mockResolvedValue(1) // overlapping >= quantity
+     const txQueryRaw = vi.fn().mockResolvedValue([{ id: roomTypeId, hotelId, quantity: 1, pricePerNight: 15000 }])
+     // @ts-ignore mock transaction for test
+     vi.spyOn(prisma as unknown as { $transaction: unknown }, "$transaction" as never).mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+       const tx = {
+         $queryRawUnsafe: txQueryRaw,
+         hotelBooking: { count: txCount, create: vi.fn().mockResolvedValue({ id: "hb1", totalAmount: 15000 }) },
+       }
+       return cb(tx as never)
+     })
 
     await expect(
       createHotelBooking({
@@ -100,13 +100,13 @@ describe("hotels/service ACID", () => {
     vi.spyOn(prisma as unknown as { $transaction: unknown }, "$transaction" as never).mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
       call++
       const overlapping = call === 1 ? 0 : 1 // first sees 0, second sees the first booking
-      const tx = {
-        $queryRaw: vi.fn().mockResolvedValue([{ id: roomTypeId, hotelId, quantity: 1, pricePerNight: 10000 }]),
-        hotelBooking: {
-          count: vi.fn().mockResolvedValue(overlapping),
-          create: vi.fn().mockResolvedValue({ id: `hb-concurrent-${call}`, totalAmount: 10000, hotelId, roomTypeId, userId: `u${call}` }),
-        },
-      }
+const tx = {
+         $queryRawUnsafe: vi.fn().mockResolvedValue([{ id: roomTypeId, hotelId, quantity: 1, pricePerNight: 10000 }]),
+         hotelBooking: {
+           count: vi.fn().mockResolvedValue(overlapping),
+           create: vi.fn().mockResolvedValue({ id: `hb-concurrent-${call}`, totalAmount: 10000, hotelId, roomTypeId, userId: `u${call}` }),
+         },
+       }
       // simulate tiny async to allow interleaving
       await new Promise((r) => setTimeout(r, 5))
       return cb(tx as never)

@@ -58,6 +58,65 @@ export async function publishDataEvent(topic: EventTopic, event: DomainEvent<Rec
   await publishEvent(topic, event)
 }
 
+/** Typed helpers for common lifecycle events — domain modules call these. */
+export async function publishBookingCreated(kind: "trip" | "hotel" | "rental" | "event" | "parcel", entityId: string, payload: Record<string, unknown>): Promise<void> {
+  await publishEvent(
+    EVENT_TOPICS.bookingCreated,
+    makeEvent(`${kind}.booking.created`, entityId, { type: `${kind}.booking.created`, ...payload }),
+  )
+}
+
+export async function publishBookingConfirmed(kind: "trip" | "hotel" | "rental" | "event" | "parcel", entityId: string, userId: string, payload: Record<string, unknown>): Promise<void> {
+  const topicMap: Record<string, EventTopic> = {
+    trip: EVENT_TOPICS.bookingConfirmed,
+    hotel: EVENT_TOPICS.hotelBookingConfirmed,
+    rental: EVENT_TOPICS.rentalBookingConfirmed,
+    event: EVENT_TOPICS.eventBookingConfirmed,
+    parcel: EVENT_TOPICS.paymentConfirmed,
+  }
+  const topic = topicMap[kind]
+  if (!topic) return
+  await publishEvent(
+    topic,
+    makeEvent(`${kind}.booking.confirmed`, entityId, { type: `${kind}.booking.confirmed`, userId, payload }),
+  )
+}
+
+export async function publishBookingCancelled(kind: "trip" | "hotel" | "rental" | "event" | "parcel", entityId: string, userId: string, payload: Record<string, unknown>): Promise<void> {
+  await publishEvent(
+    EVENT_TOPICS.bookingStatusChanged,
+    makeEvent("booking.status.changed", entityId, { type: "booking.status.changed", userId, payload: { ...payload, newStatus: "cancelled", status: "cancelled" } }),
+  )
+}
+
+export async function publishPaymentInitiated(kind: "trip" | "hotel" | "rental" | "event" | "parcel", paymentId: string, payload: Record<string, unknown>): Promise<void> {
+  await publishEvent(
+    EVENT_TOPICS.paymentInitiated,
+    makeEvent("payment.initiated", paymentId, { type: "payment.initiated", ...payload }),
+  )
+}
+
+export async function publishPaymentConfirmed(entityId: string, userId: string, payload: Record<string, unknown>): Promise<void> {
+  await publishEvent(
+    EVENT_TOPICS.paymentConfirmed,
+    makeEvent("payment.confirmed", entityId, { type: "payment.confirmed", userId, payload }),
+  )
+}
+
+export async function publishTicketIssued(bookingId: string, userId: string, payload: Record<string, unknown>): Promise<void> {
+  await publishEvent(
+    EVENT_TOPICS.ticketIssued,
+    makeEvent("ticket.issued", bookingId, { type: "ticket.issued", userId, payload }),
+  )
+}
+
+/** Typed cache invalidation helper — call after successful writes.
+ * Note: actual invalidation is done by the calling service (hotels, rentals, etc.)
+ * to avoid circular deps. This is a no-op placeholder for future extraction. */
+export async function invalidateKind(_kind: "trip" | "hotel" | "rental" | "event" | "parcel"): Promise<void> {
+  // Services handle their own cache invalidation
+}
+
 /** Graceful-shutdown hook. */
 export async function closeOutbox(): Promise<void> {
   if (!producerPromise) return

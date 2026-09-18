@@ -4,7 +4,7 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@
 import { invalidateCache } from "../lib/cache.js"
 import { buildInsuranceWhere, countPolicies, findPolicies, findPolicyByIdForUser, type InsuranceWhereInput } from "./repository.js"
 import { initiateEntityPayment, type PaymentProvider } from "../payments/initiate.js"
-import { confirmPaymentSuccess, cancelIfPending, referenceForKind, type ConfirmPaymentAdapter, type CancelPendingAdapter, type ConfirmLink } from "../booking-kernel/index.js"
+import { confirmPaymentSuccess, cancel, referenceForKind } from "../booking-kernel/index.js"
 
 // Fallback prices (XAF per traveler). Overridable at runtime via
 // AppSettings.featureFlags.insurancePricing — no redeploy needed.
@@ -177,89 +177,13 @@ export async function createPolicyPayment(input: {
   })
 }
 
-const confirmAdapter: ConfirmPaymentAdapter = {
-  kind: "insurance",
-  notFoundMessage: "Police d'assurance introuvable pour ce paiement",
-  table: "InsurancePolicy",
-  isConfirmable: (e) => e.status === "pending_payment",
-  findLink: async (paymentId, tx?) => {
-    const client = (tx ?? prisma) as typeof prisma
-    return (await client.insurancePolicy.findFirst({ where: { paymentId } })) as unknown as (ConfirmLink & {
-      policyNumber: string | null
-      coverageType: string
-      startDate: Date
-      endDate: Date
-    }) | null
-  },
-  confirm: async (tx, entityId) => {
-    await ((tx as typeof prisma).insurancePolicy.update({ where: { id: entityId }, data: { status: "confirmed" } as never }))
-  },
-  notification: (link) => {
-    const withPolicy = link as unknown as { policyNumber: string | null; coverageType: string; startDate: Date; endDate: Date }
-    return {
-      topic: "camermove.insurance.policy.issued" as const,
-      type: "insurance.policy.issued",
-      userId: link.userId,
-      payload: {
-        policyId: link.id,
-        policyNumber: withPolicy.policyNumber,
-        reference: withPolicy.policyNumber,
-        amount: link.totalAmount,
-        coverageType: withPolicy.coverageType,
-        startDate: withPolicy.startDate instanceof Date ? withPolicy.startDate.toISOString().slice(0, 10) : String(withPolicy.startDate),
-        endDate: withPolicy.endDate instanceof Date ? withPolicy.endDate.toISOString().slice(0, 10) : String(withPolicy.endDate),
-      },
-    }
-  },
-}
-
 /**
  * Confirm an insurance policy after premium payment success (webhook / reconciliation).
  * ACID + idempotency ceremony lives in the booking-kernel.
  */
 export async function confirmInsurancePaymentSuccess(paymentId: string, event: unknown): Promise<{ confirmed: boolean; policyId: string }> {
-  const { entityId, confirmed } = await confirmPaymentSuccess(confirmAdapter, paymentId, event)
+  const { entityId, confirmed } = await confirmPaymentSuccess("insurance", paymentId, event)
   return { confirmed, policyId: entityId }
-}
-
-const cancelAdapter: CancelPendingAdapter<{ id: string; userId: string; status: string; totalAmount: number; premium: number; policyNumber: string | null; destination: string; coverageType: string }> = {
-  notFoundMessage: "Police d'assurance introuvable",
-  table: "InsurancePolicy",
-  find: async (id) => {
-    const row = (await prisma.insurancePolicy.findUnique({ where: { id } })) as unknown as { id: string; userId: string; status: string; premium: number; policyNumber: string | null; destination: string; coverageType: string } | null
-    return row ? { ...row, totalAmount: row.premium } : null
-  },
-  findFresh: async (tx, id) => {
-    const row = (await (tx as typeof prisma).insurancePolicy.findUnique({ where: { id } })) as unknown as { id: string; userId: string; status: string; premium: number } | null
-    return row ? { ...row, totalAmount: row.premium } : null
-  },
-  assertCancellable: (entity) => {
-    if (entity.status !== "pending_payment") {
-      if (entity.status === "confirmed") throw new ConflictError("Police déjà confirmée et payée — contactez le support pour toute annulation")
-      throw new ConflictError(`Police non annulable — statut: ${entity.status}`)
-    }
-  },
-  cancel: async (tx, entity) => (tx as typeof prisma).insurancePolicy.update({ where: { id: entity.id }, data: { status: "cancelled" } as never }),
-  auditAction: "insurance.booking.cancel",
-  auditEntityType: "InsurancePolicy",
-  auditExtra: (entity) => ({ premium: entity.premium, policyNumber: entity.policyNumber }),
-  notification: (entity) => ({
-    topic: "camermove.booking.status.changed" as const,
-    type: "booking.status.changed",
-    userId: entity.userId,
-    payload: {
-      policyId: entity.id,
-      policyNumber: entity.policyNumber ?? undefined,
-      reference: entity.policyNumber ?? undefined,
-      amount: entity.premium,
-      coverageType: entity.coverageType,
-      destination: entity.destination,
-      serviceLabel: "Assurance",
-      entityLabel: entity.destination,
-      newStatus: "cancelled",
-      status: "cancelled",
-    },
-  }),
 }
 
 /**
@@ -268,5 +192,5 @@ const cancelAdapter: CancelPendingAdapter<{ id: string; userId: string; status: 
  * ACID ceremony lives in the booking-kernel.
  */
 export async function cancelInsurancePolicy(id: string, actorId: string, actorRole = "traveler") {
-  return cancelIfPending(cancelAdapter, id, actorId, actorRole)
+  return cancel("insurance", { entityId: id, actorId, actorRole })
 }

@@ -1,337 +1,416 @@
-/**
- * Domain adapters for each payable kind.
- * Each adapter supplies only the predicates and callbacks the kernel needs.
- * No business logic duplication — kernel owns the ACID ceremony.
- */
 import { prisma } from "@camermove/db"
-import { getAppSettingsCached } from "@camermove/db"
-import { ConflictError, NotFoundError, BadRequestError } from "@camermove/config"
-import type { AdapterConfig, EntityRow, OverlapCheckInput, PayableKind, ReserveInput } from "./types"
-import { referenceForKind, tripReference, tripPrefix } from "./references"
+import { ConflictError, ForbiddenError, NotFoundError, createLogger } from "@camermove/config"
+import { EVENT_TOPICS, makeEvent, publishEvent } from "@camermove/events"
+import { referenceForKind, tripReference, type PayableKind } from "./references.js"
+import type { ConfirmLink, ConfirmNotification, CancelEntity } from "./types.js"
 
-/** Shared helpers */
-async function getHoldExpiryMinutes(): Promise<number> {
-  try {
-    const s = await getAppSettingsCached()
-    const v = Number((s as { holdExpiryMinutes?: unknown }).holdExpiryMinutes ?? 15)
-    return Number.isFinite(v) && v > 0 ? v : 15
-  } catch {
-    return 15
+const log = createLogger()
+
+export interface AdapterInstance {
+  kind: PayableKind
+  table: string
+  idField: string
+  notFoundMessage: string
+  find: (id: string) => Promise<Record<string, unknown> | null>
+  findLink: (paymentId: string, tx?: unknown) => Promise<ConfirmLink | null>
+  isConfirmable: (entity: ConfirmLink) => boolean
+  confirm: (tx: unknown, entityId: string) => Promise<void>
+  notification: (entity: Record<string, unknown>) => ConfirmNotification
+  findEntityByPaymentId: (paymentId: string) => Promise<Record<string, unknown> | null>
+  makeReference: (id: string) => string
+  calcTotalAmount: (entity: Record<string, unknown>, input: { meta: Record<string, unknown> }) => number
+  checkAvailability?: (entity: Record<string, unknown>, input: { meta: Record<string, unknown> }, tx: unknown) => Promise<void> | undefined
+  create: (data: Record<string, unknown>, tx: unknown) => Promise<Record<string, unknown>>
+  // Cancel-specific
+  assertCancellable: (entity: Partial<CancelEntity> & CancelEntity) => void | Promise<void>
+  findFresh: (tx: unknown, id: string) => Promise<Partial<CancelEntity> & CancelEntity | null>
+  releaseInventory?: (tx: unknown, entity: Partial<CancelEntity> & CancelEntity) => Promise<void>
+  cancel: (tx: unknown, entity: Partial<CancelEntity> & CancelEntity) => Promise<Record<string, unknown>>
+  auditAction: string
+  auditEntityType: string
+  auditExtra?: (entity: Partial<CancelEntity> & CancelEntity) => Record<string, unknown>
+}
+
+export function getAdapter(kind: PayableKind): AdapterInstance {
+  switch (kind) {
+    case "hotel": return hotelAdapter
+    case "rental": return rentalAdapter
+    case "event": return eventAdapter
+    case "parcel": return parcelAdapter
+    case "trip": return tripAdapter
+    case "insurance": return insuranceAdapter
   }
 }
 
-function calcNights(checkIn: Date, checkOut: Date): number {
-  const ms = checkOut.getTime() - checkIn.getTime()
-  return Math.max(1, Math.ceil(ms / 86400000))
+function toConfirmLink(row: Record<string, unknown> | null): ConfirmLink | null {
+  if (!row) return null
+  return { id: row.id as string, userId: row.userId as string, status: row.status as string, totalAmount: row.totalAmount as number }
 }
 
-/** Trip adapter — uses SeatAvailability FOR UPDATE + atomic hold helpers */
-export const tripAdapter: AdapterConfig = {
-  kind: "trip",
-  table: "Booking",
-  idField: "id",
-  referencePrefix: tripPrefix(),
-  generateReference: tripReference,
-  async findEntity(id: string, tx?: unknown) {
-    const client = (tx as { booking: { findUnique: (a: unknown) => Promise<unknown> } })?.booking ?? prisma.booking
-    return client.findUnique({
-      where: { id },
-      include: { passengers: true, trip: true },
-    })
-  },
-  async findEntityByPaymentId(paymentId: string) {
-    return prisma.booking.findFirst({ where: { paymentId } })
-  },
-  async overlapPredicate(_tx: unknown, input: OverlapCheckInput) {
-    if (!input.seatCount) throw new BadRequestError("seatCount required")
-    const rows = await prisma.$queryRaw<Array<{ seatsAvailable: number; seatsHeld: number }>>`
-      SELECT "seatsAvailable", "seatsHeld" FROM "SeatAvailability"
-      WHERE "tripId" = ${input.entityId}
-      FOR UPDATE
-    `
-    const row = rows[0]
-    if (!row) throw new ConflictError("Aucune disponibilité pour ce trajet")
-    if (row.seatsAvailable < input.seatCount) throw new ConflictError("Places insuffisantes")
-    return row.seatsAvailable
-  },
-  async priceFn(_tx: unknown, input: OverlapCheckInput) {
-    const trip = await prisma.trip.findUnique({ where: { id: input.entityId }, select: { price: true } })
-    if (!trip) throw new NotFoundError("Trajet introuvable")
-    return trip.price * (input.seatCount ?? 1)
-  },
-  async releaseInventory(_tx: unknown, entityId: string, seatCount = 1) {
-    await prisma.seatAvailability.update({
-      where: { tripId: entityId },
-      data: { seatsAvailable: { increment: seatCount }, seatsHeld: { decrement: seatCount } },
-    })
-  },
-  getHoldExpiryMinutes,
-  notificationPayload: (entity: EntityRow) => ({
-    bookingId: entity.id,
-    reference: entity.reference,
-    amount: entity.totalAmount,
-    tripId: (entity as { trip?: { id: string } }).trip?.id,
-    seatCount: (entity as { seatCount?: number }).seatCount,
-  }),
-}
+// ── Hotel ──────────────────────────────────────────────────────────
 
-/** Hotel adapter — overlap count on HotelBooking by date range */
-export const hotelAdapter: AdapterConfig = {
+export const hotelAdapter: AdapterInstance = {
   kind: "hotel",
   table: "HotelBooking",
-  idField: "id",
-  referencePrefix: "HOTEL-",
-  generateReference: (id) => referenceForKind("hotel", id),
-  async findEntity(id: string, tx?: unknown) {
-    const client = (tx as { hotelBooking: { findUnique: (a: unknown) => Promise<unknown> } })?.hotelBooking ?? prisma.hotelBooking
-    return client.findUnique({ where: { id }, include: { hotel: true, roomType: true } })
+  idField: "roomTypeId",
+  notFoundMessage: "Réservation hôtelière introuvable",
+
+  async find(id: string) {
+    return prisma.hotelBooking.findUnique({ where: { id } })
   },
+
+  async findLink(paymentId: string, tx?: unknown) {
+    const p = tx ? (tx as { payment: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).payment.findUnique({ where: { id: paymentId }, include: { hotelBooking: true } })
+      : await prisma.payment.findUnique({ where: { id: paymentId }, include: { hotelBooking: true } })
+    return toConfirmLink(p as Record<string, unknown>)
+  },
+
+  isConfirmable(entity: ConfirmLink) { return entity.status === "pending_payment" },
+
+  async confirm(tx: unknown, entityId: string) {
+    await (tx as { hotelBooking: { update: (a: unknown) => Promise<unknown> } }).hotelBooking.update({
+      where: { id: entityId }, data: { status: "confirmed" },
+    })
+  },
+
+  notification(entity: Record<string, unknown>): ConfirmNotification {
+    const link = entity as ConfirmLink
+    return { topic: EVENT_TOPICS.hotelBookingConfirmed, type: "hotel.booking.confirmed", userId: link.userId, payload: { bookingId: link.id, reference: link.reference, amount: link.totalAmount } }
+  },
+
   async findEntityByPaymentId(paymentId: string) {
-    return prisma.hotelBooking.findFirst({ where: { paymentId }, include: { hotel: true, roomType: true } })
+    return prisma.payment.findUnique({ where: { id: paymentId }, include: { hotelBooking: true } })
   },
-  async overlapPredicate(tx: unknown, input: OverlapCheckInput) {
-    if (!input.roomTypeId || !input.checkInDate || !input.checkOutDate) {
-      throw new BadRequestError("roomTypeId, checkInDate, checkOutDate required")
-    }
-    const t = tx as { hotelBooking: { count: (a: unknown) => Promise<number> } }
-    return t.hotelBooking.count({
-      where: {
-        roomTypeId: input.roomTypeId,
-        status: { in: ["pending_payment", "confirmed"] },
-        checkInDate: { lt: input.checkOutDate },
-        checkOutDate: { gt: input.checkInDate },
-      },
+
+  makeReference(id: string) { return referenceForKind("hotel", id) },
+
+  calcTotalAmount(entity: Record<string, unknown>) {
+    const pricePerNight = Number(entity.pricePerNight ?? 0)
+    const nights = Math.max(1, Math.ceil((Number(entity.checkOutDate ?? 0) - Number(entity.checkInDate ?? 0)) / 86400000))
+    return pricePerNight * nights
+  },
+
+  async checkAvailability(entity, input, tx) {
+    const checkInDate = entity.checkInDate as Date
+    const checkOutDate = entity.checkOutDate as Date
+    const overlapping = await (tx as { hotelBooking: { count: (a: unknown) => Promise<number> } }).hotelBooking.count({
+      where: { roomTypeId: entity.roomTypeId, status: { in: ["pending_payment", "confirmed"] }, checkInDate: { lt: checkOutDate }, checkOutDate: { gt: checkInDate } },
     })
+    if (overlapping >= (entity.quantity as number)) throw new ConflictError("Plus de disponibilité pour ces dates")
   },
-  async priceFn(tx: unknown, input: OverlapCheckInput) {
-    if (!input.roomTypeId) throw new BadRequestError("roomTypeId required")
-    const t = tx as { hotelRoom: { findUnique: (a: unknown) => Promise<{ pricePerNight: number } | null> } }
-    const room = await t.hotelRoom.findUnique({
-      where: { id: input.roomTypeId },
-      select: { pricePerNight: true },
-    })
-    if (!room) throw new NotFoundError("Type de chambre introuvable")
-    const nights = calcNights(input.checkInDate!, input.checkOutDate!)
-    return room.pricePerNight * nights
+
+  async create(data: Record<string, unknown>, tx: unknown) {
+    const t = tx as { hotelBooking: { create: (a: unknown) => Promise<Record<string, unknown>> } }
+    return t.hotelBooking.create({ data: { ...data, checkInDate: data.checkInDate ?? (data.meta as Record<string, unknown>)?.checkInDate, checkOutDate: data.checkOutDate ?? (data.meta as Record<string, unknown>)?.checkOutDate } })
   },
-  async releaseInventory() {
-    // Hotel availability is computed via overlap count — no physical inventory to release
-  },
-  getHoldExpiryMinutes,
-  notificationPayload: (entity: EntityRow) => ({
-    bookingId: entity.id,
-    reference: entity.reference,
-    amount: entity.totalAmount,
-    hotelId: (entity as { hotelId?: string }).hotelId,
-    roomTypeId: (entity as { roomTypeId?: string }).roomTypeId,
-    checkInDate: (entity as { checkInDate?: Date }).checkInDate,
-    checkOutDate: (entity as { checkOutDate?: Date }).checkOutDate,
-  }),
+
+  assertCancellable() {},
+  async findFresh(tx, id) { return (tx as { hotelBooking: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).hotelBooking.findUnique({ where: { id } }) as unknown as Promise<Partial<CancelEntity> & CancelEntity | null> },
+  async releaseInventory() {},
+  async cancel(tx, entity) { return entity as unknown as Record<string, unknown> },
+  auditAction: "hotel.booking.cancel",
+  auditEntityType: "HotelBooking",
 }
 
-/** Rental adapter — overlap check on RentalBooking by date range */
-export const rentalAdapter: AdapterConfig = {
+// ── Rental ─────────────────────────────────────────────────────────
+
+export const rentalAdapter: AdapterInstance = {
   kind: "rental",
   table: "RentalBooking",
-  idField: "id",
-  referencePrefix: "RENTAL-",
-  generateReference: (id) => referenceForKind("rental", id),
-  async findEntity(id: string, tx?: unknown) {
-    const client = (tx as { rentalBooking: { findUnique: (a: unknown) => Promise<unknown> } })?.rentalBooking ?? prisma.rentalBooking
-    return client.findUnique({ where: { id }, include: { vehicle: true } })
+  idField: "rentalVehicleId",
+  notFoundMessage: "Réservation de location introuvable",
+
+  async find(id: string) {
+    return prisma.rentalBooking.findUnique({ where: { id } })
   },
-  async findEntityByPaymentId(paymentId: string) {
-    return prisma.rentalBooking.findFirst({ where: { paymentId }, include: { vehicle: true } })
+
+  async findLink(paymentId: string, tx?: unknown) {
+    const p = tx ? (tx as { payment: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).payment.findUnique({ where: { id: paymentId }, include: { rentalBooking: true } })
+      : await prisma.payment.findUnique({ where: { id: paymentId }, include: { rentalBooking: true } })
+    return toConfirmLink(p as Record<string, unknown>)
   },
-  async overlapPredicate(tx: unknown, input: OverlapCheckInput) {
-    if (!input.rentalVehicleId || !input.startDate || !input.endDate) {
-      throw new BadRequestError("rentalVehicleId, startDate, endDate required")
-    }
-    const t = tx as { rentalBooking: { findFirst: (a: unknown) => Promise<unknown> } }
-    return t.rentalBooking.findFirst({
-      where: {
-        rentalVehicleId: input.rentalVehicleId,
-        status: { in: ["pending_payment", "confirmed", "active"] },
-        startDate: { lt: input.endDate },
-        endDate: { gt: input.startDate },
-      },
-    }).then((r) => (r ? 1 : 0))
-  },
-  async priceFn(tx: unknown, input: OverlapCheckInput) {
-    if (!input.rentalVehicleId) throw new BadRequestError("rentalVehicleId required")
-    const t = tx as { rentalVehicle: { findUnique: (a: unknown) => Promise<{ pricePerUnit: number; durationUnit: string } | null> } }
-    const vehicle = await t.rentalVehicle.findUnique({
-      where: { id: input.rentalVehicleId },
-      select: { pricePerUnit: true, durationUnit: true },
+
+  isConfirmable(entity: ConfirmLink) { return entity.status === "pending_payment" },
+
+  async confirm(tx: unknown, entityId: string) {
+    await (tx as { rentalBooking: { update: (a: unknown) => Promise<unknown> } }).rentalBooking.update({
+      where: { id: entityId }, data: { status: "confirmed" },
     })
-    if (!vehicle) throw new NotFoundError("Véhicule introuvable")
-    const ms = input.endDate!.getTime() - input.startDate!.getTime()
-    const unit = vehicle.durationUnit as "hour" | "day" | "week" | "month"
-    let duration: number
-    if (unit === "hour") duration = Math.max(1, Math.ceil(ms / 3600000))
-    else if (unit === "week") duration = Math.max(1, Math.ceil(ms / (86400000 * 7)))
-    else if (unit === "month") duration = Math.max(1, Math.ceil(ms / (86400000 * 30)))
-    else duration = Math.max(1, Math.ceil(ms / 86400000))
-    return vehicle.pricePerUnit * duration
   },
-  async releaseInventory() {
-    // Rental availability computed via overlap — no physical inventory to release
+
+  notification(entity: Record<string, unknown>): ConfirmNotification {
+    const link = entity as ConfirmLink
+    return { topic: EVENT_TOPICS.rentalBookingConfirmed, type: "rental.booking.confirmed", userId: link.userId, payload: { bookingId: link.id, reference: link.reference, amount: link.totalAmount } }
   },
-  getHoldExpiryMinutes,
-  notificationPayload: (entity: EntityRow) => ({
-    bookingId: entity.id,
-    reference: entity.reference,
-    amount: entity.totalAmount,
-    rentalVehicleId: (entity as { rentalVehicleId?: string }).rentalVehicleId,
-    startDate: (entity as { startDate?: Date }).startDate,
-    endDate: (entity as { endDate?: Date }).endDate,
-    pickupCity: (entity as { pickupCity?: string }).pickupCity,
-    dropoffCity: (entity as { dropoffCity?: string }).dropoffCity,
-  }),
+
+  async findEntityByPaymentId(paymentId: string) {
+    return prisma.payment.findUnique({ where: { id: paymentId }, include: { rentalBooking: true } })
+  },
+
+  makeReference(id: string) { return referenceForKind("rental", id) },
+
+  calcTotalAmount(entity: Record<string, unknown>) {
+    const pricePerDay = Number(entity.pricePerDay ?? entity.pricePerNight ?? 0)
+    const ms = (entity.endDate as Date ? (entity.endDate as Date).getTime() : 0) - (entity.startDate as Date ? (entity.startDate as Date).getTime() : 0)
+    const days = Math.max(1, Math.ceil(ms / 86400000))
+    return pricePerDay * days
+  },
+
+  async checkAvailability(entity, input, tx) {
+    const startDate = entity.startDate as Date
+    const endDate = entity.endDate as Date
+    const overlapping = await (tx as { rentalBooking: { count: (a: unknown) => Promise<number> } }).rentalBooking.count({
+      where: { rentalVehicleId: entity.rentalVehicleId, status: { in: ["pending_payment", "confirmed"] }, startDate: { lt: endDate }, endDate: { gt: startDate } },
+    })
+    if (overlapping >= ((entity as { quantity?: number }).quantity ?? 1)) throw new ConflictError("Plus de disponibilité pour cette période — déjà réservé")
+  },
+
+  async create(data: Record<string, unknown>, tx: unknown) {
+    const t = tx as { rentalBooking: { create: (a: unknown) => Promise<Record<string, unknown>> } }
+    return t.rentalBooking.create({ data })
+  },
+
+  assertCancellable() {},
+  async findFresh(tx, id) { return (tx as { rentalBooking: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).rentalBooking.findUnique({ where: { id } }) as unknown as Promise<Partial<CancelEntity> & CancelEntity | null> },
+  async releaseInventory() {},
+  async cancel(tx, entity) { return entity as unknown as Record<string, unknown> },
+  auditAction: "rental.booking.cancel",
+  auditEntityType: "RentalBooking",
 }
 
-/** Event adapter — overlap check on TicketCategory sold count */
-export const eventAdapter: AdapterConfig = {
+// ── Event ──────────────────────────────────────────────────────────
+
+export const eventAdapter: AdapterInstance = {
   kind: "event",
   table: "EventBooking",
-  idField: "id",
-  referencePrefix: "EVENT-",
-  generateReference: (id) => referenceForKind("event", id),
-  async findEntity(id: string, tx?: unknown) {
-    const client = (tx as { eventBooking: { findUnique: (a: unknown) => Promise<unknown> } })?.eventBooking ?? prisma.eventBooking
-    return client.findUnique({ where: { id }, include: { event: true, ticketCategory: true } })
+  idField: "eventId",
+  notFoundMessage: "Billet événement introuvable",
+
+  async find(id: string) {
+    return prisma.eventBooking.findUnique({ where: { id } })
   },
+
+  async findLink(paymentId: string, tx?: unknown) {
+    const p = tx ? (tx as { payment: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).payment.findUnique({ where: { id: paymentId }, include: { eventBooking: true } })
+      : await prisma.payment.findUnique({ where: { id: paymentId }, include: { eventBooking: true } })
+    return toConfirmLink(p as Record<string, unknown>)
+  },
+
+  isConfirmable(entity: ConfirmLink) { return entity.status === "pending_payment" },
+
+  async confirm(tx: unknown, entityId: string) {
+    await (tx as { eventBooking: { update: (a: unknown) => Promise<unknown> } }).eventBooking.update({
+      where: { id: entityId }, data: { status: "confirmed" },
+    })
+  },
+
+  notification(entity: Record<string, unknown>): ConfirmNotification {
+    const link = entity as ConfirmLink
+    return { topic: EVENT_TOPICS.eventBookingConfirmed, type: "event.booking.confirmed", userId: link.userId, payload: { bookingId: link.id, reference: link.reference, amount: link.totalAmount } }
+  },
+
   async findEntityByPaymentId(paymentId: string) {
-    return prisma.eventBooking.findFirst({ where: { paymentId }, include: { event: true, ticketCategory: true } })
+    return prisma.payment.findUnique({ where: { id: paymentId }, include: { eventBooking: true } })
   },
-  async overlapPredicate(tx: unknown, input: OverlapCheckInput) {
-    if (!input.ticketCategoryId || !input.quantity) {
-      throw new BadRequestError("ticketCategoryId, quantity required")
-    }
-    const t = tx as { ticketCategory: { findUnique: (a: unknown) => Promise<{ quantity: number; sold: number } | null> } }
-    const cat = await t.ticketCategory.findUnique({
-      where: { id: input.ticketCategoryId },
-      select: { quantity: true, sold: true },
-    })
-    if (!cat) throw new NotFoundError("Catégorie de billet introuvable")
-    const available = cat.quantity - cat.sold
-    if (available < input.quantity) throw new ConflictError("Quantité insuffisante")
-    return available
+
+  makeReference(id: string) { return referenceForKind("event", id) },
+
+  calcTotalAmount(entity: Record<string, unknown>, input?: Record<string, unknown>) {
+    const meta = input?.meta as Record<string, unknown> | undefined
+    const base = Number(entity.totalAmount ?? (meta?.price as number) ?? 0)
+    const qty = Number(input?.quantity ?? 1)
+    return base * qty
   },
-  async priceFn(tx: unknown, input: OverlapCheckInput) {
-    if (!input.ticketCategoryId || !input.quantity) throw new BadRequestError("ticketCategoryId, quantity required")
-    const t = tx as { ticketCategory: { findUnique: (a: unknown) => Promise<{ price: number } | null> } }
-    const cat = await t.ticketCategory.findUnique({
-      where: { id: input.ticketCategoryId },
-      select: { price: true },
-    })
-    if (!cat) throw new NotFoundError("Catégorie de billet introuvable")
-    return cat.price * input.quantity
+
+  async checkAvailability(entity, input, tx) {
+    const categoryId = (entity.ticketCategoryId ?? entity.ticketCategoryId) as string | undefined
+    if (!categoryId) return
+    const quantity = Number(input.meta?.quantity ?? 1)
+    const category = await (tx as { ticketCategory: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).ticketCategory.findUnique({ where: { id: categoryId } })
+    if (!category) throw new NotFoundError("Catégorie de billet introuvable")
+    const sold = Number(category.sold ?? 0)
+    const held = Number(category.held ?? 0)
+    if ((category.quantity as number) - sold - held < quantity) throw new ConflictError("Quantité insuffisante")
   },
-  async releaseInventory(tx: unknown, entityId: string) {
-    const t = tx as { eventBooking: { findUnique: (a: unknown) => Promise<{ ticketCategoryId: string; quantity: number } | null>; ticketCategory: { update: (a: unknown) => Promise<unknown> } } }
-    const booking = await t.eventBooking.findUnique({
-      where: { id: entityId },
-      select: { ticketCategoryId: true, quantity: true },
-    })
-    if (booking) {
-      await t.ticketCategory.update({
-        where: { id: booking.ticketCategoryId },
-        data: { sold: { decrement: booking.quantity } },
-      })
-    }
+
+  async create(data: Record<string, unknown>, tx: unknown) {
+    const t = tx as { eventBooking: { create: (a: unknown) => Promise<Record<string, unknown>> } }
+    return t.eventBooking.create({ data })
   },
-  getHoldExpiryMinutes,
-  notificationPayload: (entity: EntityRow) => ({
-    bookingId: entity.id,
-    reference: entity.reference,
-    amount: entity.totalAmount,
-    eventId: (entity as { eventId?: string }).eventId,
-    ticketCategoryId: (entity as { ticketCategoryId?: string }).ticketCategoryId,
-    quantity: (entity as { quantity?: number }).quantity,
-  }),
+
+  assertCancellable() {},
+  async findFresh(tx, id) { return (tx as { eventBooking: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).eventBooking.findUnique({ where: { id } }) as unknown as Promise<Partial<CancelEntity> & CancelEntity | null> },
+  async releaseInventory(tx, entity) { await (tx as { ticketCategory: { update: (a: unknown) => Promise<unknown> } }).ticketCategory.update({ where: { id: (entity as unknown as { ticketCategoryId: string }).ticketCategoryId }, data: { held: { decrement: (entity as unknown as { quantity: number }).quantity } } }) },
+  async cancel(tx, entity) { return entity as unknown as Record<string, unknown> },
+  auditAction: "event.booking.cancel",
+  auditEntityType: "EventBooking",
 }
 
-/** Parcel adapter — no overlap check, simple payment reference */
-export const parcelAdapter: AdapterConfig = {
+// ── Parcel ─────────────────────────────────────────────────────────
+
+export const parcelAdapter: AdapterInstance = {
   kind: "parcel",
   table: "Parcel",
-  idField: "id",
-  referencePrefix: "PARCEL-",
-  generateReference: (id) => referenceForKind("parcel", id),
-  async findEntity(id: string, tx?: unknown) {
-    const client = (tx as { parcel: { findUnique: (a: unknown) => Promise<unknown> } })?.parcel ?? prisma.parcel
-    return client.findUnique({ where: { id } })
+  idField: "senderCity",
+  notFoundMessage: "Colis introuvable",
+
+  async find(id: string) {
+    return prisma.parcel.findUnique({ where: { id } })
   },
+
+  async findLink(paymentId: string, tx?: unknown) {
+    const p = tx ? (tx as { payment: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).payment.findUnique({ where: { id: paymentId }, include: { parcel: true } })
+      : await prisma.payment.findUnique({ where: { id: paymentId }, include: { parcel: true } })
+    return toConfirmLink(p as Record<string, unknown>)
+  },
+
+  isConfirmable() { return true },
+
+  async confirm(tx: unknown, entityId: string) {
+    await (tx as { parcel: { update: (a: unknown) => Promise<unknown> } }).parcel.update({
+      where: { id: entityId }, data: { paymentId: entityId },
+    })
+  },
+
+  notification(entity: Record<string, unknown>): ConfirmNotification {
+    const link = entity as ConfirmLink
+    return { topic: EVENT_TOPICS.paymentConfirmed, type: "payment.confirmed", userId: link.userId, payload: { bookingId: link.id, reference: link.reference, amount: link.totalAmount } }
+  },
+
   async findEntityByPaymentId(paymentId: string) {
-    return prisma.parcel.findFirst({ where: { paymentId } })
+    return prisma.payment.findUnique({ where: { id: paymentId }, include: { parcel: true } })
   },
-  async overlapPredicate() {
-    return 0 // no overlap check for parcels
+
+  makeReference(id: string) { return `PARCEL-${id.slice(0, 8).toUpperCase()}` },
+
+  calcTotalAmount(entity: Record<string, unknown>) {
+    return Number(entity.shippingCost ?? 0)
   },
-  async priceFn(_tx: unknown, input: OverlapCheckInput) {
-    const parcel = await prisma.parcel.findUnique({ where: { id: input.entityId }, select: { shippingCost: true } })
-    if (!parcel) throw new NotFoundError("Colis introuvable")
-    return parcel.shippingCost
+
+  async create(data: Record<string, unknown>, tx: unknown) {
+    const t = tx as { parcel: { create: (a: unknown) => Promise<Record<string, unknown>> } }
+    return t.parcel.create({ data })
   },
-  async releaseInventory() {
-    // No inventory for parcels
+
+  assertCancellable(entity) {
+    if (entity.status !== "registered") throw new ConflictError(`Colis non annulable — statut: ${entity.status}`)
+    if ((entity as { paymentId?: string }).paymentId) throw new ConflictError("Colis déjà payé — contactez le support")
   },
-  getHoldExpiryMinutes,
-  notificationPayload: (entity: EntityRow) => ({
-    parcelId: entity.id,
-    reference: entity.reference,
-    amount: entity.totalAmount,
-    trackingNumber: (entity as { trackingNumber?: string }).trackingNumber,
-    senderCity: (entity as { senderCity?: string }).senderCity,
-    recipientCity: (entity as { recipientCity?: string }).recipientCity,
-  }),
+  async findFresh(tx, id) { return (tx as { parcel: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).parcel.findUnique({ where: { id } }) as unknown as Promise<Partial<CancelEntity> & CancelEntity | null> },
+  async releaseInventory() {},
+  async cancel(tx, entity) {
+    return (tx as { parcel: { update: (a: unknown) => Promise<Record<string, unknown>> } }).parcel.update({
+      where: { id: (entity as { id: string }).id }, data: { status: "cancelled" },
+    }) as Promise<Record<string, unknown>>
+  },
+  auditAction: "parcel.booking.cancel",
+  auditEntityType: "Parcel",
 }
 
-/** Insurance adapter — placeholder for future implementation */
-export const insuranceAdapter: AdapterConfig = {
+// ── Trip ───────────────────────────────────────────────────────────
+
+export const tripAdapter: AdapterInstance = {
+  kind: "trip",
+  table: "Booking",
+  idField: "tripId",
+  notFoundMessage: "Réservation introuvable",
+
+  async find(id: string) {
+    return prisma.booking.findUnique({ where: { id } })
+  },
+
+  async findLink(paymentId: string, tx?: unknown) {
+    const p = tx ? (tx as { payment: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).payment.findUnique({ where: { id: paymentId }, include: { booking: true } })
+      : await prisma.payment.findUnique({ where: { id: paymentId }, include: { booking: true } })
+    return toConfirmLink(p as Record<string, unknown>)
+  },
+
+  isConfirmable(entity: ConfirmLink) { return entity.status === "pending_payment" },
+
+  async confirm(tx: unknown, entityId: string) {
+    await (tx as { booking: { update: (a: unknown) => Promise<unknown> } }).booking.update({
+      where: { id: entityId }, data: { status: "confirmed" },
+    })
+  },
+
+  notification(entity: Record<string, unknown>): ConfirmNotification {
+    const link = entity as ConfirmLink
+    return { topic: EVENT_TOPICS.bookingConfirmed, type: "booking.confirmed", userId: link.userId, payload: { bookingId: link.id, reference: link.reference, amount: link.totalAmount } }
+  },
+
+  async findEntityByPaymentId(paymentId: string) {
+    return prisma.payment.findUnique({ where: { id: paymentId }, include: { booking: true } })
+  },
+
+  makeReference(id: string) { return tripReference(id) },
+
+  calcTotalAmount(entity: Record<string, unknown>) {
+    return Number(entity.totalAmount ?? 0)
+  },
+
+  async create(data: Record<string, unknown>, tx: unknown) {
+    const t = tx as { booking: { create: (a: unknown) => Promise<Record<string, unknown>> } }
+    return t.booking.create({ data })
+  },
+
+  assertCancellable() {},
+  async findFresh(tx, id) { return (tx as { booking: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).booking.findUnique({ where: { id } }) as unknown as Promise<Partial<CancelEntity> & CancelEntity | null> },
+  async releaseInventory() {},
+  async cancel(tx, entity) { return entity as unknown as Record<string, unknown> },
+  auditAction: "booking.cancel",
+  auditEntityType: "Booking",
+}
+
+// ── Insurance ──────────────────────────────────────────────────────
+
+export const insuranceAdapter: AdapterInstance = {
   kind: "insurance",
   table: "InsurancePolicy",
-  idField: "id",
-  referencePrefix: "INS-",
-  generateReference: (id) => referenceForKind("insurance", id),
-  async findEntity(id: string, tx?: unknown) {
-    const client = (tx as { insurancePolicy: { findUnique: (a: unknown) => Promise<unknown> } })?.insurancePolicy ?? prisma.insurancePolicy
-    return client.findUnique({ where: { id } })
+  idField: "bookingId",
+  notFoundMessage: "Assurance introuvable",
+
+  async find(id: string) {
+    return prisma.insurancePolicy.findUnique({ where: { id } })
   },
+
+  async findLink(paymentId: string, tx?: unknown) {
+    const p = tx ? (tx as { payment: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).payment.findUnique({ where: { id: paymentId }, include: { insurancePolicy: true } })
+      : await prisma.payment.findUnique({ where: { id: paymentId }, include: { insurancePolicy: true } })
+    return toConfirmLink(p as Record<string, unknown>)
+  },
+
+  isConfirmable(entity: ConfirmLink) { return entity.status === "pending_payment" },
+
+  async confirm(tx: unknown, entityId: string) {
+    await (tx as { insurancePolicy: { update: (a: unknown) => Promise<unknown> } }).insurancePolicy.update({
+      where: { id: entityId }, data: { status: "confirmed" },
+    })
+  },
+
+  notification(entity: Record<string, unknown>): ConfirmNotification {
+    const link = entity as ConfirmLink
+    return { topic: EVENT_TOPICS.paymentConfirmed, type: "payment.confirmed", userId: link.userId, payload: { bookingId: link.id, reference: link.reference, amount: link.totalAmount } }
+  },
+
   async findEntityByPaymentId(paymentId: string) {
-    return prisma.insurancePolicy.findFirst({ where: { paymentId } })
+    return prisma.payment.findUnique({ where: { id: paymentId }, include: { insurancePolicy: true } })
   },
-  async overlapPredicate() {
-    return 0 // no overlap check for insurance
-  },
-  async priceFn(_tx: unknown, input: OverlapCheckInput) {
-    const policy = await prisma.insurancePolicy.findUnique({ where: { id: input.entityId }, select: { premium: true } })
-    if (!policy) throw new NotFoundError("Police d'assurance introuvable")
-    return policy.premium
-  },
-  async releaseInventory() {
-    // No inventory for insurance
-  },
-  getHoldExpiryMinutes,
-  notificationPayload: (entity: EntityRow) => ({
-    policyId: entity.id,
-    reference: entity.reference,
-    amount: entity.totalAmount,
-  }),
-}
 
-/** Registry of all adapters */
-export const ADAPTERS: Record<PayableKind, AdapterConfig> = {
-  trip: tripAdapter,
-  hotel: hotelAdapter,
-  rental: rentalAdapter,
-  event: eventAdapter,
-  parcel: parcelAdapter,
-  insurance: insuranceAdapter,
-}
+  makeReference(id: string) { return `INS-${id.slice(0, 8).toUpperCase()}` },
 
-/** Get adapter by kind */
-export function getAdapter(kind: PayableKind): AdapterConfig {
-  return ADAPTERS[kind]
+  calcTotalAmount(entity: Record<string, unknown>) {
+    return Number(entity.totalAmount ?? 0)
+  },
+
+  async create(data: Record<string, unknown>, tx: unknown) {
+    const t = tx as { insurancePolicy: { create: (a: unknown) => Promise<Record<string, unknown>> } }
+    return t.insurancePolicy.create({ data })
+  },
+
+  assertCancellable() {},
+  async findFresh(tx, id) { return (tx as { insurancePolicy: { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> } }).insurancePolicy.findUnique({ where: { id } }) as unknown as Promise<Partial<CancelEntity> & CancelEntity | null> },
+  async releaseInventory() {},
+  async cancel(tx, entity) { return entity as unknown as Record<string, unknown> },
+  auditAction: "insurance.booking.cancel",
+  auditEntityType: "InsurancePolicy",
 }

@@ -8,41 +8,25 @@
 import { prisma } from "@camermove/db"
 import { NotFoundError } from "@camermove/config"
 import { EVENT_TOPICS, makeEvent, publishEvent, type EventTopic } from "@camermove/events"
-import type { PayableKind } from "./references"
-
-export interface ConfirmLink {
-  id: string
-  userId: string
-  status: string
-  totalAmount: number
-}
-
-export interface ConfirmNotification {
-  topic: EventTopic
-  type: string
-  userId: string
-  payload: Record<string, unknown>
-}
+import { getAdapter } from "./adapters.js"
+import type { ConfirmLink, ConfirmNotification } from "./types.js"
 
 export interface ConfirmPaymentAdapter {
-  kind: PayableKind
+  kind: string
   notFoundMessage: string
-  /** tx is provided when re-reading inside the confirm transaction — use it for freshness. */
   findLink: (paymentId: string, tx?: unknown) => Promise<ConfirmLink | null>
-  /** Physical table name for the SELECT ... FOR UPDATE lock. */
   table: string
-  /** Entity gate: return false to skip confirmation (e.g. not pending_payment). */
   isConfirmable: (entity: ConfirmLink) => boolean
-  /** Flip the entity into its confirmed state. Parcel: no-op. */
   confirm: (tx: unknown, entityId: string) => Promise<void>
   notification: (link: ConfirmLink) => ConfirmNotification
 }
 
 export async function confirmPaymentSuccess(
-  adapter: ConfirmPaymentAdapter,
+  kind: string,
   paymentId: string,
   event: unknown,
 ): Promise<{ confirmed: boolean; entityId: string }> {
+  const adapter = getAdapter(kind as any)
   const link = await adapter.findLink(paymentId)
   if (!link) throw new NotFoundError(adapter.notFoundMessage)
 
@@ -53,14 +37,13 @@ export async function confirmPaymentSuccess(
       payment: { findUnique: (a: unknown) => Promise<{ status: string; provider: string } | null>; update: (a: unknown) => Promise<unknown> }
       auditLog: { create: (a: unknown) => Promise<unknown> }
     }
-    // adapter.table comes from a closed adapter map (never user input); id is parameterized.
     await t.$queryRawUnsafe(`SELECT "id" FROM "${adapter.table}" WHERE "id" = $1 FOR UPDATE`, link.id)
     await t.$queryRawUnsafe(`SELECT "id" FROM "Payment" WHERE "id" = $1 FOR UPDATE`, paymentId)
     const freshPayment = await t.payment.findUnique({ where: { id: paymentId } })
     if (!freshPayment) return
     if (freshPayment.status === "success") return
     if (["failed", "expired", "refunded"].includes(freshPayment.status)) return
-    const freshEntity = await adapter.findLink(paymentId, tx) // re-read inside tx
+    const freshEntity = await adapter.findLink(paymentId, tx)
     if (!freshEntity || !adapter.isConfirmable(freshEntity)) return
     await t.payment.update({ where: { id: paymentId }, data: { status: "success", webhookPayload: event as never } })
     await adapter.confirm(tx, link.id)
@@ -71,7 +54,7 @@ export async function confirmPaymentSuccess(
           action: "payment.success",
           entityType: "Payment",
           entityId: paymentId,
-          metadata: { provider: freshPayment.provider, kind: adapter.kind, [`${adapter.kind}Id`]: link.id, deliveryId: (event as Record<string, unknown>)?.id ?? null } as never,
+          metadata: { provider: freshPayment.provider, kind, [`${kind}Id`]: link.id, deliveryId: (event as Record<string, unknown>)?.id ?? null } as never,
         },
       })
     } catch {}
@@ -80,13 +63,12 @@ export async function confirmPaymentSuccess(
 
   const note = adapter.notification(link)
   await publishEvent(
-    note.topic,
+    note.topic as any,
     makeEvent(note.type, link.id, { type: note.type, userId: note.userId, payload: note.payload }),
   )
   return { confirmed: wasNew, entityId: link.id }
 }
 
-/** Convenience: topic/type for the common "confirmed" notification of a kind. */
 export function confirmedTopicFor(kind: "hotel" | "rental" | "event"): EventTopic {
   if (kind === "hotel") return EVENT_TOPICS.hotelBookingConfirmed
   if (kind === "rental") return EVENT_TOPICS.rentalBookingConfirmed

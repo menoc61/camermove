@@ -1,6 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { prisma } from "@camermove/db"
 
+vi.mock("@camermove/db", () => ({
+  prisma: {
+    $transaction: vi.fn(),
+    auditLog: { create: vi.fn() },
+    eventBooking: { findUnique: vi.fn().mockResolvedValue({ id: "cmevent123456789012345678", status: "on_sale", partnerStatus: "approved", quantity: 10, held: 0, ticketCategoryId: "cmcat12345678901234567890" }), create: vi.fn() },
+    ticketCategory: { findUnique: vi.fn().mockResolvedValue({ id: "cmcat12345678901234567890", quantity: 10, sold: 4, held: 0 }), update: vi.fn() },
+    payment: { findUnique: vi.fn() },
+  },
+  getAppSettingsCached: vi.fn().mockResolvedValue({ holdExpiryMinutes: 15 }),
+}))
+
 vi.mock("../lib/cache.js", () => ({
   getCached: vi.fn().mockResolvedValue(null),
   setCached: vi.fn().mockResolvedValue(undefined),
@@ -42,25 +53,19 @@ vi.mock("qrcode", () => ({
 import { createEventBooking } from "./service.js"
 
 describe("events/service ACID sold", () => {
-  beforeEach(() => vi.restoreAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it("available calc quantity - sold >= qty", async () => {
     const eventId = "cmevent123456789012345678"
     const ticketCategoryId = "cmcat12345678901234567890"
     const userId = "cmuser123456789012345678"
-
-    vi.spyOn(prisma.auditLog, "create").mockResolvedValue({} as never)
-    // @ts-ignore mock transaction
-    vi.spyOn(prisma as unknown as { $transaction: unknown }, "$transaction" as never).mockImplementation(async (cb: any) => {
+    vi.spyOn(prisma, "$transaction").mockImplementation(async (cb: any) => {
       const tx = {
-        $queryRaw: vi.fn().mockImplementation(async (strings: TemplateStringsArray, ...vals: unknown[]) => {
-          const sql = strings.join("")
-          if (sql.includes("TicketCategory")) return [{ id: ticketCategoryId, eventId, quantity: 10, sold: 4, price: 5000, status: "on_sale" }]
-          if (sql.includes('"Event"')) return [{ id: eventId, status: "on_sale", partnerStatus: "approved" }]
-          return []
-        }),
+        $queryRawUnsafe: vi.fn().mockResolvedValue([{ id: ticketCategoryId, eventId, quantity: 10, sold: 4, price: 5000, status: "on_sale" }]),
         eventBooking: { create: vi.fn().mockResolvedValue({ id: "eb-1", ticketNumber: "EVT-MOCK1", qrCode: "CM-T:CODE1", totalAmount: 10000 }) },
-        ticketCategory: { update: vi.fn().mockResolvedValue({}) },
+        ticketCategory: { findUnique: vi.fn().mockResolvedValue({ id: ticketCategoryId, quantity: 10, sold: 4, held: 0 }), update: vi.fn().mockResolvedValue({}) },
       }
       return cb(tx)
     })
@@ -75,18 +80,11 @@ describe("events/service ACID sold", () => {
     const eventId = "cmevent123456789012345678"
     const ticketCategoryId = "cmcat12345678901234567890"
     const userId = "cmuser123456789012345678"
-    vi.spyOn(prisma.auditLog, "create").mockResolvedValue({} as never)
-    // @ts-ignore mock transaction
-    vi.spyOn(prisma as unknown as { $transaction: unknown }, "$transaction" as never).mockImplementation(async (cb: any) => {
+    vi.spyOn(prisma, "$transaction").mockImplementation(async (cb: any) => {
       const tx = {
-        $queryRaw: vi.fn().mockImplementation(async (strings: TemplateStringsArray) => {
-          const sql = strings.join("")
-          if (sql.includes("TicketCategory")) return [{ id: ticketCategoryId, eventId, quantity: 5, sold: 4, price: 5000, status: "limited" }]
-          if (sql.includes('"Event"')) return [{ id: eventId, status: "limited", partnerStatus: "approved" }]
-          return []
-        }),
+        $queryRawUnsafe: vi.fn().mockResolvedValue([{ id: ticketCategoryId, eventId, quantity: 5, sold: 4, price: 5000, status: "limited" }]),
         eventBooking: { create: vi.fn() },
-        ticketCategory: { update: vi.fn() },
+        ticketCategory: { findUnique: vi.fn().mockResolvedValue({ id: ticketCategoryId, quantity: 5, sold: 4, held: 0 }), update: vi.fn() },
       }
       return cb(tx)
     })
@@ -97,23 +95,13 @@ describe("events/service ACID sold", () => {
   it("concurrent last ticket -> 1 success 1 409 via FOR UPDATE", async () => {
     const eventId = "cmevent123456789012345678"
     const ticketCategoryId = "cmcat12345678901234567890"
-    vi.spyOn(prisma.auditLog, "create").mockResolvedValue({} as never)
     let call = 0
-    // @ts-ignore mock transaction
-    vi.spyOn(prisma as unknown as { $transaction: unknown }, "$transaction" as never).mockImplementation(async (cb: any) => {
+    vi.spyOn(prisma, "$transaction").mockImplementation(async (cb: any) => {
       call++
       // first call sees available 1 (quantity 5 sold 4), second call also would but we simulate second sees sold after first? For mock we emulate 409 on second.
       const shouldFail = call === 2
       const tx = {
-        $queryRaw: vi.fn().mockImplementation(async (strings: TemplateStringsArray) => {
-          const sql = strings.join("")
-          if (sql.includes("TicketCategory")) {
-            if (shouldFail) return [{ id: ticketCategoryId, eventId, quantity: 5, sold: 5, price: 5000, status: "limited" }]
-            return [{ id: ticketCategoryId, eventId, quantity: 5, sold: 4, price: 5000, status: "limited" }]
-          }
-          if (sql.includes('"Event"')) return [{ id: eventId, status: "on_sale", partnerStatus: "approved" }]
-          return []
-        }),
+        $queryRawUnsafe: vi.fn().mockResolvedValue([{ id: ticketCategoryId, eventId, quantity: 5, sold: 4, price: 5000, status: "limited" }]),
         eventBooking: {
           create: vi.fn().mockImplementation(async () => {
             if (shouldFail) throw new Error("should not create")
@@ -121,6 +109,7 @@ describe("events/service ACID sold", () => {
           }),
         },
         ticketCategory: {
+          findUnique: vi.fn().mockResolvedValue({ id: ticketCategoryId, quantity: 5, sold: shouldFail ? 5 : 4, held: 0 }),
           update: vi.fn().mockImplementation(async () => {
             if (shouldFail) throw new Error("should not update")
             return {}
@@ -148,17 +137,10 @@ describe("events/service ACID sold", () => {
   it("ticketNumber unique across bookings", async () => {
     const eventId = "cmevent123456789012345678"
     const ticketCategoryId = "cmcat12345678901234567890"
-    vi.spyOn(prisma.auditLog, "create").mockResolvedValue({} as never)
     const ticketNumbers = new Set<string>()
-    // @ts-ignore mock transaction
-    vi.spyOn(prisma as unknown as { $transaction: unknown }, "$transaction" as never).mockImplementation(async (cb: any) => {
+    vi.spyOn(prisma, "$transaction").mockImplementation(async (cb: any) => {
       const tx = {
-        $queryRaw: vi.fn().mockImplementation(async (strings: TemplateStringsArray) => {
-          const sql = strings.join("")
-          if (sql.includes("TicketCategory")) return [{ id: ticketCategoryId, eventId, quantity: 100, sold: 0, price: 2000, status: "on_sale" }]
-          if (sql.includes('"Event"')) return [{ id: eventId, status: "on_sale", partnerStatus: "approved" }]
-          return []
-        }),
+        $queryRawUnsafe: vi.fn().mockResolvedValue([{ id: ticketCategoryId, eventId, quantity: 100, sold: 0, price: 2000, status: "on_sale" }]),
         eventBooking: {
           create: vi.fn().mockImplementation(async (args: { data: { ticketNumber: string } }) => {
             const tn = args.data.ticketNumber
@@ -166,7 +148,7 @@ describe("events/service ACID sold", () => {
             return { id: `eb-${tn}`, ticketNumber: tn, qrCode: "CM-T:CODE", totalAmount: 2000 }
           }),
         },
-        ticketCategory: { update: vi.fn().mockResolvedValue({}) },
+        ticketCategory: { findUnique: vi.fn().mockResolvedValue({ id: ticketCategoryId, quantity: 100, sold: 0, held: 0 }), update: vi.fn().mockResolvedValue({}) },
       }
       return cb(tx)
     })

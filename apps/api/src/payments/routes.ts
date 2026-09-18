@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { CreatePaymentBody, PaymentParams, PaymentListQuery } from "./schema.js"
-import { createPayment, getPaymentById, listPayments } from "./service.js"
+import { createTripPayment, getPaymentById, listPayments } from "./service.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { loadEnv } from "@camermove/config"
 import { observePayment } from "@camermove/observability"
@@ -12,7 +12,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, bookingId: body.bookingId, provider: body.provider, ip: (meta as Record<string, unknown>).ip, ua: (meta as Record<string, unknown>).userAgent, userId: user.id }, "payment.create")
     try {
-      const result = await createPayment({
+      const result = await createTripPayment({
         bookingId: body.bookingId,
         userId: user.id,
         provider: body.provider as never,

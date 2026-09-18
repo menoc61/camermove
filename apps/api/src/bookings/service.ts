@@ -5,6 +5,7 @@ import { scheduleHoldExpiry } from "@camermove/shared/queues"
 import { EVENT_TOPICS, makeDataEvent, publishEvent } from "@camermove/events"
 import { randomUUID } from "node:crypto"
 import { findExpiredHolds } from "./repository"
+import { expireHold, expireHolds as kernelExpireHolds } from "../booking-kernel/index.js"
 
 const log = createLogger()
 
@@ -77,38 +78,14 @@ export async function createBooking(input: { tripId: string; userId: string; sea
   }
 }
 
-/** Expire a single hold by id. Same FOR UPDATE logic as the bulk loop. Returns true if it expired. */
+/** Expire a single hold by id. Uses booking-kernel's expireHold for consistency. */
 export async function expireHoldById(bookingId: string): Promise<boolean> {
-  return prisma.$transaction(async (tx: any): Promise<boolean> => {
-    // Lock the row and re-check status inside the tx: a concurrent payment confirmation
-    // (SELECT FOR UPDATE in the payment worker) may have flipped status moments ago
-    await tx.$queryRaw`SELECT "id","status","tripId","seatCount" FROM "Booking" WHERE "id"=${bookingId} FOR UPDATE`
-    const fresh = await tx.booking.findUnique({ where: { id: bookingId } })
-    if (!fresh || fresh.status !== "pending_payment") return false
-    // Skip expiry while a payment is actively being processed (same guard as findExpiredHolds)
-    const activePayment = await tx.payment.findFirst({
-      where: { bookingId, status: { in: ["pending", "processing"] } },
-      select: { id: true },
-    })
-    if (activePayment) return false
-    await tx.booking.update({ where: { id: bookingId }, data: { status: "expired" } })
-    const sa = await tx.seatAvailability.findUnique({ where: { tripId: fresh.tripId } })
-    if (sa && sa.seatsHeld >= fresh.seatCount) {
-      await tx.seatAvailability.update({ where: { tripId: fresh.tripId }, data: { seatsAvailable: { increment: fresh.seatCount }, seatsHeld: { decrement: fresh.seatCount } } })
-    }
-    return true
-  })
+  return expireHold("trip", bookingId)
 }
 
 export async function expireHolds(): Promise<number> {
-  // findExpiredHolds excludes bookings with an active pending/processing Payment —
-  // a paid-but-unconfirmed hold must survive so the late success webhook can confirm it
-  const expired = await findExpiredHolds()
-  let count = 0
-  for (const b of expired) {
-    if (await expireHoldById(b.id)) count++
-  }
-  return count
+  // Use kernel's bulk expire for consistency
+  return kernelExpireHolds("trip")
 }
 
 export async function confirmBooking(id: string) {
