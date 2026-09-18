@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ArrowRight, MapPin, Phone, Star, Bus, Users, Building2 } from "lucide-react"
+import { DynamicIcon } from "@/components/ui/dynamic-icon"
+import { cn, shade } from "@/lib/utils"
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -34,8 +36,8 @@ export default async function AgencyDetailPage({
       >
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="flex items-center gap-4">
-            <div className="grid size-16 place-items-center rounded-2xl bg-white/15 text-3xl backdrop-blur-sm">
-              {a.brand.emoji}
+            <div className="grid size-16 place-items-center rounded-2xl bg-white/15 backdrop-blur-sm">
+              <DynamicIcon name={a.brand.icon} className="size-8 text-white" />
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">
@@ -82,7 +84,7 @@ export default async function AgencyDetailPage({
             <div className="flex flex-wrap gap-1.5">
               {a.amenities.map((am) => (
                 <Badge key={am} variant="secondary" className="gap-1 text-[11px]">
-                  <span>{AMENITY_LABEL[am]?.emoji}</span>
+                  <DynamicIcon name={AMENITY_LABEL[am]?.icon} className="size-3" />
                   {AMENITY_LABEL[am]?.label}
                 </Badge>
               ))}
@@ -211,16 +213,3 @@ function Separator() {
   return <div className="my-3 h-px bg-border" />
 }
 
-function cn(...parts: Array<string | false | undefined | null>) {
-  return parts.filter(Boolean).join(" ")
-}
-
-function shade(hex: string, percent: number): string {
-  const m = hex.match(/^#([0-9a-f]{6})$/i)
-  if (!m) return hex
-  const num = parseInt(m[1]!, 16)
-  const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + Math.round((percent / 100) * 255)))
-  const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + Math.round((percent / 100) * 255)))
-  const b = Math.min(255, Math.max(0, (num & 0xff) + Math.round((percent / 100) * 255)))
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`
-}

@@ -6,10 +6,6 @@ import { initiatePayment, createRentalBookingPayment as createPayment } from "..
 
 const log = createLogger()
 
-export function rentalBookingReference(id: string): string {
-  return `RENTAL-${id.slice(0, 8).toUpperCase()}`
-}
-
 export type DurationUnit = "hour" | "day" | "week" | "month"
 
 export function durationFor(
@@ -52,7 +48,20 @@ export async function createRentalBooking(input: {
     dropoffCity: input.dropoffCity,
     driverName: input.driverName,
     driverPhone: input.driverPhone,
-    meta: { rentalVehicleId: input.rentalVehicleId, pickupAddress: input.pickupAddress, dropoffAddress: input.dropoffAddress, ...input.meta },
+    // Dates ride in meta so the kernel create-data carries every
+    // RentalBooking column (duration/unit derive in mapCreateData).
+    meta: {
+      rentalVehicleId: input.rentalVehicleId,
+      pickupCity: input.pickupCity,
+      pickupAddress: input.pickupAddress,
+      dropoffCity: input.dropoffCity,
+      dropoffAddress: input.dropoffAddress,
+      driverName: input.driverName,
+      driverPhone: input.driverPhone,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      ...input.meta,
+    },
   })
 
   return { ...result, rentalVehicleId: input.rentalVehicleId }

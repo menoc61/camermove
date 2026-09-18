@@ -5,6 +5,7 @@ import { motion } from "motion/react"
 import { useReelController, useMotionPreference } from "@/lib/motion"
 import { SearchBar } from "../search/search-bar"
 import { Button } from "@/components/ui/button"
+import { priceXaf } from "@camermove/shared"
 
 /* Reel chapters: each paints a CamerMove service with an on-brand gradient +
  * a stable Unsplash poster (Ken Burns motion). The gradient stays on-brand
@@ -325,7 +326,7 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
                   <>
                     {" · dès "}
                     <span className="num-tabular font-medium text-ink">
-                      {new Intl.NumberFormat("fr-FR").format(minPrice)} XAF
+                      {priceXaf(minPrice)}
                     </span>
                   </>
                 )}

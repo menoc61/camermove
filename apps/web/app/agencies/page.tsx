@@ -3,12 +3,13 @@ import Link from "next/link"
 import { fetchAgenciesList, type AgenciesQuery } from "@/lib/api/agencies"
 import { AgencyDirectory } from "@/components/agencies/AgencyDirectory"
 import { AgencyDirectorySkeleton } from "@/components/agencies/AgencyDirectorySkeleton"
-import { AMENITY_LABEL, type AgencyCategory } from "@camermove/shared"
+import { AGENCIES, AMENITY_LABEL, type AgencyCategory } from "@camermove/shared"
+
+const agencyNames = AGENCIES.map((a) => a.displayName).join(", ")
 
 export const metadata = {
   title: "Agences partenaires · CamerMove",
-  description:
-    "Toutes les agences de transport partenaires de CamerMove : Buca Voyages, General Express, Touristique Express, Princesse Voyages, Finexs, Musango et plus encore.",
+  description: `Toutes les agences de transport partenaires de CamerMove : ${agencyNames}.`,
 }
 
 async function load(params: AgenciesQuery) {

@@ -23,7 +23,7 @@ export interface TicketDetailResponse {
   agency: {
     companyName: string
     brandColor: string
-    accentGlyph: string
+    accentIcon: string
     phone: string | null
     tagline: string | null
   }

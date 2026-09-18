@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CITIES, type AgencyCategory, type VehicleAmenity } from "@camermove/shared"
 import { Search, Star, MapPin, Bus, X } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { DynamicIcon } from "@/components/ui/dynamic-icon"
+import { cn, shade } from "@/lib/utils"
 
 const CATEGORY_LABEL: Record<AgencyCategory, string> = {
   interurban: "Interurbain",
@@ -22,7 +23,7 @@ const CATEGORY_LABEL: Record<AgencyCategory, string> = {
   vip: "VIP",
 }
 
-type AmenityMap = Record<VehicleAmenity, { label: string; emoji: string }>
+type AmenityMap = Record<VehicleAmenity, { label: string; icon: string }>
 
 interface Props {
   initial: { items: AgencyListItem[]; total: number }
@@ -143,8 +144,8 @@ function AgencyCard({ agency, amenityLabels }: { agency: AgencyListItem; amenity
           style={{ background: `linear-gradient(135deg, ${agency.brand.primary} 0%, ${shade(agency.brand.primary, -20)} 100%)` }}
         >
           <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-xl bg-white/15 text-xl backdrop-blur-sm">
-              {agency.brand.emoji}
+            <div className="grid size-10 place-items-center rounded-xl bg-white/15 backdrop-blur-sm">
+              <DynamicIcon name={agency.brand.icon} className="size-5 text-white" />
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70">
@@ -193,10 +194,10 @@ function AgencyCard({ agency, amenityLabels }: { agency: AgencyListItem; amenity
             )}
           </div>
 
-          <div className="flex flex-wrap gap-1 text-sm">
+          <div className="flex flex-wrap gap-1.5 text-muted-foreground">
             {agency.amenities.slice(0, 5).map((a) => (
-              <span key={a} title={amenityLabels[a]?.label} className="text-base leading-none">
-                {amenityLabels[a]?.emoji}
+              <span key={a} title={amenityLabels[a]?.label} className="inline-flex">
+                <DynamicIcon name={amenityLabels[a]?.icon} className="size-4" />
               </span>
             ))}
           </div>
@@ -211,14 +212,4 @@ function AgencyCard({ agency, amenityLabels }: { agency: AgencyListItem; amenity
       </Card>
     </Link>
   )
-}
-
-function shade(hex: string, percent: number): string {
-  const m = hex.match(/^#([0-9a-f]{6})$/i)
-  if (!m) return hex
-  const num = parseInt(m[1]!, 16)
-  const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + Math.round((percent / 100) * 255)))
-  const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + Math.round((percent / 100) * 255)))
-  const b = Math.min(255, Math.max(0, (num & 0xff) + Math.round((percent / 100) * 255)))
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`
 }

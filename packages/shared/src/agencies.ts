@@ -194,8 +194,8 @@ export interface AgencyRecord {
   routes: AgencyRoute[]
   /** Free-form amenities (canonical strings, no free duplication). */
   amenities: VehicleAmenity[]
-  /** Brand accent emoji or icon label (single source). */
-  accentGlyph: string
+  /** Brand accent icon — Lucide icon name (single source, no emoji). */
+  accentIcon: string
   /** Service-class labels offered. */
   serviceClasses: string[]
   /** Status in registry — seed maps to TransporterStatus. */
@@ -240,7 +240,7 @@ export const AGENCIES: AgencyRecord[] = [
       { origin: "yaounde", destination: "brazzaville",classType: "VIP",      basePriceXaf: 18000,durationMinutes: 720, dailyDepartures: 2 },
     ],
     amenities: ["wifi", "ac", "toilet", "usb", "vip-seat", "snacks", "cctv", "seatbelt", "hostess", "gps-tracker"],
-    accentGlyph: "🚌",
+    accentIcon: "Bus",
     serviceClasses: ["VIP", "Standard"],
     status: "approved",
     commissionPercent: 8,
@@ -278,7 +278,7 @@ export const AGENCIES: AgencyRecord[] = [
       { origin: "dschang",   destination: "douala",    classType: "Standard", basePriceXaf: 6500, durationMinutes: 360, dailyDepartures: 2 },
     ],
     amenities: ["wifi", "ac", "usb", "cctv", "seatbelt", "gps-tracker", "vip-seat"],
-    accentGlyph: "🛣️",
+    accentIcon: "Route",
     serviceClasses: ["VIP", "Standard"],
     status: "approved",
     commissionPercent: 8,
@@ -315,7 +315,7 @@ export const AGENCIES: AgencyRecord[] = [
       { origin: "yaounde",     destination: "abongmbang",  classType: "Standard", basePriceXaf: 5000, durationMinutes: 300, dailyDepartures: 3 },
     ],
     amenities: ["wifi", "ac", "toilet", "usb", "tv", "hostess", "snacks", "cctv", "seatbelt", "gps-tracker", "vip-seat"],
-    accentGlyph: "🚍",
+    accentIcon: "BusFront",
     serviceClasses: ["VIP", "Business", "Standard"],
     status: "approved",
     commissionPercent: 7,
@@ -348,7 +348,7 @@ export const AGENCIES: AgencyRecord[] = [
       { origin: "douala",  destination: "kribi",   classType: "Standard", basePriceXaf: 4500, durationMinutes: 240, dailyDepartures: 4 },
     ],
     amenities: ["ac", "seatbelt", "gps-tracker"],
-    accentGlyph: "👑",
+    accentIcon: "Crown",
     serviceClasses: ["Standard"],
     status: "approved",
     commissionPercent: 9,
@@ -379,7 +379,7 @@ export const AGENCIES: AgencyRecord[] = [
       { origin: "douala",    destination: "bafoussam", classType: "Standard", basePriceXaf: 5000, durationMinutes: 360, dailyDepartures: 4 },
     ],
     amenities: ["ac", "wifi", "usb", "cctv", "gps-tracker"],
-    accentGlyph: "✈️",
+    accentIcon: "Plane",
     serviceClasses: ["VIP", "Standard"],
     status: "approved",
     commissionPercent: 8,
@@ -410,7 +410,7 @@ export const AGENCIES: AgencyRecord[] = [
       { origin: "yaounde", destination: "bafoussam", classType: "Standard", basePriceXaf: 4500, durationMinutes: 240, dailyDepartures: 6 },
     ],
     amenities: ["ac", "seatbelt"],
-    accentGlyph: "🛤️",
+    accentIcon: "TramFront",
     serviceClasses: ["Standard", "VIP"],
     status: "approved",
     commissionPercent: 10,
@@ -441,7 +441,7 @@ export const AGENCIES: AgencyRecord[] = [
       { origin: "douala",  destination: "yaounde", classType: "Premium",  basePriceXaf: 8000, durationMinutes: 240, dailyDepartures: 3 },
     ],
     amenities: ["wifi", "ac", "usb", "cctv", "gps-tracker"],
-    accentGlyph: "🟢",
+    accentIcon: "Zap",
     serviceClasses: ["Premium", "Standard"],
     status: "approved",
     commissionPercent: 5,
@@ -492,18 +492,18 @@ export type InterurbanClass = (typeof INTERURBAN_CLASSES)[number]
 // ────────────────────────────────────────────────────────────────────────────
 //  Vehicle amenity labels (single source — every UI consumes this)
 // ────────────────────────────────────────────────────────────────────────────
-export const AMENITY_LABEL: Record<VehicleAmenity, { label: string; emoji: string }> = {
-  wifi:         { label: "Wi-Fi gratuit",           emoji: "📶" },
-  ac:           { label: "Climatisation",          emoji: "❄️" },
-  toilet:       { label: "Toilettes à bord",       emoji: "🚻" },
-  usb:          { label: "Ports USB",              emoji: "🔌" },
-  tv:           { label: "Divertissement vidéo",  emoji: "📺" },
-  hostess:      { label: "Hôtesse à bord",         emoji: "💁" },
-  "vip-seat":   { label: "Sièges VIP inclinables", emoji: "💺" },
-  snacks:       { label: "Collation servie",       emoji: "🥐" },
-  cctv:         { label: "Vidéosurveillance",      emoji: "🎥" },
-  seatbelt:     { label: "Ceinture obligatoire",   emoji: "🪢" },
-  "gps-tracker":{ label: "Suivi GPS en direct",    emoji: "📍" },
+export const AMENITY_LABEL: Record<VehicleAmenity, { label: string; icon: string }> = {
+  wifi:         { label: "Wi-Fi gratuit",           icon: "Wifi" },
+  ac:           { label: "Climatisation",          icon: "Snowflake" },
+  toilet:       { label: "Toilettes à bord",       icon: "Bath" },
+  usb:          { label: "Ports USB",              icon: "Usb" },
+  tv:           { label: "Divertissement vidéo",  icon: "Tv" },
+  hostess:      { label: "Hôtesse à bord",         icon: "Users" },
+  "vip-seat":   { label: "Sièges VIP inclinables", icon: "Armchair" },
+  snacks:       { label: "Collation servie",       icon: "Coffee" },
+  cctv:         { label: "Vidéosurveillance",      icon: "Video" },
+  seatbelt:     { label: "Ceinture obligatoire",   icon: "ShieldCheck" },
+  "gps-tracker":{ label: "Suivi GPS en direct",    icon: "Navigation" },
 }
 
 // ────────────────────────────────────────────────────────────────────────────

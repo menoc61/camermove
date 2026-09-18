@@ -1,14 +1,13 @@
 "use client"
 
 import { motion, useReducedMotion } from "motion/react"
+import { priceXaf } from "@camermove/shared"
 
 interface StatsBandProps {
   minPrice?: number
   hotelsCount?: number
   rentalsCount?: number
 }
-
-const formatXaf = (v: number) => new Intl.NumberFormat("fr-FR").format(v)
 
 export function StatsBand({ minPrice, hotelsCount, rentalsCount }: StatsBandProps) {
   const shouldReduce = useReducedMotion()
@@ -17,7 +16,7 @@ export function StatsBand({ minPrice, hotelsCount, rentalsCount }: StatsBandProp
     { label: "Liaison quotidienne", value: "Yaoundé ⇄ Douala" },
     {
       label: "Prix dès",
-      value: minPrice != null ? `${formatXaf(minPrice)} XAF` : "—",
+      value: minPrice != null ? priceXaf(minPrice) : "—",
     },
     { label: "Services", value: "Six" },
     {

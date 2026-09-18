@@ -7,10 +7,6 @@ import { generateVerificationCode } from "../tickets/ticket.service.js"
 
 const log = createLogger()
 
-export function eventBookingPaymentReference(eventBookingId: string): string {
-  return `EVENT-${eventBookingId.slice(0, 8).toUpperCase()}`
-}
-
 function generateTicketNumber(): string {
   return `EVT-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
 }
@@ -51,7 +47,7 @@ export async function createEventBooking(input: {
     kind: "event",
     userId: input.userId,
     quantity: input.quantity,
-    meta: { eventId: input.eventId, ticketCategoryId: input.ticketCategoryId, ticketNumber, qrCode, verificationCode, qrDataUrl, price: input.price ?? 5000, ...input.meta },
+    meta: { eventId: input.eventId, ticketCategoryId: input.ticketCategoryId, ticketNumber, qrCode, verificationCode, qrDataUrl, price: input.price ?? 5000, ...input.meta, quantity: input.quantity },
   })
 
   // Attach qrDataUrl transiently for response

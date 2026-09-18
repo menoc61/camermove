@@ -61,6 +61,9 @@ const EnvSchema = z.object({
   SMTP_SECURE: z.string().optional().default("false").transform((v) => v === "true"),
   METRICS_ENABLED: z.string().optional().default("true").transform((v) => v === "true"),
   METRICS_PORT: z.coerce.number().int().positive().default(4000),
+  // Standalone worker metrics port — separate from the API (4000) so both
+  // servers can bind simultaneously without EADDRINUSE silent degradation.
+  WORKER_METRICS_PORT: z.coerce.number().int().positive().default(4001),
   CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3002,http://localhost:3000').transform((v) => v.split(',').map(s => s.trim()).filter(Boolean)),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().default('http://localhost:4318'),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),

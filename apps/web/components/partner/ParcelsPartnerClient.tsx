@@ -8,10 +8,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { TriangleAlert } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
+import { priceXaf } from "@camermove/shared"
 
 interface Props { token: string }
-
-const fmtXaf = (amount: number) => new Intl.NumberFormat("fr-CM").format(amount)
 
 export function ParcelsPartnerClient({ token }: Props) {
   const { data, isLoading, error } = useQuery({
@@ -64,7 +63,7 @@ export function ParcelsPartnerClient({ token }: Props) {
                   <div>
                     <p className="font-mono text-sm font-medium">{p.trackingNumber}</p>
                     <p className="text-xs text-muted-foreground">{p.senderName} ({p.senderCity}) → {p.recipientName} ({p.recipientCity})</p>
-                    <p className="text-xs text-muted-foreground">{p.parcelType}{p.weightKg != null ? ` · ${p.weightKg} kg` : ""} · {fmtXaf(p.shippingCost)} XAF</p>
+                    <p className="text-xs text-muted-foreground">{p.parcelType}{p.weightKg != null ? ` · ${p.weightKg} kg` : ""} · {priceXaf(p.shippingCost)}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Badge variant={p.status === "delivered" ? "default" : "secondary"}>{p.status}</Badge>

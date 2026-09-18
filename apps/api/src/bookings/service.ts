@@ -1,5 +1,5 @@
 import { prisma } from "@camermove/db"
-import { atomicReleaseHeldSeats, atomicConfirmBookedSeats } from "@camermove/db"
+import { atomicReleaseHeldSeats } from "@camermove/db"
 import { ConflictError, NotFoundError, createLogger } from "@camermove/config"
 import { randomUUID } from "node:crypto"
 import { findExpiredHolds } from "./repository"
@@ -59,13 +59,6 @@ export async function expireHoldById(bookingId: string): Promise<boolean> {
 export async function expireHolds(): Promise<number> {
   // Use kernel's bulk expire for consistency
   return kernelExpireHolds("trip")
-}
-
-export async function confirmBooking(id: string) {
-  const booking = await prisma.booking.findUnique({ where: { id } })
-  if (!booking) throw new NotFoundError("Réservation introuvable")
-  await atomicConfirmBookedSeats(booking.tripId, booking.seatCount)
-  return prisma.booking.update({ where: { id }, data: { status: "confirmed" } })
 }
 
 export async function cancelBooking(

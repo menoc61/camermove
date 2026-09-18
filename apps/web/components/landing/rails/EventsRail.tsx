@@ -1,10 +1,9 @@
 import { fetchLandingRail } from "@/lib/api/landing"
+import { priceXaf } from "@camermove/shared"
 import { ServiceRail, ServiceRailCard } from "../ServiceRail"
 
 const FALLBACK_POSTER =
   "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=800&auto=format&fit=crop"
-
-const formatXaf = (v: number) => new Intl.NumberFormat("fr-FR").format(v)
 
 const formatDayMonth = (iso: string) =>
   new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }).format(new Date(iso))
@@ -48,7 +47,7 @@ export async function EventsRail() {
           imageAlt={`Affiche de l'événement ${e.name}`}
           top={`${e.city} · ${formatDayMonth(e.startDate)}`}
           title={e.name}
-          bottom={e.minPrice != null ? `dès ${formatXaf(e.minPrice)} XAF` : "Billetterie ouverte"}
+          bottom={e.minPrice != null ? `dès ${priceXaf(e.minPrice)}` : "Billetterie ouverte"}
         />
       ))}
     </ServiceRail>

@@ -81,6 +81,8 @@ export async function searchRoutes(app: FastifyInstance) {
 
   app.get("/trips/:id", async (req) => {
     const { id } = req.params as { id: string }
+    const meta = (req as unknown as { meta?: Record<string, unknown> }).meta
+    req.log.info({ ...meta, entityId: id }, "trip.get")
     const { prisma } = await import("@camermove/db")
     const trip = await prisma.trip.findUnique({
       where: { id },

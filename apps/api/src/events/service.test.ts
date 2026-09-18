@@ -5,7 +5,9 @@ vi.mock("@camermove/db", () => ({
   prisma: {
     $transaction: vi.fn(),
     auditLog: { create: vi.fn() },
-    eventBooking: { findUnique: vi.fn().mockResolvedValue({ id: "cmevent123456789012345678", status: "on_sale", partnerStatus: "approved", quantity: 10, held: 0, ticketCategoryId: "cmcat12345678901234567890" }), create: vi.fn() },
+    // Inventory-first reserve: adapter.find loads the Event row (not a booking).
+    event: { findUnique: vi.fn().mockResolvedValue({ id: "cmevent123456789012345678", status: "on_sale", partnerStatus: "approved" }) },
+    eventBooking: { findUnique: vi.fn(), create: vi.fn() },
     ticketCategory: { findUnique: vi.fn().mockResolvedValue({ id: "cmcat12345678901234567890", quantity: 10, sold: 4, held: 0 }), update: vi.fn() },
     payment: { findUnique: vi.fn() },
   },

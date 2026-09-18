@@ -18,7 +18,7 @@
  */
 import { execSync } from "node:child_process"
 import { prisma } from "@camermove/db"
-import { confirmPaymentSuccess } from "../apps/api/src/payments/jobs/reconciliation.js"
+import { confirmPaymentSuccess } from "../apps/api/src/booking-kernel/index.js"
 
 const BASE = process.env.API_URL ?? "http://localhost:3000"
 
@@ -122,7 +122,7 @@ const fakeWebhookEvent = { id: `evt-smoke-${Date.now()}`, type: "transaction.pai
 async function test1_ticketCreatedWithQr(seeded: Seeded): Promise<void> {
   console.log("\n=== Test 1: confirmPaymentSuccess → Ticket with qrDataUrl (TICK-01) ===")
   try {
-    await confirmPaymentSuccess({ id: seeded.paymentId, bookingId: seeded.bookingId }, fakeWebhookEvent)
+    await confirmPaymentSuccess("trip", seeded.paymentId, fakeWebhookEvent)
   } catch (e) {
     log("confirmPaymentSuccess runs without throwing", false, (e as Error).message)
     return
@@ -159,7 +159,7 @@ async function test2_publicLookup(seeded: Seeded): Promise<void> {
 async function test3_idempotency(seeded: Seeded): Promise<void> {
   console.log("\n=== Test 3: idempotency — confirmPaymentSuccess replayed → 1 Ticket ===")
   try {
-    await confirmPaymentSuccess({ id: seeded.paymentId, bookingId: seeded.bookingId }, { ...fakeWebhookEvent, id: `evt-smoke-replay-${Date.now()}` })
+    await confirmPaymentSuccess("trip", seeded.paymentId, { ...fakeWebhookEvent, id: `evt-smoke-replay-${Date.now()}` })
   } catch (e) {
     log("replay does not throw", false, (e as Error).message)
     return

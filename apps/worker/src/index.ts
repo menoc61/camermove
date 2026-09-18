@@ -11,9 +11,9 @@ const log = createLogger()
 const telemetry = initTelemetry(env)
 // Standalone /metrics + /health server so Prometheus can scrape worker:4000
 // independently of any HTTP framework (AGENTS.md §1 observability).
-const metricsServer = env.METRICS_ENABLED ? startMetricsServer(env) : undefined
+const metricsServer = env.METRICS_ENABLED ? startMetricsServer(env, env.WORKER_METRICS_PORT) : undefined
 if (metricsServer) {
-  log.info({ port: env.METRICS_PORT }, "worker metrics server listening")
+  log.info({ port: env.WORKER_METRICS_PORT }, "worker metrics server listening")
 }
 const kafka = createKafkaClient(env)
 const notificationHandlers = createNotificationHandlers(env)
@@ -31,6 +31,7 @@ const consumer = createEventConsumer(kafka, env, {
   },
   [EVENT_TOPICS.bookingConfirmed]: notificationHandlers.onBookingConfirmed,
   [EVENT_TOPICS.paymentConfirmed]: notificationHandlers.onPaymentConfirmed,
+  [EVENT_TOPICS.paymentFailed]: notificationHandlers.onPaymentFailed,
   [EVENT_TOPICS.ticketIssued]: notificationHandlers.onTicketIssued,
   [EVENT_TOPICS.tripReminder24h]: notificationHandlers.onTripReminder,
   [EVENT_TOPICS.hotelBookingConfirmed]: notificationHandlers.onHotelBookingConfirmed,

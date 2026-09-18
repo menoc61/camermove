@@ -22,6 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Stepper } from "@/components/ui/stepper"
 import { ShieldCheck, TriangleAlert } from "lucide-react"
+import { priceXaf } from "@camermove/shared"
 
 const COVERAGES: CoverageType[] = ["basic", "standard", "premium", "family"]
 
@@ -117,7 +118,7 @@ export default function InsurancePage() {
                   >
                     <span className="font-semibold">{COVERAGE_LABELS[c]}</span>
                     <span className="block text-xs text-muted-foreground">
-                      {new Intl.NumberFormat("fr-CM").format(COVERAGE_PRICES[c])} XAF / voyageur
+                      {priceXaf(COVERAGE_PRICES[c] as number)} / voyageur
                     </span>
                   </button>
                 ))}
@@ -127,7 +128,7 @@ export default function InsurancePage() {
 
           <Separator />
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-lg font-bold">Total : {new Intl.NumberFormat("fr-CM").format(total)} XAF</p>
+            <p className="text-lg font-bold">Total : {priceXaf(total)}</p>
             <Button type="submit" disabled={!token || subscribe.isPending}>
               {subscribe.isPending ? "Souscription..." : "Souscrire"}
             </Button>
@@ -141,7 +142,7 @@ export default function InsurancePage() {
           )}
           {lastPolicy && !paid && token && (
             <div className="space-y-3">
-              <p className="text-sm font-semibold">Police {lastPolicy.policyNumber} — Prime : {new Intl.NumberFormat("fr-CM").format(lastPolicy.premium)} XAF</p>
+              <p className="text-sm font-semibold">Police {lastPolicy.policyNumber} — Prime : {priceXaf(lastPolicy.premium)}</p>
               <p className="text-sm text-muted-foreground">Procédez au paiement de la prime pour activer la couverture.</p>
               <PaymentStep
                 amount={lastPolicy.premium}
@@ -163,7 +164,7 @@ export default function InsurancePage() {
                 <ShieldCheck />
                 <AlertTitle>Assurance souscrite — police {lastPolicy.policyNumber}</AlertTitle>
                 <AlertDescription>
-                  Prime : {new Intl.NumberFormat("fr-CM").format(lastPolicy.premium)} XAF. Votre attestation figure dans « Mes polices ».
+                  Prime : {priceXaf(lastPolicy.premium)}. Votre attestation figure dans « Mes polices ».
                 </AlertDescription>
               </Alert>
               {lastPolicy.documentUrl ? (

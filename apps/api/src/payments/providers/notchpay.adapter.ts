@@ -16,39 +16,71 @@ export class NotchPayAdapter implements PaymentProvider {
   ) {}
 
   async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
+    // Docs (accept-payments/collect + api-reference/payments): POST /payments
+    // requires amount+currency plus at least one of email/phone/customer.
+    // Send the canonical `customer` object AND flat email/phone for compat.
+    if (!input.email && !input.phone && !input.customerName) {
+      throw new BadRequestError("Email ou téléphone requis pour NotchPay")
+    }
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10_000)
     try {
+      const body: Record<string, unknown> = {
+        amount: input.amount,
+        currency: input.currency,
+        reference: input.reference,
+        callback: input.callbackUrl,
+        description: input.description,
+      }
+      if (input.email) body.email = input.email
+      if (input.phone) body.phone = input.phone
+      // Canonical customer object per docs — improves Collect pre-fill.
+      if (input.email || input.phone || input.customerName) {
+        const customer: Record<string, string> = {}
+        if (input.customerName) customer.name = input.customerName
+        if (input.email) customer.email = input.email
+        if (input.phone) customer.phone = input.phone
+        body.customer = customer
+      }
+      // Spec has no `metadata` field — the equivalent is `customer_meta`.
+      // Accept `metadata` from callers and forward it spec-compliantly.
+      if (input.metadata && Object.keys(input.metadata).length > 0) {
+        body.customer_meta = input.metadata
+      }
       const res = await fetch(`${this.env.NOTCHPAY_BASE_URL}/payments`, {
         method: "POST",
         headers: {
           Authorization: this.env.NOTCHPAY_PUBLIC_KEY,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          amount: input.amount,
-          currency: input.currency,
-          email: input.email,
-          phone: input.phone,
-          reference: input.reference,
-          callback: input.callbackUrl,
-          description: input.description,
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       })
       if (!res.ok) {
         const text = await res.text().catch(() => "")
         throw new AppError(502, "PROVIDER_ERROR", `NotchPay create failed ${res.status}: ${text}`)
       }
+      // Live shape per OpenAPI: { code, status, transaction: "<id-string>",
+      // authorization_url }. Older/alternate shape: transaction as object
+      // { id, reference, merchant_reference }. Accept string, object, or
+      // legacy `payment.reference` so doc-snippet drift never breaks us.
       const json = (await res.json()) as {
-        transaction: { id: string }
-        authorization_url: string
+        transaction?: string | { id?: string; reference?: string; merchant_reference?: string }
+        payment?: { reference?: string; id?: string }
+        authorization_url?: string
       }
-      if (!json.transaction?.id || !json.authorization_url) {
-        throw new Error("NotchPay create: missing transaction.id or authorization_url")
+      const tx = json.transaction ?? json.payment
+      const providerRef =
+        typeof tx === "string"
+          ? tx
+          : ((tx as { reference?: string; id?: string; merchant_reference?: string })?.reference ??
+            (tx as { id?: string })?.id ??
+            (tx as { merchant_reference?: string })?.merchant_reference)
+      if (!providerRef || !json.authorization_url) {
+        throw new Error("NotchPay create: missing transaction.reference or authorization_url")
       }
       return {
-        providerRef: json.transaction.id,
+        providerRef,
         authorizationUrl: json.authorization_url,
         rawResponse: json,
       }
@@ -82,19 +114,21 @@ export class NotchPayAdapter implements PaymentProvider {
         throw new AppError(502, "PROVIDER_ERROR", `NotchPay verify failed ${res.status}: ${text}`)
       }
       const json = (await res.json()) as {
-        transaction: { status: string; amount: number; currency: string }
+        transaction: { status: string; amount?: number; total?: number; currency?: string }
       }
-      const rawStatus = json.transaction?.status ?? "pending"
+      // Docs statuses: pending, processing, incomplete, complete, failed,
+      // canceled, rejected, abandoned, expired, refunded, partialy-refunded.
+      const rawStatus = String(json.transaction?.status ?? "pending").toLowerCase()
       let status: VerifyPaymentResult["status"]
-      if (rawStatus === "complete" || rawStatus === "success") status = "success"
-      else if (rawStatus === "failed") status = "failed"
+      if (rawStatus === "complete" || rawStatus === "success" || rawStatus === "refunded" || rawStatus === "partialy-refunded" || rawStatus === "partially-refunded") status = "success"
+      else if (rawStatus === "failed" || rawStatus === "canceled" || rawStatus === "cancelled" || rawStatus === "rejected" || rawStatus === "abandoned") status = "failed"
       else if (rawStatus === "expired") status = "expired"
       else status = "pending"
 
       return {
         status,
-        amount: json.transaction.amount,
-        currency: json.transaction.currency,
+        amount: Number(json.transaction?.amount ?? json.transaction?.total ?? 0),
+        currency: json.transaction?.currency ?? "XAF",
         providerRef,
         rawPayload: json,
       }

@@ -7,6 +7,7 @@
  * release hook, status flip, AuditLog, typed status.changed publish.
  */
 import { prisma } from "@camermove/db"
+import { observeBooking } from "@camermove/observability"
 import { ConflictError, ForbiddenError, NotFoundError } from "@camermove/config"
 import { EVENT_TOPICS, makeEvent, publishEvent } from "@camermove/events"
 import { getAdapter } from "./adapters.js"
@@ -60,6 +61,8 @@ export async function cancel(kind: string, input: CancelInput): Promise<unknown>
       },
     })
   } catch {}
+
+  try { observeBooking("cancelled") } catch {}
 
   const note = adapter.notification(entity as unknown as Record<string, unknown>)
   await publishEvent(

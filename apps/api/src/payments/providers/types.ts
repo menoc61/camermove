@@ -19,6 +19,8 @@ export interface CreatePaymentInput {
   callbackUrl: string
   notifyUrl: string
   channels?: "ALL" | "MOBILE_MONEY" | "CREDIT_CARD" | "WALLET"
+  /** Free-form order context. Forwarded as `customer_meta` (spec field). */
+  metadata?: Record<string, unknown>
 }
 
 export interface CreatePaymentResult {

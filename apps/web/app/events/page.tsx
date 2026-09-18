@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, Search, Ticket, ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react"
+import { priceXaf } from "@camermove/shared"
 
 export default function EventsPage() {
   const [filterCity, setFilterCity] = useState("")
@@ -138,7 +139,7 @@ export default function EventsPage() {
                     </div>
                     {minPrice != null && (
                       <p className="text-sm font-bold">
-                        {new Intl.NumberFormat("fr-CM").format(minPrice)} XAF min
+                        {priceXaf(minPrice)} min
                       </p>
                     )}
                   </CardContent>

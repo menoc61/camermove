@@ -6,8 +6,9 @@
  * typed notification publish (re-published on replay for fan-out safety).
  */
 import { prisma } from "@camermove/db"
+import { observeBooking, observePayment } from "@camermove/observability"
 import { NotFoundError } from "@camermove/config"
-import { EVENT_TOPICS, makeEvent, publishEvent, type EventTopic } from "@camermove/events"
+import { EVENT_TOPICS, makeEvent, publishEvent, publishPaymentConfirmed, publishTicketIssued, type EventTopic } from "@camermove/events"
 import { getAdapter } from "./adapters.js"
 import type { ConfirmLink, ConfirmNotification } from "./types.js"
 
@@ -37,7 +38,10 @@ export async function confirmPaymentSuccess(
       payment: { findUnique: (a: unknown) => Promise<{ status: string; provider: string } | null>; update: (a: unknown) => Promise<unknown> }
       auditLog: { create: (a: unknown) => Promise<unknown> }
     }
-    await t.$queryRawUnsafe(`SELECT "id" FROM "${adapter.table}" WHERE "id" = $1 FOR UPDATE`, link.id)
+    // Lock the entity row (holds table: Booking for trip) + the payment row.
+    // adapter.table is the lock-side table (Trip for reserve); expiryTable is
+    // the booking-side row this confirm mutates.
+    await t.$queryRawUnsafe(`SELECT "id" FROM "${adapter.expiryTable ?? adapter.table}" WHERE "id" = $1 FOR UPDATE`, link.id)
     await t.$queryRawUnsafe(`SELECT "id" FROM "Payment" WHERE "id" = $1 FOR UPDATE`, paymentId)
     const freshPayment = await t.payment.findUnique({ where: { id: paymentId } })
     if (!freshPayment) return
@@ -59,6 +63,10 @@ export async function confirmPaymentSuccess(
       })
     } catch {}
     wasNew = true
+    try {
+      observePayment(freshPayment.provider, "success")
+      observeBooking("confirmed")
+    } catch {}
   })
 
   const note = adapter.notification(link)
@@ -66,6 +74,34 @@ export async function confirmPaymentSuccess(
     note.topic as any,
     makeEvent(note.type, link.id, { type: note.type, userId: note.userId, payload: note.payload }),
   )
+
+  // Trip fan-out (C7): the worker consumes `ticket.issued` + `payment.confirmed`
+  // with dedicated templates. The kernel ticket create happens in-tx, so the
+  // events go out here, post-commit. Published on first confirm AND replay
+  // (deterministic ids → consumer dedupes) so a lost publish is healed by retry.
+  if (kind === "trip") {
+    const tripLink = link as ConfirmLink & { tripId?: string; reference?: string }
+    const ticket = await prisma.ticket.findFirst({
+      where: { bookingId: link.id },
+      select: { id: true, verificationCode: true },
+    })
+    if (ticket) {
+      await publishTicketIssued(link.id, link.userId, {
+        bookingId: link.id,
+        reference: tripLink.reference ?? link.id,
+        ticketId: ticket.id,
+        verificationCode: ticket.verificationCode,
+        amount: link.totalAmount,
+        tripId: tripLink.tripId ?? "",
+      })
+    }
+    await publishPaymentConfirmed(link.id, link.userId, {
+      bookingId: link.id,
+      reference: tripLink.reference ?? link.id,
+      amount: link.totalAmount,
+      tripId: tripLink.tripId ?? "",
+    })
+  }
   return { confirmed: wasNew, entityId: link.id }
 }
 

@@ -35,7 +35,7 @@ export interface AgencyListItem {
   yearFounded: number
   fleetCount: number
   category: AgencyRecord["category"]
-  brand: { primary: string; soft: string; onPrimary: string; emoji: string }
+  brand: { primary: string; soft: string; onPrimary: string; icon: string }
   routes: { origin: string; destination: string; duration: string; priceFromXaf: number }[]
   amenities: string[]
   ratingAvg: number | null
@@ -83,7 +83,7 @@ function brandFor(record: AgencyRecord) {
     primary: hue?.primary ?? "#0E0E0E",
     soft: hue?.soft ?? "#E4E1D9",
     onPrimary: hue?.onPrimary ?? "#FFFFFF",
-    emoji: record.accentGlyph,
+    icon: record.accentIcon,
   }
 }
 

@@ -96,7 +96,7 @@ async function seedAgencies() {
     for (const r of a.routes) {
       const route = await ensureRoute(transporter.id, r)
       totalRoutes++
-      const tripCount = await ensureTrips(route.id, transporter.id, r)
+      const tripCount = await ensureTrips(route.id, transporter.id, r, a.amenities)
       totalTrips += tripCount
     }
     totalStops += await seedCorridorStops(prisma)
@@ -133,7 +133,7 @@ async function ensureRoute(transporterId: string, r: AgencyRoute) {
  *
  * Urban routes (isUrban=true) get trips every 30 min during service window.
  */
-async function ensureTrips(routeId: string, transportId: string, r: AgencyRoute): Promise<number> {
+async function ensureTrips(routeId: string, transportId: string, r: AgencyRoute, amenities: string[] = []): Promise<number> {
   const isUrban = await prisma.transporter.findUnique({
     where: { id: transportId },
     select: { isUrban: true },
@@ -200,7 +200,7 @@ async function ensureTrips(routeId: string, transportId: string, r: AgencyRoute)
           vehicleTypeInfo: r.classType === "VIP" ? "Autocar VIP" : r.classType === "Premium" ? "Autocar Premium" : "Autocar Standard",
           conditions: null,
           status: "active",
-          amenities: AGENCIES.find((x) => x.email)?.amenities ?? [],
+          amenities,
           seatAvailability: { create: { seatsAvailable: 50, seatsHeld: 0, seatsBooked: 0 } },
         },
       })
@@ -224,7 +224,7 @@ async function seedUrbanNetworks() {
   for (const net of URBAN_NETWORKS) {
     const city = CITIES[net.city].label
     const email = `${net.id}@camermove.cm`
-    await prisma.transporter.upsert({
+    const transporter = await prisma.transporter.upsert({
       where: { email },
       update: {
         companyName: `${net.operatorName} — ${net.brand}`,
@@ -253,6 +253,55 @@ async function seedUrbanNetworks() {
         amenities: ["wifi", "ac", "cctv", "gps-tracker", "usb"],
       },
     })
+
+    // One Route per URBAN_LINE (terminus → terminus) + trips every 30 min
+    // 05:00–22:00 for 7 days at the line's base fare (<1000 so the
+    // intraurban schedule price gate passes).
+    const lines = URBAN_LINES.filter((l) => l.networkId === net.id)
+    for (const line of lines) {
+      const origin = line.stops[0]!.name
+      const dest = line.stops[line.stops.length - 1]!.name
+      const route = await prisma.route.upsert({
+        where: {
+          transporterId_originCity_destinationCity: {
+            transporterId: transporter.id,
+            originCity: origin,
+            destinationCity: dest,
+          },
+        },
+        update: { active: true },
+        create: { transporterId: transporter.id, originCity: origin, destinationCity: dest, active: true },
+      })
+      const fare = line.fareBands[0]?.priceXaf ?? 500
+      const tomorrow = new Date()
+      tomorrow.setHours(0, 0, 0, 0)
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+      for (let day = 0; day < 7; day++) {
+        for (let hour = 5; hour <= 22; hour++) {
+          for (const minute of [0, 30]) {
+            const departureAt = new Date(tomorrow.getTime() + day * 86400000)
+            departureAt.setUTCHours(hour, minute, 0, 0)
+            const exists = await prisma.trip.findFirst({ where: { routeId: route.id, departureAt } })
+            if (exists) continue
+            await prisma.trip.create({
+              data: {
+                routeId: route.id,
+                transportId: transporter.id,
+                departureAt,
+                arrivalEstimateAt: new Date(departureAt.getTime() + line.durationMinutes * 60000),
+                durationEstimate: line.durationMinutes,
+                price: fare,
+                totalSeats: 50,
+                vehicleTypeInfo: net.id === "pmud-douala" ? "BRT" : "Bus urbain",
+                status: "active",
+                amenities: ["wifi", "ac", "cctv", "gps-tracker", "usb"],
+                seatAvailability: { create: { seatsAvailable: 50, seatsHeld: 0, seatsBooked: 0 } },
+              },
+            })
+          }
+        }
+      }
+    }
   }
   return URBAN_NETWORKS.length
 }
@@ -315,8 +364,9 @@ async function seedReviews() {
             email: authorEmail,
             firstName: author.firstName,
             lastName: author.lastName,
-            // Random password hash — sample users don't sign in.
-            passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$sample$invalidsamplehash000000000000000000000",
+            // Real hash of a random password — sample users can technically
+            // sign in but the password is never shared.
+            passwordHash: await argon2.hash(`Sample-${authorEmail}-!1`),
             emailVerified: true,
             role: "traveler" as never,
           },

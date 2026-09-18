@@ -23,7 +23,9 @@ export async function sendEmail(msg: EmailMessage, env?: Env): Promise<void> {
     }
     return
   }
-  const host = env?.SMTP_HOST ?? process.env.SMTP_HOST ?? "localhost"
+  // Default 127.0.0.1 (not "localhost"): Node resolves localhost to ::1
+  // first and docker-published MailHog listens on IPv4 → ECONNREFUSED.
+  const host = env?.SMTP_HOST ?? process.env.SMTP_HOST ?? "127.0.0.1"
   const port = Number(env?.SMTP_PORT ?? process.env.SMTP_PORT ?? 1025)
   const secure = String(env?.SMTP_SECURE ?? process.env.SMTP_SECURE) === "true"
   const user = env?.SMTP_USER ?? process.env.SMTP_USER

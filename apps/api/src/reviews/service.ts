@@ -13,7 +13,7 @@
  * 20260918000000_reviews_seats_metadata).
  */
 import { prisma } from "@camermove/db"
-import { cacheKey, getCached, setCached } from "../lib/cache.js"
+import { cacheKey, getCached, invalidateCache, setCached } from "../lib/cache.js"
 
 export interface ReviewAuthor {
   id: string
@@ -48,7 +48,7 @@ export async function upsertReview(userId: string, input: {
   target: "trip" | "transporter"
   tripId?: string
   transporterId?: string
-  bookingId?: string
+  bookingId: string
   rating: number
   punctuality?: number
   comfort?: number
@@ -87,25 +87,44 @@ export async function upsertReview(userId: string, input: {
   }
 
   const review = await prisma.$transaction(async (tx) => {
-    // Verify the user actually has a booking for this trip/transporter.
-    if (input.bookingId) {
-      const bk = await tx.booking.findFirst({
-        where: { id: input.bookingId, userId },
-        select: { id: true },
-      })
-      if (!bk) {
-        const err = new Error("Réservation introuvable ou non autorisée")
-        ;(err as Error & { statusCode: number }).statusCode = 403
-        throw err
-      }
+    // Verified-stay gate (bookingId is required by schema): the booking must
+    // exist, belong to the rater, and match the rated trip/transporter.
+    // Only confirmed (travelled) bookings can rate.
+    const bk = await tx.booking.findFirst({
+      where: { id: input.bookingId, userId },
+      select: { id: true, tripId: true, status: true, trip: { select: { transportId: true } } },
+    })
+    if (!bk) {
+      const err = new Error("Réservation introuvable ou non autorisée")
+      ;(err as Error & { statusCode: number }).statusCode = 403
+      throw err
+    }
+    if (bk.status !== "confirmed") {
+      const err = new Error("Seuls les voyages effectués peuvent être notés")
+      ;(err as Error & { statusCode: number }).statusCode = 403
+      throw err
+    }
+    if (input.target === "trip" && bk.tripId !== input.tripId) {
+      const err = new Error("La réservation ne correspond pas à ce trajet")
+      ;(err as Error & { statusCode: number }).statusCode = 403
+      throw err
+    }
+    if (input.target === "transporter" && bk.trip.transportId !== input.transporterId) {
+      const err = new Error("La réservation ne correspond pas à cette agence")
+      ;(err as Error & { statusCode: number }).statusCode = 403
+      throw err
     }
     return tx.review.upsert({
-      where: where as unknown as { id: string } & Record<string, string>,
+      where,
       update: data,
       create: data,
       select: { id: true, rating: true, createdAt: true },
     })
   })
+
+  // Invalidate cached aggregates so the new rating is visible immediately.
+  await invalidateCache(`reviews:*id=${input.target === "trip" ? input.tripId : input.transporterId}*`).catch(() => {})
+  await invalidateCache("agencies*").catch(() => {})
 
   return review
 }

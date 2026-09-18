@@ -11,8 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import type { Parcel } from "@/lib/api/parcels";
-
-const fmtXaf = (n: number) => new Intl.NumberFormat("fr-CM").format(n);
+import { priceXaf } from "@camermove/shared";
 
 export function ParcelCard({ item }: { item: Parcel }) {
   return (
@@ -36,7 +35,7 @@ export function ParcelCard({ item }: { item: Parcel }) {
         <Separator />
       </CardContent>
       <CardFooter className="flex items-center justify-between">
-        <p className="text-sm font-bold">{fmtXaf(item.shippingCost)} XAF</p>
+        <p className="text-sm font-bold">{priceXaf(item.shippingCost)}</p>
         <a
           href={`/parcels/track/${item.trackingNumber}`}
           className="text-sm underline underline-offset-4"

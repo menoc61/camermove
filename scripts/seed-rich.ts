@@ -10,6 +10,7 @@
  */
 import * as argon2 from "argon2"
 import { prisma } from "@camermove/db"
+import { calcCommission } from "@camermove/shared"
 
 const U = "https://images.unsplash.com"
 
@@ -150,8 +151,8 @@ async function main() {
       })
       // 10% commission + ticket for confirmed
       if (status === "confirmed") {
-        const fee = Math.round(totalAmount * 0.1)
-        await prisma.commission.create({ data: { bookingId: booking.id, grossAmount: totalAmount, commissionAmount: fee, netAmount: totalAmount - fee, percentApplied: 10 } })
+        const { commissionAmount: fee, netAmount } = calcCommission(totalAmount, 10)
+        await prisma.commission.create({ data: { bookingId: booking.id, grossAmount: totalAmount, commissionAmount: fee, netAmount, percentApplied: 10 } })
         await prisma.ticket.create({ data: { bookingId: booking.id, qrCode: `QR-${reference}`, verificationCode: `VRF-${reference}`, status: "valid" } })
       }
       // notification + audit log (guarded: created only with the booking)

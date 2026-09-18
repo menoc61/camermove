@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { priceXaf } from "@camermove/shared"
 import { Separator } from "@/components/ui/separator"
 import { Calendar, Ticket, TriangleAlert } from "lucide-react"
 
@@ -165,12 +166,12 @@ export default function EventDetailPage() {
                     label="billets"
                   />
                   <span className="text-sm">
-                    {c.quantity - c.sold} places disponibles · {new Intl.NumberFormat("fr-CM").format(c.price)} XAF / billet
+                    {c.quantity - c.sold} places disponibles · {priceXaf(c.price)} / billet
                   </span>
                 </div>
 
                 <div>
-                  <p className="font-bold">Total: {new Intl.NumberFormat("fr-CM").format(quantity * c.price)} XAF</p>
+                  <p className="font-bold">Total: {priceXaf(quantity * c.price)}</p>
                   {token ? (
                     <Button
                       onClick={(e) => { e.stopPropagation(); book.mutate(c.id) }}

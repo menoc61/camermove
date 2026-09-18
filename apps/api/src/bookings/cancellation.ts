@@ -1,4 +1,5 @@
 import { prisma, getAppSettingsCached } from "@camermove/db"
+import { calcRefund } from "@camermove/shared"
 
 export type CancelActor = "traveler" | "transporter" | "admin" | "super_admin" | "system"
 export type CancelResult = {
@@ -118,8 +119,8 @@ export async function evaluateCancellation(input: {
     return { allowed: false, reason: tier.label, refundPercent: 0, refundAmount: 0, feeAmount: 0, feePercent: tier.feePercent, tier: tier.tier, policy: tier.label }
   }
 
-  const refundAmount = Math.round((input.booking.totalAmount * tier.refundPercent) / 100)
-  const feeAmount = Math.round((input.booking.totalAmount * tier.feePercent) / 100)
+  const refundAmount = calcRefund(input.booking.totalAmount, tier.refundPercent)
+  const feeAmount = calcRefund(input.booking.totalAmount, tier.feePercent)
 
   return { allowed: true, refundPercent: tier.refundPercent, refundAmount, feeAmount, feePercent: tier.feePercent, tier: tier.tier, policy: tier.label }
 }

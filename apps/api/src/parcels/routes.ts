@@ -5,7 +5,7 @@ import { AppError, ForbiddenError, NotFoundError } from "@camermove/config"
 import { loadEnv } from "@camermove/config"
 import { CreateParcelSchema, ParcelStatusUpdateSchema, ParcelSearchQuery, ParcelIdParams, ParcelTrackParams } from "./schema.js"
 import { buildParcelWhere, findParcels, countParcels, findParcelById, findParcelByTrackingNumber } from "./repository.js"
-import { createParcel, advanceParcelStatus, sanitizeParcelForTrack, createParcelPayment, cancelParcel } from "./service.js"
+import { createParcel, advanceParcelStatus, sanitizeParcelForTrack, createParcelPayment, cancelParcel, calcShippingCost } from "./service.js"
 import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
@@ -145,6 +145,28 @@ export async function parcelRoutes(app: FastifyInstance) {
     })
     observeParcel("registered")
     return reply.code(201).send(parcel)
+  })
+
+  // GET /parcels/quote — public instant quote (no booking). Must be registered
+  // before /parcels/:id so "quote" isn't captured as an id.
+  app.get("/parcels/quote", async (req) => {
+    const q = z.object({
+      parcelType: z.string().default("standard"),
+      weightKg: z.coerce.number().positive().max(1000).optional(),
+      declaredValue: z.coerce.number().nonnegative().max(100000000).optional(),
+      origin: z.string().optional(),
+      dest: z.string().optional(),
+    }).parse(req.query)
+    const meta = (req as unknown as { meta?: Record<string, unknown> }).meta ?? {}
+    req.log.info({ ...meta, ...q }, "parcels.quote")
+    const shippingCost = await calcShippingCost({
+      parcelType: q.parcelType,
+      weightKg: q.weightKg ?? null,
+      declaredValue: q.declaredValue ?? null,
+      origin: q.origin,
+      dest: q.dest,
+    })
+    return { shippingCost, currency: "XAF" }
   })
 
   // GET /parcels/track/:trackingNumber — public sanitized (mask phones, no userId)

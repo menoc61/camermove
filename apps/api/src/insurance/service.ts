@@ -3,7 +3,7 @@ import { getAppSettingsCached, prisma } from "@camermove/db"
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@camermove/config"
 import { invalidateCache } from "../lib/cache.js"
 import { buildInsuranceWhere, countPolicies, findPolicies, findPolicyByIdForUser, type InsuranceWhereInput } from "./repository.js"
-import { initiateEntityPayment, type PaymentProvider } from "../payments/initiate.js"
+import { initiatePayment } from "../payments/service.js"
 import { confirmPaymentSuccess, cancel, referenceForKind } from "../booking-kernel/index.js"
 
 // Fallback prices (XAF per traveler). Overridable at runtime via
@@ -156,25 +156,17 @@ export async function createPolicyPayment(input: {
     throw new ForbiddenError("Accès refusé")
   }
 
-  return initiateEntityPayment({
+  const result = await initiatePayment({
     kind: "insurance",
     entityId: input.policyId,
     userId: input.userId,
-    provider: input.provider as PaymentProvider,
-    amount: policy.premium,
-    reference: insurancePaymentReference(input.policyId),
-    description: `CamerMove Insurance ${insurancePaymentReference(input.policyId)}`,
+    provider: input.provider,
     phone: input.phone,
     email: input.email,
     method: input.method,
     meta: input.meta,
-    notFoundMessage: "Police d'assurance introuvable",
-    findFresh: async (tx) => (tx as typeof prisma).insurancePolicy.findUnique({ where: { id: input.policyId } }) as unknown as { paymentId: string | null } | null,
-    linkPayment: async (tx, paymentId) => {
-      await (tx as typeof prisma).insurancePolicy.update({ where: { id: input.policyId }, data: { paymentId } as never })
-    },
-    auditEntityMeta: { policyId: input.policyId },
   })
+  return { payment: result.payment, authorizationUrl: result.authorizationUrl }
 }
 
 /**
@@ -183,6 +175,29 @@ export async function createPolicyPayment(input: {
  */
 export async function confirmInsurancePaymentSuccess(paymentId: string, event: unknown): Promise<{ confirmed: boolean; policyId: string }> {
   const { entityId, confirmed } = await confirmPaymentSuccess("insurance", paymentId, event)
+  // The worker consumes insurance.policy.issued (dedicated template) — the
+  // kernel only publishes the generic payment.confirmed, so fan out here.
+  if (confirmed) {
+    const policy = (await prisma.insurancePolicy.findUnique({ where: { id: entityId } })) as unknown as {
+      id: string; userId: string; policyNumber: string | null; premium: number; coverageType: string
+    } | null
+    if (policy) {
+      const { publishEvent, makeEvent, EVENT_TOPICS } = await import("@camermove/events")
+      await publishEvent(
+        EVENT_TOPICS.insurancePolicyIssued,
+        makeEvent("insurance.policy.issued", policy.id, {
+          type: "insurance.policy.issued",
+          userId: policy.userId,
+          payload: {
+            policyId: policy.id,
+            policyNumber: policy.policyNumber,
+            amount: policy.premium,
+            coverageType: policy.coverageType,
+          },
+        }),
+      )
+    }
+  }
   return { confirmed, policyId: entityId }
 }
 

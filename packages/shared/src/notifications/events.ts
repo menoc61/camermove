@@ -9,6 +9,8 @@
 export type NotificationEventType =
   | "booking.confirmed"
   | "payment.confirmed"
+  | "payment.failed"
+  | "payment.expired"
   | "ticket.issued"
   | "trip.reminder.24h"
   | "hotel.booking.confirmed"

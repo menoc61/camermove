@@ -3,6 +3,8 @@ import { BadRequestError, ConflictError, NotFoundError, ForbiddenError, loadEnv,
 import { invalidateCache } from "../lib/cache.js"
 import { reserve, confirmPaymentSuccess, cancel, parcelAdapter } from "../booking-kernel/index.js"
 import { initiatePayment, createParcelPayment as createPayment } from "../payments/service.js"
+import { EVENT_TOPICS, makeEvent, publishEvent, type EventTopic } from "@camermove/events"
+import { observeParcel } from "@camermove/observability"
 
 const log = createLogger()
 
@@ -59,10 +61,6 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 
 export function isValidTransition(from: string, to: string): boolean {
   return (ALLOWED_TRANSITIONS[from] ?? []).includes(to)
-}
-
-export function parcelPaymentReference(parcelId: string): string {
-  return `PARCEL-${parcelId.slice(0, 8).toUpperCase()}`
 }
 
 export async function createParcel(input: {
@@ -169,7 +167,7 @@ export async function advanceParcelStatus(input: {
     })
   } catch {}
   await publishParcelTypedEvent(
-    "camermove.parcel.status.changed",
+    EVENT_TOPICS.parcelStatusChanged,
     "parcel.status.changed",
     {
       type: "parcel.status.changed",
@@ -188,6 +186,7 @@ export async function advanceParcelStatus(input: {
     await invalidateCache("parcels*")
     await invalidateCache("search*")
   } catch {}
+  try { observeParcel(input.nextStatus) } catch {}
   return (updated as { upd: unknown }).upd
 }
 
@@ -294,25 +293,10 @@ export async function cancelParcel(id: string, actorId: string, actorRole = "tra
   return updated
 }
 
-async function publishParcelEvent(topic: string, data: Record<string, unknown>) {
+async function publishParcelTypedEvent(topic: EventTopic, type: string, typedEvent: Record<string, unknown>, key: string) {
   try {
-    const { publishEvent } = await import("@camermove/events/outbox")
-    const { EVENT_TOPICS } = await import("@camermove/events")
-    const { makeDataEvent } = await import("@camermove/events/outbox")
     await publishEvent(
-      topic as never,
-      makeDataEvent(topic, String(data.id ?? data.trackingNumber ?? ""), data),
-    )
-  } catch {}
-}
-
-async function publishParcelTypedEvent(topic: string, type: string, typedEvent: Record<string, unknown>, key: string) {
-  try {
-    const { publishEvent } = await import("@camermove/events/outbox")
-    const { EVENT_TOPICS } = await import("@camermove/events")
-    const { makeEvent } = await import("@camermove/events/outbox")
-    await publishEvent(
-      topic as never,
+      topic,
       makeEvent(type, key, { type, ts: new Date().toISOString(), aggregateId: key, data: typedEvent }),
     )
   } catch {}

@@ -1,5 +1,5 @@
 import { getAppSettingsCached, prisma, Prisma } from "@camermove/db"
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, loadEnv, createLogger } from "@camermove/config"
+import { AppError, BadRequestError, ConflictError, ForbiddenError, NotFoundError, loadEnv, createLogger } from "@camermove/config"
 import { findPaymentById } from "./repository.js"
 import { getProvider } from "./providers/index.js"
 import type { SupportedProvider } from "./providers/types.js"
@@ -42,6 +42,29 @@ export function assertCinetPayAmount(provider: SupportedProvider, amount: number
   }
 }
 
+/** Guard against a misconfigured provider before burning a transaction + network call. */
+export function assertProviderConfigured(provider: SupportedProvider): void {
+  const env = loadEnv() as unknown as Record<string, string | undefined>
+  if (provider === "notchpay" && !env.NOTCHPAY_PUBLIC_KEY) {
+    throw new AppError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "NotchPay n'est pas configuré sur ce serveur")
+  }
+  if (provider === "cinetpay" && (!env.CINETPAY_APIKEY || !env.CINETPAY_SITE_ID)) {
+    throw new AppError(503, "PAYMENT_PROVIDER_NOT_CONFIGURED", "CinetPay n'est pas configuré sur ce serveur")
+  }
+}
+
+/** Per-kind payable amount column: trip/hotel/rental/event use totalAmount,
+ *  parcel uses shippingCost, insurance uses premium. */
+function amountForKind(kind: InitiatePaymentInput["kind"], entity: Record<string, unknown>): number {
+  const field = kind === "parcel" ? "shippingCost" : kind === "insurance" ? "premium" : "totalAmount"
+  return Number(entity[field] ?? 0)
+}
+
+/** Per-kind payable statuses. Parcel stays `registered` (paid flag is Payment.status). */
+function payableStatusesForKind(kind: InitiatePaymentInput["kind"]): string[] {
+  return kind === "parcel" ? ["registered"] : ["pending_payment"]
+}
+
 /**
  * Single payment initiation entry point for all payable kinds.
  * Owns: methodToChannels, amount%5 guard, callback/notify URL building,
@@ -64,6 +87,9 @@ export interface InitiatePaymentResult {
 }
 
 export async function initiatePayment(input: InitiatePaymentInput): Promise<InitiatePaymentResult> {
+  // 0. Fail fast on misconfigured provider (503, before any tx/network work)
+  assertProviderConfigured(input.provider)
+
   // 1. Load entity and validate
   const { entity, reference, amount } = await loadEntityAndValidate(input)
 
@@ -79,18 +105,36 @@ export async function initiatePayment(input: InitiatePaymentInput): Promise<Init
   const channels = methodToChannels(input.method)
   const description = `CamerMove ${reference}`
 
+  // NotchPay requires at least one of email/phone/customer — fall back to
+  // the payer's account so a missing phone field is never a 422.
+  let email = input.email
+  let phone = input.phone
+  let customerName: string | undefined
+  if (!email || !phone) {
+    const user = await prisma.user.findUnique({
+      where: { id: input.userId },
+      select: { email: true, phone: true, firstName: true, lastName: true },
+    })
+    email = email ?? user?.email ?? undefined
+    phone = phone ?? user?.phone ?? undefined
+    const fullName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim()
+    if (fullName) customerName = fullName
+  }
+
   const provider = getProvider(input.provider)
   const result = await provider.createPayment({
     bookingId: input.entityId,
     reference,
     amount,
     currency: "XAF",
-    email: input.email,
-    phone: input.phone,
+    email,
+    phone,
+    customerName,
     description,
     callbackUrl,
     notifyUrl,
     channels,
+    metadata: { ...(input.meta ?? {}), entityKind: input.kind, entityId: input.entityId },
   })
 
   // 4. Persist atomically with hold extension + dedup guard inside transaction
@@ -122,16 +166,18 @@ export async function initiatePayment(input: InitiatePaymentInput): Promise<Init
 // Link payment to entity
     await linkPaymentToEntity(tx, input.kind, input.entityId, created.id)
 
-    // Extend hold if near expiry (<5 min) — only for kinds with holdExpiresAt
+    // Extend hold if near expiry (<5 min) — only for kinds with holdExpiresAt.
+    // Trip holds live on Booking (not "tripBooking").
     if (input.kind !== "parcel" && input.kind !== "insurance") {
+      const modelKey = input.kind === "trip" ? "booking" : `${input.kind}Booking`
       const models = tx as unknown as Record<string, { findUnique: (a: unknown) => Promise<{ holdExpiresAt: Date | null } | null>; update: (a: unknown) => Promise<unknown> } | undefined>
-      const entityFresh = await models[`${input.kind}Booking`]?.findUnique({ where: { id: input.entityId } })
+      const entityFresh = await models[modelKey]?.findUnique({ where: { id: input.entityId } })
       if (entityFresh?.holdExpiresAt) {
         const nearExpiry = entityFresh.holdExpiresAt.getTime() < Date.now() + 5 * 60 * 1000
         if (nearExpiry) {
           const settings = await getAppSettingsCached().catch(() => ({ holdExpiryMinutes: 15 }))
           const mins = Number(settings.holdExpiryMinutes ?? 15)
-          await models[`${input.kind}Booking`]!.update({
+          await models[modelKey]!.update({
             where: { id: input.entityId },
             data: { holdExpiresAt: new Date(Date.now() + mins * 60 * 1000) },
           })
@@ -185,7 +231,7 @@ async function loadEntityAndValidate(input: InitiatePaymentInput): Promise<{ ent
   if (entityUserId !== input.userId) throw new ForbiddenError("Accès refusé")
 
   const status = (entity as Record<string, unknown>).status as string
-  if (status !== "pending_payment") {
+  if (!payableStatusesForKind(input.kind).includes(status)) {
     throw new ConflictError(`${capitalize(input.kind)} reservation not payable — status: ${status}`)
   }
 
@@ -193,14 +239,21 @@ async function loadEntityAndValidate(input: InitiatePaymentInput): Promise<{ ent
     ? (entity as Record<string, unknown>).reference as string
     : referenceForKind(input.kind, input.entityId)
 
-  const amount = (entity as Record<string, unknown>).totalAmount as number
+  const amount = amountForKind(input.kind, entity)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new ConflictError(`${capitalize(input.kind)} reservation has no payable amount`)
+  }
   assertCinetPayAmount(input.provider, amount)
 
   return { entity, reference, amount }
 }
 
-/** Find entity by ID (per-kind). */
+/** Find entity by ID (per-kind). Trip bookings live on Booking (there is no
+ *  TripBooking model); other kinds use their *Booking tables. */
 async function findEntityById(kind: string, entityId: string): Promise<Record<string, unknown> | null> {
+  if (kind === "trip") {
+    return prisma.booking.findUnique({ where: { id: entityId } })
+  }
   if (kind === "parcel") {
     return prisma.parcel.findUnique({ where: { id: entityId } })
   }
@@ -212,8 +265,19 @@ async function findEntityById(kind: string, entityId: string): Promise<Record<st
   return models[modelName]?.findUnique({ where: { id: entityId } }) ?? null
 }
 
-/** Find pending payment by entity ID (per-kind). */
+/** Find pending payment by entity ID (per-kind). Trip payments link via
+ *  Payment.bookingId (Booking has no paymentId column); other kinds read
+ *  the entity's paymentId. */
 async function findPendingPaymentByEntityId(kind: string, entityId: string): Promise<{ id: string; status: string; providerRef: string | null; authorizationUrl: string | null; webhookPayload: unknown } | null> {
+  if (kind === "trip") {
+    const payment = await prisma.payment.findFirst({
+      where: { bookingId: entityId, status: { in: ["pending", "processing"] as never } },
+      orderBy: { createdAt: "desc" },
+    })
+    if (!payment) return null
+    const authUrl = (payment.webhookPayload as Record<string, unknown> | null)?.authorizationUrl as string | undefined
+    return { id: payment.id, status: payment.status, providerRef: payment.providerRef, authorizationUrl: authUrl ?? null, webhookPayload: payment.webhookPayload }
+  }
   let paymentId: string | null = null
   if (kind === "parcel") {
     const parcel = await prisma.parcel.findUnique({ where: { id: entityId }, select: { paymentId: true } })
@@ -241,6 +305,15 @@ async function findPendingPaymentByEntityId(kind: string, entityId: string): Pro
 
 /** Find pending payment by entity ID inside transaction. */
 async function findPendingPaymentByEntityIdInTx(tx: Prisma.TransactionClient, kind: string, entityId: string): Promise<{ id: string; status: string; providerRef: string | null; authorizationUrl: string | null; webhookPayload: unknown } | null> {
+  if (kind === "trip") {
+    const payment = await tx.payment.findFirst({
+      where: { bookingId: entityId, status: { in: ["pending", "processing"] } },
+      orderBy: { createdAt: "desc" },
+    })
+    if (!payment) return null
+    const authUrl = (payment.webhookPayload as Record<string, unknown> | null)?.authorizationUrl as string | undefined
+    return { id: payment.id, status: payment.status, providerRef: payment.providerRef, authorizationUrl: authUrl ?? null, webhookPayload: payment.webhookPayload }
+  }
   let paymentId: string | null = null
   if (kind === "parcel") {
     const parcel = await tx.parcel.findUnique({ where: { id: entityId }, select: { paymentId: true } })
@@ -273,8 +346,10 @@ function getTableName(kind: string): string {
   return `${capitalize(kind)}Booking`
 }
 
-/** Link payment to entity (per-kind). */
+/** Link payment to entity (per-kind). Trip needs no link update — the
+ *  payment row itself carries bookingId (set at create). */
 async function linkPaymentToEntity(tx: Prisma.TransactionClient, kind: string, entityId: string, paymentId: string): Promise<void> {
+  if (kind === "trip") return
   if (kind === "parcel") {
     await tx.parcel.update({ where: { id: entityId }, data: { paymentId } as never })
   } else if (kind === "insurance") {
@@ -353,6 +428,19 @@ export async function createParcelPayment(input: {
   meta?: Record<string, unknown>
 }) {
   const result = await initiatePayment({ kind: "parcel", entityId: input.parcelId, userId: input.userId, provider: input.provider, phone: input.phone, email: input.email, method: input.method, meta: input.meta })
+  return { payment: result.payment, authorizationUrl: result.authorizationUrl }
+}
+
+export async function createInsurancePolicyPayment(input: {
+  policyId: string
+  userId: string
+  provider: SupportedProvider
+  phone?: string
+  email?: string
+  method?: string
+  meta?: Record<string, unknown>
+}) {
+  const result = await initiatePayment({ kind: "insurance", entityId: input.policyId, userId: input.userId, provider: input.provider, phone: input.phone, email: input.email, method: input.method, meta: input.meta })
   return { payment: result.payment, authorizationUrl: result.authorizationUrl }
 }
 

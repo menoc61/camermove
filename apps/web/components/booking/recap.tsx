@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { PaymentStep } from "./PaymentStep"
+import { priceXaf } from "@camermove/shared"
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "expiré"
@@ -61,11 +62,11 @@ export function Recap({ price }: { price: number }) {
         <div className="flex items-baseline justify-between text-sm">
           <span className="text-muted-foreground">Total</span>
           <span className="text-lg font-bold">
-            {new Intl.NumberFormat("fr-CM").format(total)} XAF
+            {priceXaf(total)}
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          {seatCount} × {new Intl.NumberFormat("fr-CM").format(price)} XAF
+          {seatCount} × {priceXaf(price)}
         </p>
         {countdown != null ? (
           <div className="flex items-center gap-2 text-xs">

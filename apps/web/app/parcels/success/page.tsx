@@ -8,6 +8,7 @@ import { trackParcel } from "@/lib/api/parcels"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { priceXaf } from "@camermove/shared"
 
 const STATUS_LABELS: Record<string, string> = {
   registered: "Enregistré",
@@ -56,7 +57,7 @@ function ParcelsSuccessInner() {
                 <p><span className="font-semibold">Trajet :</span> {data.senderCity} → {data.recipientCity}</p>
                 <p><span className="font-semibold">Destinataire :</span> {data.recipientName}</p>
                 <p><span className="font-semibold">Statut :</span> {STATUS_LABELS[data.status] ?? data.status}</p>
-                <p className="text-lg font-bold">Coût : {new Intl.NumberFormat("fr-CM").format(data.shippingCost)} XAF</p>
+                <p className="text-lg font-bold">Coût : {priceXaf(data.shippingCost)}</p>
               </div>
               {(data.statusHistory ?? []).length > 0 && (
                 <div className="space-y-2 border-t pt-3">

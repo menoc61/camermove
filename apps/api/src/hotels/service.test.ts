@@ -60,6 +60,8 @@ describe("hotels/service ACID", () => {
     // Mock auditLog to avoid DB
     const auditSpy = vi.spyOn(prisma.auditLog, "create").mockResolvedValue({} as never)
     vi.spyOn(prisma.appSettings, "findUnique").mockResolvedValue({ id: "global", holdExpiryMinutes: 15 } as never)
+    // Inventory-first reserve: adapter.find loads the HotelRoom row.
+    vi.spyOn(prisma.hotelRoom, "findUnique").mockResolvedValue({ id: roomTypeId, hotelId, quantity: 1, pricePerNight: 15000 } as never)
 
     // Quantity=1, overlapping=1 should conflict
 const txCount = vi.fn().mockResolvedValue(1) // overlapping >= quantity
@@ -94,6 +96,8 @@ const txCount = vi.fn().mockResolvedValue(1) // overlapping >= quantity
     const roomTypeId = "cmroom123456789012345678"
     vi.spyOn(prisma.appSettings, "findUnique").mockResolvedValue({ id: "global", holdExpiryMinutes: 15 } as never)
     vi.spyOn(prisma.auditLog, "create").mockResolvedValue({} as never)
+    // Inventory-first reserve: adapter.find loads the HotelRoom row.
+    vi.spyOn(prisma.hotelRoom, "findUnique").mockResolvedValue({ id: roomTypeId, hotelId, quantity: 1, pricePerNight: 10000 } as never)
 
     let call = 0
     // @ts-ignore mock transaction for test

@@ -12,8 +12,8 @@ import { createLogger, type Env } from "@camermove/config"
 import { sendEmail } from "./channels/email"
 import { sendWhatsApp } from "./channels/whatsapp"
 import { sendPush } from "./channels/push"
-import { renderBookingConfirmed, renderPaymentConfirmed, renderTicketIssued, renderTripReminder24h, renderHotelBookingConfirmed, renderRentalBookingConfirmed, renderParcelStatusChanged, renderInsurancePolicyIssued, renderEventBookingConfirmed, renderBookingStatusChanged } from "./templates/index.js"
-import { createKafkaClient } from "@camermove/events"
+import { renderBookingConfirmed, renderPaymentConfirmed, renderPaymentFailed, renderTicketIssued, renderTripReminder24h, renderHotelBookingConfirmed, renderRentalBookingConfirmed, renderParcelStatusChanged, renderInsurancePolicyIssued, renderEventBookingConfirmed, renderBookingStatusChanged } from "./templates/index.js"
+import { EVENT_TOPICS, makeEvent, publishEvent } from "@camermove/events"
 import type { NotificationEvent, NotificationEventPayload } from "@camermove/shared"
 
 type Rendered = {
@@ -160,36 +160,17 @@ export function createNotificationDispatcher(env: Env) {
         ),
       }
 
-      // Publish failures to notifications.failed Kafka topic (best-effort)
+      // Publish failures to notifications.failed Kafka topic (best-effort, via outbox seam)
       const failures = result.channelResults.filter((c) => c.status === "failed")
       if (failures.length > 0) {
-        try {
-          const kafka = createKafkaClient(env as never)
-          const producer = kafka.producer({ idempotent: true })
-          await producer.connect().catch(() => {})
-          await producer
-            .send({
-              topic: "camermove.notifications.failed",
-              messages: [
-                {
-                  key: user.id,
-                  value: JSON.stringify({
-                    id: `failed-${Date.now()}`,
-                    type: "notifications.failed",
-                    ts: new Date().toISOString(),
-                    aggregateId: user.id,
-                    data: {
-                      userId: user.id,
-                      eventType: event.type,
-                      failures: failures.map((f) => ({ channel: f.channel, error: f.error })),
-                    },
-                  }),
-                },
-              ],
-            })
-            .catch(() => {})
-          await producer.disconnect().catch(() => {})
-        } catch {}
+        await publishEvent(
+          EVENT_TOPICS.notificationsFailed,
+          makeEvent("notifications.failed", user.id, {
+            userId: user.id,
+            eventType: event.type,
+            failures: failures.map((f) => ({ channel: f.channel, error: f.error })),
+          }),
+        ).catch(() => {})
       }
 
       return result
@@ -203,6 +184,9 @@ function pickRenderer(type: NotificationEvent["type"]): (data: NotificationEvent
       return renderBookingConfirmed as never
     case "payment.confirmed":
       return renderPaymentConfirmed as never
+    case "payment.failed":
+    case "payment.expired":
+      return renderPaymentFailed as never
     case "ticket.issued":
       return renderTicketIssued as never
     case "trip.reminder.24h":

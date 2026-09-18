@@ -1,16 +1,23 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { findUrbanLine, findUrbanNetwork, URBAN_LINES, CITIES } from "@camermove/shared"
+import { findUrbanLine, findUrbanNetwork, URBAN_LINES, CITIES, priceXaf } from "@camermove/shared"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { shade } from "@/lib/utils"
 import {
+  Accessibility,
   ArrowRight,
   Clock,
+  House,
   MapPin,
+  Navigation,
   Repeat,
   ShieldCheck,
+  Ticket,
   TramFront,
+  Usb,
+  Video,
   Wallet,
   Wifi,
 } from "lucide-react"
@@ -89,11 +96,17 @@ export default async function LinePage({ params }: { params: Promise<{ id: strin
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <p className="text-sm font-semibold">{stop.name}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          Terminus +{stop.offsetMinutes} min
-                          {stop.sheltered && " · 🏠 Abri"}
+                        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
+                          <span>Terminus +{stop.offsetMinutes} min</span>
+                          {stop.sheltered && (
+                            <span className="inline-flex items-center gap-1">
+                              · <House className="size-3" /> Abri
+                            </span>
+                          )}
                           {stop.transfer && stop.transfer.length > 0 && (
-                            <span> · 🔁 Correspondance {stop.transfer.join(", ")}</span>
+                            <span className="inline-flex items-center gap-1">
+                              · <Repeat className="size-3" /> Correspondance {stop.transfer.join(", ")}
+                            </span>
                           )}
                         </p>
                       </div>
@@ -120,7 +133,7 @@ export default async function LinePage({ params }: { params: Promise<{ id: strin
               <CardContent className="space-y-2 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{f.label}</p>
                 <p className="text-3xl font-bold text-emerald-700">
-                  {f.priceXaf.toLocaleString("fr-FR")}<span className="ml-1 text-sm font-medium">XAF</span>
+                  {priceXaf(f.priceXaf)}
                 </p>
                 <p className="text-xs text-muted-foreground">{f.description}</p>
               </CardContent>
@@ -153,14 +166,14 @@ export default async function LinePage({ params }: { params: Promise<{ id: strin
           <ShieldCheck className="size-5" /> À bord du {line.code}
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Amenity emoji="📶" label="Wi-Fi gratuit" />
-          <Amenity emoji="❄️" label="Climatisation" />
-          <Amenity emoji="🎥" label="Vidéosurveillance" />
-          <Amenity emoji="📍" label="Suivi GPS" />
-          <Amenity emoji="🔌" label="Ports USB" />
-          <Amenity emoji="🎫" label="Tap & Go" />
-          <Amenity emoji="♿" label="Accès PMR" />
-          <Amenity emoji="🛡️" label="Sécurité 24/7" />
+          <Amenity icon={<Wifi className="size-4" />} label="Wi-Fi gratuit" />
+          <Amenity icon={<Clock className="size-4" />} label="Climatisation" />
+          <Amenity icon={<Video className="size-4" />} label="Vidéosurveillance" />
+          <Amenity icon={<Navigation className="size-4" />} label="Suivi GPS" />
+          <Amenity icon={<Usb className="size-4" />} label="Ports USB" />
+          <Amenity icon={<Ticket className="size-4" />} label="Tap & Go" />
+          <Amenity icon={<Accessibility className="size-4" />} label="Accès PMR" />
+          <Amenity icon={<ShieldCheck className="size-4" />} label="Sécurité 24/7" />
         </div>
       </section>
 
@@ -186,21 +199,12 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Amenity({ emoji, label }: { emoji: string; label: string }) {
+function Amenity({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm">
-      <span className="text-lg">{emoji}</span>
+      <span className="inline-flex text-emerald-700">{icon}</span>
       <span>{label}</span>
     </div>
   )
 }
 
-function shade(hex: string, percent: number): string {
-  const m = hex.match(/^#([0-9a-f]{6})$/i)
-  if (!m) return hex
-  const num = parseInt(m[1]!, 16)
-  const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + Math.round((percent / 100) * 255)))
-  const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + Math.round((percent / 100) * 255)))
-  const b = Math.min(255, Math.max(0, (num & 0xff) + Math.round((percent / 100) * 255)))
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`
-}

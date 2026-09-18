@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import { Car, Calendar } from "lucide-react"
+import { priceXaf } from "@camermove/shared"
 
 function calcDuration(start: string, end: string, unit: string): number {
   if (!start || !end) return 0
@@ -82,7 +83,7 @@ export default function RentalDetailPage() {
         <p className="text-sm text-muted-foreground">{vehicle.category} · {vehicle.capacity} places · {vehicle.pickupCity} · {vehicle.durationUnit} {vehicle.hasDriver ? "· avec chauffeur" : ""}</p>
         <div className="flex gap-1 mt-2">{vehicle.amenities.slice(0, 5).map((a) => <Badge key={a} variant="secondary">{a}</Badge>)}</div>
         {vehicle.photos?.length ? <div className="mt-4 grid grid-cols-2 gap-2">{vehicle.photos.slice(0, 4).map((p) => <img key={p} src={p} alt={`${vehicle.make} ${vehicle.model}`} loading="lazy" className="h-40 object-cover rounded-xl" />)}</div> : null}
-        <p className="mt-3 text-lg font-bold">{new Intl.NumberFormat("fr-CM").format(vehicle.pricePerUnit)} XAF / {vehicle.durationUnit}</p>
+        <p className="mt-3 text-lg font-bold">{priceXaf(vehicle.pricePerUnit)} / {vehicle.durationUnit}</p>
       </div>
       <Separator />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -110,9 +111,9 @@ export default function RentalDetailPage() {
                 <div><label className="text-xs">Téléphone chauffeur</label><Input value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} /></div>
               </>
             )}
-            {duration > 0 && <Alert><AlertDescription>{duration} {vehicle.durationUnit}(s) × {new Intl.NumberFormat("fr-CM").format(vehicle.pricePerUnit)} = <b>{new Intl.NumberFormat("fr-CM").format(total)} XAF</b></AlertDescription></Alert>}
+            {duration > 0 && <Alert><AlertDescription>{duration} {vehicle.durationUnit}(s) × {priceXaf(vehicle.pricePerUnit)} = <b>{priceXaf(total)}</b></AlertDescription></Alert>}
             {!rentalBookingId && (
-              <Button className="w-full" onClick={handleBook} disabled={loading || duration < 1}>{loading ? "Réservation..." : `Payer ${total ? new Intl.NumberFormat("fr-CM").format(total) + " XAF" : ""}`}</Button>
+              <Button className="w-full" onClick={handleBook} disabled={loading || duration < 1}>{loading ? "Réservation..." : `Payer ${total ? priceXaf(total) : ""}`}</Button>
             )}
             {rentalBookingId && token && (
               <PaymentStep

@@ -9,7 +9,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { buttonVariants } from "@/components/ui/button"
 import { RateYourTrip } from "./RateYourTrip"
-import { cn } from "@/lib/utils"
+import { DynamicIcon } from "@/components/ui/dynamic-icon"
+import { cn, shade } from "@/lib/utils"
 import { ArrowRight, BusFront, Clock, MapPin, Phone, Star } from "lucide-react"
 
 function fmtDate(iso: string | null): string {
@@ -60,8 +61,8 @@ export function TicketDetail({ data }: { data: TicketDetailResponse }) {
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="grid size-12 place-items-center rounded-xl bg-white/15 text-2xl backdrop-blur-sm">
-              {data.agency.accentGlyph || "🚌"}
+            <div className="grid size-12 place-items-center rounded-xl bg-white/15 backdrop-blur-sm">
+              <DynamicIcon name={data.agency.accentIcon} className="size-6 text-white" />
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/65">CamerMove · Billet</p>
@@ -260,11 +261,11 @@ function StopCard({
   kind: "boarding" | "terminus" | "dropoff"
   accent: string
 }) {
-  const dot = kind === "boarding" ? "🟢" : kind === "terminus" ? "🔴" : "🟡"
+  const dotClass = kind === "boarding" ? "bg-emerald-500" : kind === "terminus" ? "bg-rose-500" : "bg-amber-400"
   return (
     <div className="col-span-12 sm:col-span-4 rounded-lg border bg-muted/30 px-3 py-2" style={{ borderColor: `${accent}25` }}>
       <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-        <span>{dot}</span> {label}
+        <span className={cn("block size-2 rounded-full", dotClass)} aria-hidden /> {label}
       </p>
       <p className="mt-0.5 text-sm font-semibold leading-tight">{name}</p>
       {eta && (
@@ -276,16 +277,3 @@ function StopCard({
   )
 }
 
-/** Darken or lighten a hex color by a percent (-100..100). */
-function shade(hex: string, percent: number): string {
-  const m = hex.match(/^#([0-9a-f]{6})$/i)
-  if (!m) return hex
-  const num = parseInt(m[1]!, 16)
-  const r = clamp(((num >> 16) & 0xff) + Math.round((percent / 100) * 255))
-  const g = clamp(((num >> 8) & 0xff) + Math.round((percent / 100) * 255))
-  const b = clamp((num & 0xff) + Math.round((percent / 100) * 255))
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`
-}
-function clamp(n: number): number {
-  return Math.min(255, Math.max(0, n))
-}

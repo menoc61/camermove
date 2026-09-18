@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { priceXaf } from "@camermove/shared"
 import { ServiceRail, ServiceRailCard } from "../ServiceRail"
 
 // Client-side mirror of apps/api/src/parcels/service.ts calcShippingCost
@@ -10,8 +11,6 @@ import { ServiceRail, ServiceRailCard } from "../ServiceRail"
 // authoritative price is computed server-side at booking time.
 const PARCEL_BASE_XAF = 500
 const PARCEL_PER_KG_XAF = 100
-
-const formatXaf = (v: number) => new Intl.NumberFormat("fr-FR").format(v)
 
 function estimateShipping(weightKg: number): number {
   const w = Number.isFinite(weightKg) && weightKg > 0 ? weightKg : 1
@@ -136,7 +135,7 @@ function EstimatorCard() {
       <p aria-live="polite" className="mt-4 border-t border-line pt-3 text-[12px] uppercase tracking-[0.14em] text-ink-1">
         {estimate != null ? (
           <>
-            ≈ {formatXaf(estimate)} XAF · {from.trim()} → {to.trim()} · indicatif
+            ≈ {priceXaf(estimate)} · {from.trim()} → {to.trim()} · indicatif
           </>
         ) : (
           <>Renseignez les trois champs pour estimer.</>

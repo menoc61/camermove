@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Car, Search, ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react"
+import { priceXaf } from "@camermove/shared"
 
 export default function RentalsPage() {
   const [pickupCity, setPickupCity] = useState("")
@@ -106,7 +107,7 @@ export default function RentalsPage() {
                 <CardContent className="p-4 space-y-2">
                   <h3 className="font-semibold">{v.make} {v.model} {v.year ? `· ${v.year}` : ""}</h3>
                   <p className="text-xs text-muted-foreground">{v.category} · {v.capacity} places · {v.pickupCity}{v.transmission ? ` · ${v.transmission}` : ""}</p>
-                  <p className="text-sm font-bold">{new Intl.NumberFormat("fr-CM").format(v.pricePerUnit)} XAF / {v.durationUnit}</p>
+                  <p className="text-sm font-bold">{priceXaf(v.pricePerUnit)} / {v.durationUnit}</p>
                 </CardContent>
               </Card>
             </Link>

@@ -100,7 +100,8 @@ ALTER TABLE "Passenger" ADD COLUMN "seatNumber" TEXT;
 ALTER TABLE "Transporter" ADD COLUMN "tagline" TEXT;
 ALTER TABLE "Transporter" ADD COLUMN "ratingAvg" DECIMAL(3,2);
 ALTER TABLE "Transporter" ADD COLUMN "ratingCount" INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE "Transporter" ADD COLUMN "vehicleCount" INTEGER NOT NULL DEFAULT 0;
+-- NOTE: vehicleCount is created by the init migration (20260824132415) — the
+-- duplicate ADD COLUMN here broke fresh installs (P3018/42701). Removed.
 ALTER TABLE "Transporter" ADD COLUMN "isUrban" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "Transporter" ADD COLUMN "yearFounded" INTEGER;
 ALTER TABLE "Transporter" ADD COLUMN "logoUrl" TEXT;

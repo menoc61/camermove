@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { priceXaf } from "@camermove/shared"
 
 function RentalsConfirmationInner() {
   const sp = useSearchParams()
@@ -67,7 +68,7 @@ function RentalsConfirmationInner() {
               <p><span className="font-semibold">Début :</span> {new Date(booking.startDate).toLocaleDateString("fr-FR")}</p>
               <p><span className="font-semibold">Fin :</span> {new Date(booking.endDate).toLocaleDateString("fr-FR")}</p>
               <p><span className="font-semibold">Retrait :</span> {booking.pickupCity}</p>
-              <p className="text-lg font-bold">Total : {new Intl.NumberFormat("fr-CM").format(booking.totalAmount)} XAF</p>
+              <p className="text-lg font-bold">Total : {priceXaf(booking.totalAmount)}</p>
               <p><span className="font-semibold">Statut :</span> {booking.status}</p>
             </div>
           )}

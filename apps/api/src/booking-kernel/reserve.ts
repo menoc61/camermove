@@ -1,4 +1,5 @@
 import { prisma } from "@camermove/db"
+import { observeBooking } from "@camermove/observability"
 import { getAppSettingsCached } from "@camermove/db"
 import { ConflictError, NotFoundError } from "@camermove/config"
 import { EVENT_TOPICS, makeEvent, publishEvent } from "@camermove/events"
@@ -34,6 +35,7 @@ export interface ReserveInput {
   recipientName?: string
   senderCity?: string
   recipientCity?: string
+  [key: string]: unknown
 }
 
 export interface ReserveResult {
@@ -52,36 +54,50 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
   const result = await prisma.$transaction(async (tx: unknown) => {
     const t = tx as { $queryRawUnsafe: (q: string, ...v: unknown[]) => Promise<unknown> }
 
-    // Lock the entity row
-    await t.$queryRawUnsafe(`SELECT "id" FROM "${adapter.table}" WHERE "id" = $1 FOR UPDATE`, input.meta[adapter.idField] as string)
-
-    // Load entity for availability check
-    const entity = await adapter.find(input.meta[adapter.idField] as string)
-    if (!entity) throw new NotFoundError(adapter.notFoundMessage)
+    // Load the inventory row (must exist before booking), locking it for
+    // the availability check. Kinds without inventory (parcel) skip this:
+    // every field they need already lives in meta.
+    let entity: Record<string, unknown> = {}
+    if (adapter.requiresInventory !== false) {
+      await t.$queryRawUnsafe(`SELECT "id" FROM "${adapter.table}" WHERE "id" = $1 FOR UPDATE`, input.meta[adapter.idField] as string)
+      const found = await adapter.find(input.meta[adapter.idField] as string)
+      if (!found) throw new NotFoundError(adapter.notFoundMessage)
+      entity = found as Record<string, unknown>
+    }
 
     // Check availability via adapter-specific guard
-    if (adapter.checkAvailability) await adapter.checkAvailability(entity as Record<string, unknown>, input, tx)
+    if (adapter.checkAvailability) await adapter.checkAvailability(entity, input, tx)
 
-    // Build the record
-    const reference = adapter.makeReference(input.meta[adapter.idField] as string)
-    const totalAmount = adapter.calcTotalAmount(entity as Record<string, unknown>, input)
+    // Build the record. Kinds with derived references (parcel) pre-generate
+    // the row id so referenceForKind(id) matches the stored row for webhook
+    // prefix-scan resolution.
+    const newId = adapter.newEntityId?.()
+    const reference = adapter.makeReference((newId ?? input.meta[adapter.idField] ?? "") as string)
+    const totalAmount = adapter.calcTotalAmount(entity, input)
 
     const holdExpiresAt = new Date(Date.now() + holdMinutes * 60 * 1000)
 
-    const record = await adapter.create({
+    const createData = {
       ...input.meta,
+      ...(newId ? { id: newId } : {}),
       userId: input.userId,
       reference,
       totalAmount,
-      status: "pending_payment",
+      status: adapter.requiresInventory !== false ? "pending_payment" : "registered",
       holdExpiresAt,
-    }, tx)
+    }
+    const record = await adapter.create(
+      adapter.mapCreateData ? adapter.mapCreateData(createData, input, entity) : createData,
+      tx,
+    )
 
-    // Schedule hold expiry
-    try {
-      await scheduleHoldExpiry(record.id as string, holdMinutes * 60 * 1000)
-    } catch (e) {
-      log.error({ err: (e as Error).message, entityId: record.id as string }, "scheduleHoldExpiry failed")
+    // Schedule hold expiry (only kinds with expiring holds)
+    if (adapter.expiryTable) {
+      try {
+        await scheduleHoldExpiry(record.id as string, holdMinutes * 60 * 1000)
+      } catch (e) {
+        log.error({ err: (e as Error).message, entityId: record.id as string }, "scheduleHoldExpiry failed")
+      }
     }
 
     // Publish booking.created event
@@ -93,6 +109,10 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
         totalAmount,
       }))
     } catch {}
+
+    // Single source for the creation metric across all kinds (routes don't
+    // observe created — otherwise trip would double-count).
+    try { observeBooking("created") } catch {}
 
     return { id: record.id as string, reference, totalAmount, status: "pending_payment", holdExpiresAt, meta: input.meta }
   })

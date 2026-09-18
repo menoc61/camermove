@@ -18,11 +18,15 @@ export const ReviewTransporterParams = z.object({ transporterId: zId })
 
 const subScore = z.number().int().min(1).max(5).optional()
 
+// Presence rule lives here (Zod, 400 on shape violation) AND in upsertReview
+// (service layer). No Fastify `schema:` block anywhere — see routes.ts.
 export const ReviewCreateInput = z.object({
   target: z.enum(["trip", "transporter"]),
   tripId: zId.optional(),
   transporterId: zId.optional(),
-  bookingId: zId.optional(),
+  // Verified-stay only: every rating must attach the booking it comes from
+  // (anti-fraud; competitors gate on verified stays the same way).
+  bookingId: zId,
   rating: z.number().int().min(1).max(5),
   punctuality: subScore,
   comfort: subScore,
@@ -66,6 +70,12 @@ export const ReviewResponse = z.object({
   totalPages: z.number().int(),
   ratingAvg: z.number().nullable(),
   ratingCount: z.number().int(),
+})
+
+export const ReviewUpsertResponse = z.object({
+  id: zId,
+  rating: z.number().int(),
+  createdAt: z.string(),
 })
 
 // Re-exported for callers

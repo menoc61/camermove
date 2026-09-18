@@ -469,6 +469,7 @@ model HotelBooking {
   specialRequests String?       @db.Text
   paymentId       String?       @unique
   payment         Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  holdExpiresAt   DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -530,6 +531,7 @@ model RentalBooking {
   driverPhone     String?
   paymentId       String?             @unique
   payment         Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  holdExpiresAt   DateTime?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -685,6 +687,7 @@ model EventBooking {
   qrCode           String?
   paymentId        String?        @unique
   payment          Payment?       @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  holdExpiresAt    DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
@@ -811,6 +814,8 @@ model Review {
   @@index([userId])
   @@index([tripId, isPublished, createdAt])
   @@index([transporterId, isPublished, createdAt])
+  @@unique([userId, tripId, target])
+  @@unique([userId, transporterId, target])
 }
 
 // ────────────────────────────────────────────────────────────────────

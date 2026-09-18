@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "sonner"
 import { Download, TriangleAlert } from "lucide-react"
+import { priceXaf } from "@camermove/shared"
 import {
   AdminDateRange,
   AdminFilterBar,
@@ -215,7 +216,7 @@ export function AdminEvents() {
                   <TableCell>{b.event.name}</TableCell>
                   <TableCell><Badge variant="secondary" className="text-[11px]">{b.ticketCategory?.name || ""}</Badge></TableCell>
                   <TableCell>{b.quantity}</TableCell>
-                  <TableCell>{new Intl.NumberFormat("fr-CM").format(b.totalAmount)} XAF</TableCell>
+                  <TableCell>{priceXaf(b.totalAmount)}</TableCell>
                   <TableCell><Badge variant={b.status === "paid" || b.status === "confirmed" ? "default" : "outline"}>{b.status}</Badge></TableCell>
                 </TableRow>
               ))}

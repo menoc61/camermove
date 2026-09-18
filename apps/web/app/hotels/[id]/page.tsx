@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import { Bed, Users, Calendar } from "lucide-react"
+import { priceXaf } from "@camermove/shared"
 
 export default function HotelDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -91,7 +92,7 @@ export default function HotelDetailPage() {
                   <p className="font-medium">{r.name}</p>
                   <p className="text-xs text-muted-foreground flex items-center gap-1"><Users className="size-3" /> {r.capacity} pers · {r.bedType ?? "—"} · x{r.quantity}</p>
                   <div className="flex flex-wrap gap-1 mt-1">{r.amenities.slice(0, 4).map((a) => <Badge key={a} variant="outline" className="text-[11px]">{a}</Badge>)}</div>
-                  <p className="mt-2 text-sm font-bold">{new Intl.NumberFormat("fr-CM").format(r.pricePerNight)} XAF / nuit</p>
+                  <p className="mt-2 text-sm font-bold">{priceXaf(r.pricePerNight)} / nuit</p>
                 </div>
                 <Button size="sm" variant={selectedRoom === r.id ? "default" : "outline"} onClick={() => setSelectedRoom(r.id)}>{selectedRoom === r.id ? "Sélectionnée" : "Choisir"}</Button>
               </CardContent>
@@ -107,7 +108,7 @@ export default function HotelDetailPage() {
               <div><label className="text-xs">Départ</label><Input type="date" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} /></div>
             </div>
             <div><label className="text-xs">Voyageurs</label><Input type="number" min={1} max={10} value={guests} onChange={(e) => handleGuestsChange(Number(e.target.value) || 1)} /></div>
-            {nights > 0 && room && <Alert><AlertDescription>{nights} nuit(s) × {new Intl.NumberFormat("fr-CM").format(room.pricePerNight)} = <b>{new Intl.NumberFormat("fr-CM").format(total)} XAF</b></AlertDescription></Alert>}
+            {nights > 0 && room && <Alert><AlertDescription>{nights} nuit(s) × {priceXaf(room.pricePerNight)} = <b>{priceXaf(total)}</b></AlertDescription></Alert>}
             <div className="space-y-2">
               <label className="text-xs font-medium">Noms des voyageurs</label>
               {guestNames.map((n, i) => (
@@ -116,7 +117,7 @@ export default function HotelDetailPage() {
             </div>
             <div><label className="text-xs">Demandes spéciales</label><Input value={specialRequests} onChange={(e) => setSpecialRequests(e.target.value)} placeholder="Optionnel" /></div>
             {!hotelBookingId && (
-              <Button className="w-full" onClick={handleBook} disabled={loading || !selectedRoom || nights < 1}>{loading ? "Réservation..." : `Payer ${total ? new Intl.NumberFormat("fr-CM").format(total) + " XAF" : ""}`}</Button>
+              <Button className="w-full" onClick={handleBook} disabled={loading || !selectedRoom || nights < 1}>{loading ? "Réservation..." : `Payer ${total ? priceXaf(total) : ""}`}</Button>
             )}
             {hotelBookingId && token && (
               <PaymentStep

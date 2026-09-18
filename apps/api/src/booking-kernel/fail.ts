@@ -8,6 +8,7 @@
  * failed/expired. Replaces the legacy trip-specific reconciliation.ts:failPayment.
  */
 import { prisma } from "@camermove/db"
+import { observePayment } from "@camermove/observability"
 import { EVENT_TOPICS, makeEvent, publishEvent } from "@camermove/events"
 import { getAdapter } from "./adapters.js"
 import type { ConfirmLink } from "./types.js"
@@ -31,15 +32,26 @@ export async function failPayment(
       booking: { update: (a: unknown) => Promise<unknown>; findUnique: (a: unknown) => Promise<{ id: string; tripId: string; seatCount: number; userId: string; totalAmount: number; reference: string } | null> }
       auditLog: { create: (a: unknown) => Promise<unknown> }
     }
-    // Lock the entity row + payment row
-    const link = await adapter.findLink(paymentId, tx)
-    if (!link) return
-    await t.$queryRawUnsafe(`SELECT "id" FROM "${adapter.table}" WHERE "id" = $1 FOR UPDATE`, link.id)
+    // Lock the entity row (booking-side table) + payment row, then re-read
+    // the link under lock so a concurrent confirm wins instead of us.
+    const preLink = await adapter.findLink(paymentId, tx)
+    if (!preLink) return
+    await t.$queryRawUnsafe(`SELECT "id" FROM "${adapter.expiryTable ?? adapter.table}" WHERE "id" = $1 FOR UPDATE`, preLink.id)
     await t.$queryRawUnsafe(`SELECT "id" FROM "Payment" WHERE "id" = $1 FOR UPDATE`, paymentId)
     const freshPayment = await t.payment.findUnique({ where: { id: paymentId } })
     if (!freshPayment) return
     if (freshPayment.status === "success") return  // can't fail a success
     if (["failed", "expired", "refunded"].includes(freshPayment.status)) return  // idempotent
+    const link = (await adapter.findLink(paymentId, tx)) ?? preLink
+    if (!adapter.isConfirmable(link)) {
+      // Entity left pending_payment (confirmed/expired concurrently) — only
+      // flip the payment row, never touch inventory twice.
+      await t.payment.update({ where: { id: paymentId }, data: { status: targetStatus, webhookPayload: event as never } })
+      handled = true
+      entityId = link.id
+      try { observePayment(freshPayment.provider, targetStatus) } catch {}
+      return
+    }
 
     await t.payment.update({ where: { id: paymentId }, data: { status: targetStatus, webhookPayload: event as never } })
 
@@ -61,18 +73,24 @@ export async function failPayment(
     } catch {}
     handled = true
     entityId = link.id
+    try { observePayment(freshPayment.provider, targetStatus) } catch {}
   })
 
   if (handled && entityId) {
-    // publish a typed failure notification — consumer subscription decides if it's a delivery failure alert
+    // Failures go to paymentFailed — NEVER paymentConfirmed (success template
+    // path). Envelope matches NotificationEvent {type, userId, payload} so the
+    // dispatcher can render the failure copy. Type is normalized per status
+    // (not per kind) to keep the closed union small; kind rides in payload.
     try {
+      const failedLink = await adapter.findLink(paymentId)
+      const userId = failedLink?.userId
+      if (!userId) return { handled, entityId }
       await publishEvent(
-        EVENT_TOPICS.paymentConfirmed,
-        makeEvent(`${kind}.payment.${targetStatus}`, entityId, {
-          type: `${kind}.payment.${targetStatus}`,
-          entityId,
-          status: targetStatus,
-          ts: new Date().toISOString(),
+        EVENT_TOPICS.paymentFailed,
+        makeEvent(`payment.${targetStatus}`, entityId, {
+          type: `payment.${targetStatus}`,
+          userId,
+          payload: { bookingId: entityId, kind, status: targetStatus },
         }),
       )
     } catch {}

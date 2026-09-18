@@ -7,7 +7,7 @@ import {
 } from "@camermove/shared"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowRight, TramFront, Wallet, MapPin, Clock } from "lucide-react"
+import { ArrowRight, TramFront, Wallet, MapPin, Clock, Route, Smartphone, Ticket } from "lucide-react"
 
 /**
  * UrbanBands — landing-page hero band dedicated to intra-urban transport.
@@ -66,10 +66,10 @@ export function UrbanBands() {
               </Link>
             </div>
             <div className="mt-6 flex flex-wrap gap-2 text-xs">
-              <Badge emoji="🚏" label={`${URBAN_LINES.length} lignes`} />
-              <Badge emoji="🛑" label={`${URBAN_LINES.reduce((a, l) => a + l.stops.length, 0)} arrêts`} />
-              <Badge emoji="🎫" label="Tap & Go" />
-              <Badge emoji="📱" label="Mobile Money" />
+              <Badge icon={<Route className="size-3.5" />} label={`${URBAN_LINES.length} lignes`} />
+              <Badge icon={<MapPin className="size-3.5" />} label={`${URBAN_LINES.reduce((a, l) => a + l.stops.length, 0)} arrêts`} />
+              <Badge icon={<Ticket className="size-3.5" />} label="Tap & Go" />
+              <Badge icon={<Smartphone className="size-3.5" />} label="Mobile Money" />
             </div>
           </div>
 
@@ -141,10 +141,10 @@ export function UrbanBands() {
   )
 }
 
-function Badge({ emoji, label }: { emoji: string; label: string }) {
+function Badge({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/70 px-2.5 py-1 text-[11px] font-medium dark:border-emerald-900 dark:bg-card">
-      <span aria-hidden>{emoji}</span> {label}
+      <span aria-hidden className="inline-flex text-emerald-700">{icon}</span> {label}
     </span>
   )
 }

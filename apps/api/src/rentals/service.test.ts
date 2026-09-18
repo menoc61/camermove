@@ -6,7 +6,9 @@ vi.mock("@camermove/db", () => ({
     $transaction: vi.fn(),
     auditLog: { create: vi.fn() },
     payment: { findUnique: vi.fn() },
-    rentalBooking: { findUnique: vi.fn().mockResolvedValue({ id: "cmvehicle1234567890123456", pricePerUnit: 50000, durationUnit: "day", status: "available" }), findFirst: vi.fn(), count: vi.fn(), create: vi.fn() },
+    // Inventory-first reserve: adapter.find loads the RentalVehicle row.
+    rentalVehicle: { findUnique: vi.fn().mockResolvedValue({ id: "cmvehicle1234567890123456", pricePerUnit: 50000, durationUnit: "day", status: "available" }) },
+    rentalBooking: { findUnique: vi.fn(), findFirst: vi.fn(), count: vi.fn(), create: vi.fn() },
     hotelBooking: { create: vi.fn(), findUnique: vi.fn() },
     seatAvailability: { findUnique: vi.fn(), update: vi.fn() },
   },

@@ -6,10 +6,6 @@ import { initiatePayment, createHotelBookingPayment as createPayment } from "../
 
 const log = createLogger()
 
-export function hotelBookingReference(id: string): string {
-  return `HOTEL-${id.slice(0, 8).toUpperCase()}`
-}
-
 export function calcNights(checkInDate: Date, checkOutDate: Date): number {
   const ms = checkOutDate.getTime() - checkInDate.getTime()
   return Math.max(1, Math.ceil(ms / 86400000))
@@ -38,7 +34,18 @@ export async function createHotelBooking(input: {
     guestCount: input.guestCount,
     guestNames: input.guestNames,
     specialRequests: input.specialRequests,
-    meta: { hotelId: input.hotelId, roomTypeId: input.roomTypeId, ...input.meta },
+    // Dates/guests ride in meta so the kernel create-data carries every
+    // HotelBooking column (the kernel only spreads meta + kernel fields).
+    meta: {
+      hotelId: input.hotelId,
+      roomTypeId: input.roomTypeId,
+      checkInDate: input.checkInDate,
+      checkOutDate: input.checkOutDate,
+      guestCount: input.guestCount,
+      guestNames: input.guestNames,
+      specialRequests: input.specialRequests,
+      ...input.meta,
+    },
   })
 
   // The reserve() function already handles auditLog, cache invalidation, Kafka publish, and hold expiry scheduling

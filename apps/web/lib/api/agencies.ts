@@ -12,7 +12,7 @@ export interface AgencyListItem {
   yearFounded: number
   fleetCount: number
   category: AgencyCategory
-  brand: { primary: string; soft: string; onPrimary: string; emoji: string }
+  brand: { primary: string; soft: string; onPrimary: string; icon: string }
   routes: { origin: string; destination: string; duration: string; priceFromXaf: number }[]
   amenities: VehicleAmenity[]
   ratingAvg: number | null

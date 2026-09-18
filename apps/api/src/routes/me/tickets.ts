@@ -13,6 +13,7 @@ import type { FastifyInstance } from "fastify"
 import { z } from "zod"
 import { prisma } from "@camermove/db"
 import { NotFoundError } from "@camermove/config"
+import { AGENCIES, BRAND_HUES } from "@camermove/shared"
 
 const TicketParams = z.object({ id: z.string().cuid() })
 
@@ -36,7 +37,7 @@ export interface TicketDetailResponse {
   agency: {
     companyName: string
     brandColor: string
-    accentGlyph: string
+    accentIcon: string
     phone: string | null
     tagline: string | null
   }
@@ -67,7 +68,7 @@ export async function meTicketRoutes(app: FastifyInstance) {
               include: {
                 route: true,
                 vehicle: { select: { plateNumber: true } },
-                transport: { select: { id: true, companyName: true, phone: true, tagline: true } },
+                transport: { select: { id: true, companyName: true, phone: true, tagline: true, email: true } },
               },
             },
             passengers: { select: { fullName: true } },
@@ -95,6 +96,9 @@ export async function meTicketRoutes(app: FastifyInstance) {
       return { firstName, lastName, seatNumber: seat }
     })
 
+    const registry = AGENCIES.find((a) => a.email === (ticket.booking.trip.transport as unknown as { email: string }).email)
+    const hue = registry ? BRAND_HUES[registry.brandKey] : undefined
+
     const body: TicketDetailResponse = {
       id: ticket.id,
       reference: ticket.booking.reference,
@@ -115,8 +119,8 @@ export async function meTicketRoutes(app: FastifyInstance) {
       passengers,
       agency: {
         companyName: ticket.booking.trip.transport.companyName,
-        brandColor: "#0E0E0E",
-        accentGlyph: "🚌",
+        brandColor: hue?.primary ?? registry?.logoColor ?? "#0E0E0E",
+        accentIcon: registry?.accentIcon ?? "Bus",
         phone: ticket.booking.trip.transport.phone ?? null,
         tagline: ticket.booking.trip.transport.tagline ?? null,
       },

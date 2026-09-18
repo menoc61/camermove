@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { prisma } from "@camermove/db"
-import { confirmPaymentSuccess } from "./reconciliation"
+import { confirmPaymentSuccess } from "../../booking-kernel/index.js"
 import { refundPayment } from "./refund"
 
 // Live-PG regression for Task A2 (prod-integrity): payment jobs must NEVER
@@ -86,7 +86,7 @@ afterAll(async () => {
 
 describe("confirmPaymentSuccess — service principal integrity", () => {
   it("audits with actorId='system' without creating any User row", async () => {
-    await confirmPaymentSuccess({ id: paymentId, bookingId }, { id: "evt-a2", type: "transaction.paid", source: "test" })
+    await confirmPaymentSuccess("trip", paymentId, { id: "evt-a2", type: "transaction.paid", source: "test" })
 
     const after = await prisma.user.count({ where: { email: { contains: "@camermove.cm" } } })
     expect(after).toBe(baselineFabricatedUsers)

@@ -8,6 +8,7 @@ import {
   URBAN_NETWORKS,
   findUrbanNetwork,
   cheapestUrbanFareXaf,
+  priceXaf,
   type UrbanLine,
   type UrbanNetworkId,
 } from "@camermove/shared"
@@ -18,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
 import {
   ArrowRight,
   Bus,
@@ -28,6 +30,7 @@ import {
   TramFront,
   Zap,
   Repeat,
+  Route,
   Wallet,
 } from "lucide-react"
 
@@ -61,7 +64,7 @@ export default function IntraurbanPage() {
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
           Le bus, le BRT et la Tap&amp;Go.
           <br />
-          <span className="text-muted-foreground">Dans toute la ville, à partir de {cheapest.toLocaleString("fr-FR")} XAF.</span>
+          <span className="text-muted-foreground">Dans toute la ville, à partir de {priceXaf(cheapest)}.</span>
         </h1>
         <p className="max-w-3xl text-base text-muted-foreground">
           CamerMove est la <strong className="text-foreground">plateforme officielle du transport intra-urbain</strong> à Yaoundé
@@ -69,8 +72,8 @@ export default function IntraurbanPage() {
           correspondance gratuite et rechargement de votre carte <em>Tap&amp;Go</em>.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="secondary">🚏 {URBAN_LINES.length} lignes</Badge>
-          <Badge variant="secondary">🛑 {URBAN_LINES.reduce((a, l) => a + l.stops.length, 0)} arrêts</Badge>
+          <Badge variant="secondary" className="gap-1"><Route className="size-3" /> {URBAN_LINES.length} lignes</Badge>
+          <Badge variant="secondary" className="gap-1"><MapPin className="size-3" /> {URBAN_LINES.reduce((a, l) => a + l.stops.length, 0)} arrêts</Badge>
           <Badge variant="outline">Tap&amp;Go</Badge>
           <Badge variant="outline">Mobile Money</Badge>
           <Badge variant="outline">Sans réservation</Badge>
@@ -275,7 +278,7 @@ function LineCard({ line }: { line: UrbanLine }) {
             {line.serviceWindow.startHour.toString().padStart(2, "0")}h00 – {line.serviceWindow.endHour.toString().padStart(2, "0")}h00
           </div>
           <div className="flex items-center justify-between border-t pt-2 text-[11px]">
-            <span>dès {line.fareBands[0]?.priceXaf.toLocaleString("fr-FR")} XAF</span>
+            <span>dès {line.fareBands[0] ? priceXaf(line.fareBands[0].priceXaf) : ""}</span>
             <ArrowRight className="size-3" />
           </div>
         </CardContent>
@@ -297,6 +300,3 @@ function FareCard({ label, price, desc, highlight }: { label: string; price: str
   )
 }
 
-function cn(...parts: Array<string | false | undefined | null>) {
-  return parts.filter(Boolean).join(" ")
-}

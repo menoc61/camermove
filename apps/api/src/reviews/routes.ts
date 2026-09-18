@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify"
-import { ReviewCreateInput, ReviewListQuery, ReviewResponse, ReviewTransporterParams, ReviewTripParams } from "./schema.js"
+import { ReviewCreateInput, ReviewListQuery, ReviewTransporterParams, ReviewTripParams } from "./schema.js"
 import { listTransporterReviews, listTripReviews, upsertReview } from "./service.js"
 
 /**
@@ -23,16 +23,17 @@ export async function reviewRoutes(app: FastifyInstance) {
     return listTransporterReviews(transporterId, q.page, q.limit)
   })
 
+  // NOTE: no Fastify `schema:` block — this codebase validates with
+  // Zod `.parse()` inside handlers (a raw Zod object is not a JSON schema
+  // and crashes route registration). Shape errors surface as 400 via parse.
   app.post("/reviews", {
     preHandler: app.requireAuth(),
-    schema: {
-      body: ReviewCreateInput,
-      response: { 200: ReviewResponse },
-    },
   }, async (req) => {
     const userId = (req as unknown as { user: { id: string } }).user.id
-    const input = (req.body as unknown) as Parameters<typeof upsertReview>[1]
-    await upsertReview(userId, input)
-    return { ok: true }
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    const input = ReviewCreateInput.parse(req.body)
+    const review = await upsertReview(userId, input)
+    req.log.info({ ...meta, userId, target: input.target, reviewId: review.id }, "review.upsert")
+    return { id: review.id, rating: review.rating, createdAt: review.createdAt.toISOString() }
   })
 }

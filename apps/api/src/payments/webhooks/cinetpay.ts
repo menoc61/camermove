@@ -84,7 +84,8 @@ export async function cinetpayWebhookRoutes(app: FastifyInstance) {
       }
 
       if (isDuplicate) {
-        req.log.info({ deliveryId }, "cinetpay webhook duplicate, ack 200")
+        const dupMeta = (req as unknown as { meta?: Record<string, unknown> }).meta
+        req.log.info({ ...dupMeta, deliveryId }, "cinetpay webhook duplicate, ack 200")
         return reply.code(200).send({ id: deliveryId, status: "duplicate" })
       }
 
