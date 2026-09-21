@@ -1,11 +1,28 @@
 "use client";
 
-import { createElement as el, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  Bus,
+  BedDouble,
+  CarFront,
+  Package,
+  ShieldCheck,
+  Ticket,
+  Wallet,
+  Bell,
+  Heart,
+  LifeBuoy,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExportButton } from "../controls/ExportButton";
 import { PaginationControls } from "../controls/PaginationControls";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "../cards/EmptyState";
+import { DataTable } from "../panels";
+import { GENERIC_COLUMNS, EMPTY_MESSAGES } from "./tabColumns";
+import { FavoritesPanel, SupportPanel } from "./tabStatic";
 
 export const TAB_PER_PAGE = 20;
 
@@ -24,7 +41,7 @@ export type DashboardTabId =
 export type DataTabId = Exclude<DashboardTabId, "favorites" | "support">;
 
 export type TabPage = {
-  items: unknown[];
+  items: Record<string, unknown>[];
   page: number;
   perPage: number;
   totalPages: number;
@@ -36,17 +53,17 @@ export type TabFetcher = (args: {
   perPage: number;
 }) => Promise<TabPage>;
 
-const TABS: { value: DashboardTabId; label: string }[] = [
-  { value: "trips", label: "Voyages à venir" },
-  { value: "hotels", label: "Hôtels" },
-  { value: "rentals", label: "Véhicules" },
-  { value: "parcels", label: "Colis" },
-  { value: "insurance", label: "Assurances" },
-  { value: "events", label: "Événements" },
-  { value: "payments", label: "Paiements" },
-  { value: "notifications", label: "Notifications" },
-  { value: "favorites", label: "Favoris" },
-  { value: "support", label: "Support" },
+const TABS: { value: DashboardTabId; label: string; icon: typeof Bus }[] = [
+  { value: "trips", label: "Voyages", icon: Bus },
+  { value: "hotels", label: "Hôtels", icon: BedDouble },
+  { value: "rentals", label: "Véhicules", icon: CarFront },
+  { value: "parcels", label: "Colis", icon: Package },
+  { value: "insurance", label: "Assurances", icon: ShieldCheck },
+  { value: "events", label: "Événements", icon: Ticket },
+  { value: "payments", label: "Paiements", icon: Wallet },
+  { value: "notifications", label: "Notifications", icon: Bell },
+  { value: "favorites", label: "Favoris", icon: Heart },
+  { value: "support", label: "Support", icon: LifeBuoy },
 ];
 
 const QUERY_KEYS: Record<DataTabId, string> = {
@@ -68,7 +85,7 @@ const EXPORT_ENDPOINTS: Record<DataTabId, string> = {
   insurance: "/api/v1/insurance/policies/export",
   events: "/api/v1/events/bookings/export",
   payments: "/api/v1/payments/export",
-  notifications: "/api/v1/notifications/export",
+  notifications: "/api/v1/me/notifications/export",
 };
 
 const EMPTY_PAGE: TabPage = { items: [], page: 1, perPage: TAB_PER_PAGE, totalPages: 1 };
@@ -85,12 +102,18 @@ function useTabItems(
       fetcher
         ? fetcher({ token, page, perPage: TAB_PER_PAGE })
         : Promise.resolve({ ...EMPTY_PAGE, page }),
+    placeholderData: (prev) => prev,
   });
 }
 
 function isTabId(value: string | null): value is DashboardTabId {
   return TABS.some((t) => t.value === value);
 }
+
+/* Per-tab column definitions and empty-state copy live in ./tabColumns.tsx
+ * — extracted so this orchestrator file stays under 250 lines
+ * (AGENTS.md §4: "any file >300 lines is a split candidate"). */
+
 
 export function DashboardTabs({
   token,
@@ -102,7 +125,6 @@ export function DashboardTabs({
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const [pendingTab, setPendingTab] = useState<string | null>(null);
   const [pages, setPages] = useState<Record<DataTabId, number>>({
     trips: 1,
     hotels: 1,
@@ -149,53 +171,84 @@ export function DashboardTabs({
 
   function switchTab(value: string) {
     if (!isTabId(value)) return;
-    setPendingTab(value);
     const next = new URLSearchParams(searchParams.toString());
     next.set("tab", value);
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
 
-  function dataPanel(tab: DataTabId) {
+  function renderPanel(tab: DataTabId) {
     const q = queries[tab];
     const data = q.data ?? { ...EMPTY_PAGE, page: pages[tab] };
-    return el(
-      "div",
-      { className: "flex flex-col gap-3", key: `panel-${tab}` },
-      el(ExportButton, { token, endpoint: EXPORT_ENDPOINTS[tab], resource: tab }),
-      el(
-        "p",
-        { className: "text-sm text-muted-foreground" },
-        q.isFetching ? "Chargement…" : `${data.items.length} élément(s)`,
-      ),
-      el(PaginationControls, {
-        page: data.page,
-        totalPages: data.totalPages,
-        isFetching: q.isFetching,
-        onPageChange: setPage(tab),
-      }),
+    const columns = GENERIC_COLUMNS[tab] ?? [];
+    const empty = EMPTY_MESSAGES[tab] ?? { message: "Aucun élément pour le moment." };
+    const totalLabel = `${data.items.length} élément(s) · page ${data.page}/${Math.max(data.totalPages, 1)}`;
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            {q.isFetching ? "Chargement…" : totalLabel}
+          </p>
+          <ExportButton token={token} endpoint={EXPORT_ENDPOINTS[tab]} resource={tab} />
+        </div>
+        {q.isFetching && data.items.length === 0 ? (
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : data.items.length === 0 ? (
+          <EmptyState
+            title="Aucun élément pour le moment"
+            description={empty.message}
+            cta={
+              empty.actionLabel && empty.actionHref
+                ? { label: empty.actionLabel, href: empty.actionHref }
+                : undefined
+            }
+          />
+        ) : (
+          <DataTable columns={[...columns]} data={data.items} />
+        )}
+        <PaginationControls
+          page={data.page}
+          totalPages={data.totalPages}
+          isFetching={q.isFetching}
+          onPageChange={setPage(tab)}
+        />
+      </div>
     );
   }
 
-  function panelFor(tab: DashboardTabId) {
-    if (tab === "favorites")
-      return el("p", { className: "text-sm text-muted-foreground" }, "Aucun favori pour le moment.");
-    if (tab === "support")
-      return el("p", { className: "text-sm text-muted-foreground" }, "Contactez le support depuis cette page.");
-    return dataPanel(tab);
+  function renderStaticPanel(tab: DashboardTabId) {
+    if (tab === "favorites") return <FavoritesPanel />;
+    if (tab === "support") return <SupportPanel />;
+    return renderPanel(tab);
   }
 
-  return el(
-    Tabs,
-    { value: pendingTab ?? activeTab, onValueChange: switchTab, className: "w-full" },
-    el(
-      TabsList,
-      { className: "w-full overflow-x-auto" },
-      ...TABS.map((t) =>
-        el(TabsTrigger, { key: t.value, value: t.value, className: "min-h-[44px] flex-1 whitespace-nowrap" }, t.label),
-      ),
-    ),
-    ...TABS.map((t) =>
-      el(TabsContent, { key: t.value, value: t.value, className: "mt-4" }, panelFor(t.value)),
-    ),
+  return (
+    <Tabs value={activeTab} onValueChange={switchTab} className="w-full">
+      <TabsList className="sticky top-0 z-10 w-full justify-start gap-1 overflow-x-auto rounded-xl border bg-background/95 p-1 backdrop-blur">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <TabsTrigger
+              key={t.value}
+              value={t.value}
+              className="flex min-h-[44px] flex-1 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <Icon className="size-4 shrink-0" aria-hidden />
+              {t.label}
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
+      {TABS.map((t) => (
+        <TabsContent key={t.value} value={t.value} className="mt-4">
+          {renderStaticPanel(t.value)}
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 }
+
+

@@ -1,6 +1,5 @@
 "use client";
 
-import { createElement as el } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getDashboard, type DashboardResponse } from "@/lib/api/dashboard";
 import { fetchMyBookings } from "@/lib/api/bookings";
@@ -29,7 +28,7 @@ type Envelope = {
 
 function toPage(res: Envelope, page: number, perPage: number): TabPage {
   return {
-    items: Array.isArray(res.items) ? (res.items as unknown[]) : [],
+    items: Array.isArray(res.items) ? (res.items as Record<string, unknown>[]) : [],
     page: typeof res.page === "number" ? res.page : page,
     perPage: typeof res.perPage === "number" ? res.perPage : perPage,
     totalPages: typeof res.totalPages === "number" ? res.totalPages : 1,
@@ -95,10 +94,10 @@ export function DashboardV2({
       ),
   };
 
-  return el(
-    "div",
-    { className: "flex flex-col gap-4" },
-    el(SummaryGrid, { counts, trend, isLoading: dashboard.isLoading }),
-    el(DashboardTabs, { token, fetchers }),
+  return (
+    <div className="flex flex-col gap-4">
+      <SummaryGrid counts={counts} trend={trend} isLoading={dashboard.isLoading} />
+      <DashboardTabs token={token} fetchers={fetchers} />
+    </div>
   );
 }
