@@ -231,4 +231,32 @@ export async function hotelRoutes(app: FastifyInstance) {
     await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.hotel.room.create", entityType: "HotelRoom", entityId: room.id } }).catch(() => {})
     return reply.code(201).send(room)
   })
+
+  app.delete("/partner/hotels/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const { id } = req.params as { id: string }
+    const existing = await prisma.hotel.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundError("Hôtel introuvable")
+    if ((existing as unknown as { ownerId: string | null }).ownerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")
+    const active = await prisma.hotelBooking.count({ where: { hotelId: id, status: { in: ["pending_payment", "confirmed"] } } as never })
+    if (active > 0) throw new AppError(409, "CONFLICT", "Hôtel avec réservations actives — suppression impossible")
+    await prisma.hotel.delete({ where: { id } })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.hotel.delete", entityType: "Hotel", entityId: id } }).catch(() => {})
+    return { id, deleted: true }
+  })
+
+  app.delete("/partner/hotels/:id/rooms/:roomId", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const { id, roomId } = req.params as { id: string; roomId: string }
+    const hotel = await prisma.hotel.findUnique({ where: { id } })
+    if (!hotel) throw new NotFoundError("Hôtel introuvable")
+    if ((hotel as unknown as { ownerId: string | null }).ownerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")
+    const room = await prisma.hotelRoom.findFirst({ where: { id: roomId, hotelId: id } })
+    if (!room) throw new NotFoundError("Chambre introuvable")
+    const active = await prisma.hotelBooking.count({ where: { roomTypeId: roomId, status: { in: ["pending_payment", "confirmed"] } } as never })
+    if (active > 0) throw new AppError(409, "CONFLICT", "Chambre avec réservations actives — suppression impossible")
+    await prisma.hotelRoom.delete({ where: { id: roomId } })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.hotel.room.delete", entityType: "HotelRoom", entityId: roomId } }).catch(() => {})
+    return { id: roomId, deleted: true }
+  })
 }
