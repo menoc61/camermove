@@ -312,6 +312,7 @@ export async function updateParcel(id: string, actorId: string, actorRole: strin
     })
   } catch {}
   await invalidateCache("parcels*").catch(() => {})
+  await invalidateCache("search*").catch(() => {})
   return updated
 }
 

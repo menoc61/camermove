@@ -296,7 +296,13 @@ function ParcelRowActions({ id, token }: { id: string; token: string }) {
     setPayError(null);
     try {
       const res = await createParcelPayment(id, token);
-      window.location.href = res.paymentUrl ?? res.authorizationUrl;
+      const url = res.paymentUrl ?? res.authorizationUrl;
+      if (!url) {
+        setPayError("Paiement impossible");
+        setPaying(false);
+        return;
+      }
+      window.location.href = url;
     } catch (e) {
       setPayError(e instanceof Error ? e.message : "Paiement impossible");
       setPaying(false);

@@ -50,5 +50,5 @@ export const ParcelUpdateSchema = z.object({
   recipientCity: z.string().min(2).max(100).optional(),
   recipientAddress: z.string().max(200).optional(),
   description: z.string().max(500).nullable().optional(),
-})
+}).refine((o) => Object.keys(o).length > 0, { message: "Aucun champ à modifier" })
 export type ParcelUpdateInput = z.infer<typeof ParcelUpdateSchema>
