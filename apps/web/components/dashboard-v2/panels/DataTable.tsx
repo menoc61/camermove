@@ -30,24 +30,24 @@ export interface DataTableProps {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    confirmed: { label: "Confirme", variant: "default" },
+    confirmed: { label: "Confirmé", variant: "default" },
     pending_payment: { label: "En attente", variant: "secondary" },
-    cancelled: { label: "Annule", variant: "destructive" },
-    used: { label: "Utilise", variant: "default" },
+    cancelled: { label: "Annulé", variant: "destructive" },
+    used: { label: "Utilisé", variant: "default" },
     valid: { label: "Valide", variant: "default" },
-    void: { label: "Annule", variant: "destructive" },
+    void: { label: "Annulé", variant: "destructive" },
     delivered: { label: "Livre", variant: "default" },
     in_transit: { label: "En transit", variant: "secondary" },
-    picked_up: { label: "Recupere", variant: "default" },
-    registered: { label: "Enregistre", variant: "secondary" },
+    picked_up: { label: "Récupéré", variant: "default" },
+    registered: { label: "Enregistré", variant: "secondary" },
     active: { label: "Actif", variant: "default" },
-    completed: { label: "Termine", variant: "default" },
-    paid: { label: "Paye", variant: "default" },
-    failed: { label: "Echoue", variant: "destructive" },
+    completed: { label: "Terminé", variant: "default" },
+    paid: { label: "Payé", variant: "default" },
+    failed: { label: "Échoué", variant: "destructive" },
     available_for_pickup: { label: "Disponible", variant: "secondary" },
-    arrived: { label: "Arrive", variant: "default" },
+    arrived: { label: "Arrivé", variant: "default" },
     queued: { label: "En file", variant: "secondary" },
-    sent: { label: "Envoye", variant: "default" },
+    sent: { label: "Envoyé", variant: "default" },
   };
   const s = map[status] ?? { label: status, variant: "outline" };
   return <Badge variant={s.variant}>{s.label}</Badge>;

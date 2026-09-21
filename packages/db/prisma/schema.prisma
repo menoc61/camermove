@@ -116,6 +116,7 @@ model User {
   notifications     Notification[]
   auditLogs         AuditLog[]
   reviews           Review[]
+  refunds           Refund[]
   transporter       Transporter?      @relation(fields: [transporterId], references: [id], onDelete: SetNull)
   hotels            Hotel[]
   rentalVehicles    RentalVehicle[]
@@ -358,6 +359,7 @@ model Refund {
   reason          String?
   status          RefundStatus     @default(pending)
   actorId         String?
+  actor           User?            @relation(fields: [actorId], references: [id], onDelete: SetNull)
   webhookPayload  Json?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
