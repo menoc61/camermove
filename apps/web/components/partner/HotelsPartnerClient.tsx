@@ -38,6 +38,19 @@ export function HotelsPartnerClient({ token }: Props) {
     onError: (e) => toast.error((e as Error).message),
   })
 
+  const deleteHotel = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/v1/partner/hotels/${id}`, { method: "DELETE", token }),
+    onSuccess: () => { toast.success("Hôtel supprimé"); qc.invalidateQueries({ queryKey: ["partner-hotels"] }) },
+    onError: (e) => toast.error((e as Error).message),
+  })
+
+  const deleteRoom = useMutation({
+    mutationFn: ({ hotelId, roomId }: { hotelId: string; roomId: string }) =>
+      apiFetch(`/api/v1/partner/hotels/${hotelId}/rooms/${roomId}`, { method: "DELETE", token }),
+    onSuccess: () => { toast.success("Chambre supprimée"); qc.invalidateQueries({ queryKey: ["partner-hotels"] }) },
+    onError: (e) => toast.error((e as Error).message),
+  })
+
   const presign = useMutation({
     mutationFn: async (file: File) => {
       const res = await apiFetch<{ objectKey: string; uploadUrl: string }>("/api/v1/partner/hotels/presign", { method: "POST", token, body: JSON.stringify({ filename: file.name, mimetype: file.type, size: file.size }), headers: { "Content-Type": "application/json" } })
@@ -80,12 +93,45 @@ export function HotelsPartnerClient({ token }: Props) {
       <div className="space-y-3">
         {data?.items.map((h) => (
           <Card key={h.id}>
-            <CardContent className="p-4 flex justify-between">
-              <div>
-                <p className="font-medium">{h.name} — {h.city}</p>
-                <p className="text-xs text-muted-foreground">{h.rooms.length} chambres</p>
+            <CardContent className="p-4 space-y-2">
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <p className="font-medium">{h.name} — {h.city}</p>
+                  <p className="text-xs text-muted-foreground">{h.rooms.length} chambre(s)</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={h.partnerStatus === "approved" ? "default" : "secondary"}>{h.partnerStatus}</Badge>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={deleteHotel.isPending}
+                    onClick={() => {
+                      if (window.confirm("Supprimer cet hôtel ?")) deleteHotel.mutate(h.id)
+                    }}
+                  >
+                    Supprimer
+                  </Button>
+                </div>
               </div>
-              <Badge variant={h.partnerStatus === "approved" ? "default" : "secondary"}>{h.partnerStatus}</Badge>
+              {h.rooms.length > 0 ? (
+                <ul className="space-y-1 border-t pt-2">
+                  {h.rooms.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span>{r.name} — {r.pricePerNight.toLocaleString("fr-FR")} XAF (×{r.quantity})</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={deleteRoom.isPending}
+                        onClick={() => {
+                          if (window.confirm("Supprimer cette chambre ?")) deleteRoom.mutate({ hotelId: h.id, roomId: r.id })
+                        }}
+                      >
+                        Supprimer
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </CardContent>
           </Card>
         ))}
