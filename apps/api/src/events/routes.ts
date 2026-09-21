@@ -316,13 +316,14 @@ export async function eventRoutes(app: FastifyInstance) {
   })
 
   // GET /partner/events — organizer partner view: events organized by the
-  // authenticated user (organizerId), with per-event booking KPIs. Scoped per
-  // service: a non-organizer gets an empty list, not an error.
+  // authenticated user (organizerId), with per-event booking KPIs. Réservé
+  // aux partenaires (transporter_staff, admin, super_admin) — 403 sinon.
   app.get("/partner/events", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
     const query = req.query as Record<string, unknown>
     const page = Math.max(1, Number(query.page ?? 1))
     const perPage = Math.min(50, Math.max(1, Number(query.perPage ?? query.limit ?? 20)))
     const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
     ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, userId: user.id, page }, "events.partner.list")
     const organizerWhere: Record<string, unknown> = user.role === "admin" || user.role === "super_admin" ? {} : { organizerId: user.id }

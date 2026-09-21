@@ -223,10 +223,11 @@ export async function parcelRoutes(app: FastifyInstance) {
 
   // GET /partner/parcels — operator partner view: parcels handled by operators
   // owned by the authenticated user (ownerId), NOT the traveler "my shipments"
-  // list. Scoped per service: a non-operator gets an empty list, not an error.
+  // list. Réservé aux partenaires (transporter_staff, admin, super_admin) — 403 sinon.
   app.get("/partner/parcels", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
     const q = ParcelSearchQuery.parse(req.query)
     const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
     ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, userId: user.id, status: q.status, page: q.page }, "parcels.partner.list")
     const isAdmin = user.role === "admin" || user.role === "super_admin"
