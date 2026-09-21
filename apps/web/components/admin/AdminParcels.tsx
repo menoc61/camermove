@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@camermove/frontend"
 import { apiFetch } from "@/lib/api/client"
@@ -78,8 +79,8 @@ export function AdminParcels() {
 
   const { data, isLoading, error } = useQuery<{ items: ParcelAdmin[]; total: number; page: number; totalPages: number }>({
     queryKey: ["admin-parcels", params],
-    // GET /parcels returns all parcels for admin/super_admin roles
-    queryFn: () => apiFetch(`/api/v1/parcels?${new URLSearchParams(params).toString()}`, { method: "GET", token: token! }),
+    // GET /admin/parcels (admin-only list, same envelope)
+    queryFn: () => apiFetch(`/api/v1/admin/parcels?${new URLSearchParams(params).toString()}`, { method: "GET", token: token! }),
     enabled: !!token,
   })
 
@@ -192,7 +193,7 @@ export function AdminParcels() {
                 const next = NEXT_STATUSES[p.status]?.[0]
                 return (
                   <TableRow key={p.id}>
-                    <TableCell className="font-mono text-xs">{p.trackingNumber}</TableCell>
+                    <TableCell><Link href={`/parcels/track/${p.trackingNumber}`} className="font-mono text-xs underline underline-offset-4">{p.trackingNumber}</Link></TableCell>
                     <TableCell>{p.senderName}</TableCell>
                     <TableCell>{p.recipientName}</TableCell>
                     <TableCell>{p.senderCity} → {p.recipientCity}</TableCell>
