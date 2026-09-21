@@ -29,3 +29,15 @@ describe("hotel deletes", () => {
     expect(res.json()).not.toHaveProperty("message", expect.stringContaining("not found"))
   })
 })
+
+describe("DELETE /admin/hotels/:id", () => {
+  it("rejects unauthenticated with 401", async () => {
+    const res = await app.inject({ method: "DELETE", url: `/api/v1/admin/hotels/${MISSING}` })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it("route exists", async () => {
+    const res = await app.inject({ method: "DELETE", url: `/api/v1/admin/hotels/${MISSING}` })
+    expect(res.json()).not.toHaveProperty("message", expect.stringContaining("not found"))
+  })
+})

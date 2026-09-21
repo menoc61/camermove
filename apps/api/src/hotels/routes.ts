@@ -235,6 +235,8 @@ export async function hotelRoutes(app: FastifyInstance) {
   app.delete("/partner/hotels/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
     const user = (req as unknown as { user: { id: string; role: string } }).user
     const { id } = req.params as { id: string }
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "partner.hotel.delete")
     const existing = await prisma.hotel.findUnique({ where: { id } })
     if (!existing) throw new NotFoundError("Hôtel introuvable")
     if ((existing as unknown as { ownerId: string | null }).ownerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")
@@ -248,6 +250,8 @@ export async function hotelRoutes(app: FastifyInstance) {
   app.delete("/partner/hotels/:id/rooms/:roomId", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
     const user = (req as unknown as { user: { id: string; role: string } }).user
     const { id, roomId } = req.params as { id: string; roomId: string }
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, roomId, userId: user.id }, "partner.hotel.room.delete")
     const hotel = await prisma.hotel.findUnique({ where: { id } })
     if (!hotel) throw new NotFoundError("Hôtel introuvable")
     if ((hotel as unknown as { ownerId: string | null }).ownerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")

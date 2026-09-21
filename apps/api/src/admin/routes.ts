@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify"
-import { loadEnv } from "@camermove/config"
+import { AppError, NotFoundError, loadEnv } from "@camermove/config"
 import { parseExportQuery, sendExport } from "../lib/export"
 import * as svc from "./service"
 import {
@@ -336,6 +336,21 @@ export async function adminRoutes(app: FastifyInstance) {
     const updated = await p.hotel.update({ where: { id }, data: body as never })
     await p.auditLog.create({ data: { actorId: actor.id, action: "admin.hotel.update", entityType: "Hotel", entityId: id, metadata: body as never } }).catch(() => {})
     return updated
+  })
+
+  app.delete("/admin/hotels/:id", async (req) => {
+    const { id } = HotelParams.parse(req.params)
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    const { prisma: p } = await import("@camermove/db")
+    req.log.info({ ...meta, actorId: actor.id, entityId: id }, "admin.hotel.delete")
+    const existing = await p.hotel.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundError("Hôtel introuvable")
+    const active = await p.hotelBooking.count({ where: { hotelId: id, status: { in: ["pending_payment", "confirmed"] } } as never })
+    if (active > 0) throw new AppError(409, "CONFLICT", "Hôtel avec réservations actives — suppression impossible")
+    await p.hotel.delete({ where: { id } })
+    await p.auditLog.create({ data: { actorId: actor.id, action: "admin.hotel.delete", entityType: "Hotel", entityId: id } }).catch(() => {})
+    return { id, deleted: true }
   })
 
   // ── Rentals (admin) ───────────────────────────────────────────────────────
