@@ -117,6 +117,23 @@ export async function parcelRoutes(app: FastifyInstance) {
     return sendExport(reply, "parcels", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
 
+  // GET /admin/parcels — admin-only paginated list (same envelope as GET /parcels)
+  app.get("/admin/parcels", { preHandler: (app as unknown as { requireAuth: (role?: string) => unknown }).requireAuth("admin") as never }, async (req) => {
+    const q = ParcelSearchQuery.parse(req.query)
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const pagination = buildPagination({ page: q.page, perPage: q.perPage, limit: q.limit, offset: q.offset })
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.(
+      { ...meta, q: q.q, status: q.status, recipientCity: q.recipientCity, page: q.page, limit: q.perPage, actorId: user.id },
+      "parcels.admin.list",
+    )
+    const where = buildParcelWhere({ recipientCity: q.recipientCity, status: q.status, q: q.q, dateFrom: q.dateFrom, dateTo: q.dateTo })
+    const [items, total] = await Promise.all([findParcels(where, pagination.skip, pagination.take, undefined as never), countParcels(where)])
+    const page = pagination.page ?? q.page
+    const perPage = pagination.take
+    return { items, total, page, perPage, totalPages: Math.ceil(total / perPage) }
+  })
+
   // POST /parcels — idempotent via global plugin, tarif inside transaction
   app.post("/parcels", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req, reply) => {
     const body = CreateParcelSchema.parse(req.body)
