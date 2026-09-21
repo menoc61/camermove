@@ -13,6 +13,7 @@
  * 20260918000000_reviews_seats_metadata).
  */
 import { prisma } from "@camermove/db"
+import { ForbiddenError, NotFoundError } from "@camermove/config"
 import { cacheKey, getCached, invalidateCache, setCached } from "../lib/cache.js"
 
 export interface ReviewAuthor {
@@ -251,4 +252,35 @@ export async function transporterAggregates(ids: string[]): Promise<Record<strin
     }
   }
   return out
+}
+
+export async function getReviewById(id: string) {
+  const review = await prisma.review.findFirst({
+    where: { id, isPublished: true },
+    select: {
+      id: true, rating: true, punctuality: true, comfort: true, cleanliness: true,
+      service: true, comment: true, createdAt: true,
+      user: { select: { id: true, firstName: true, lastName: true } },
+    },
+  })
+  if (!review) {
+    throw new NotFoundError("Avis introuvable")
+  }
+  return { ...review, createdAt: review.createdAt.toISOString(), author: review.user }
+}
+
+export async function deleteReview(id: string, user: { id: string; role: string }) {
+  const existing = await prisma.review.findUnique({ where: { id } })
+  if (!existing) {
+    throw new NotFoundError("Avis introuvable")
+  }
+  const isAdmin = user.role === "admin" || user.role === "super_admin"
+  if (existing.userId !== user.id && !isAdmin) {
+    throw new ForbiddenError("Accès refusé")
+  }
+  await prisma.review.delete({ where: { id } })
+  const targetId = existing.target === "trip" ? existing.tripId : existing.transporterId
+  await invalidateCache(`reviews:*id=${targetId}*`).catch(() => {})
+  await invalidateCache("agencies*").catch(() => {})
+  return { id }
 }

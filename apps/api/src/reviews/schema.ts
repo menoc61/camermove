@@ -78,5 +78,18 @@ export const ReviewUpsertResponse = z.object({
   createdAt: z.string(),
 })
 
+export const ReviewIdParams = z.object({ id: zId })
+
+const updateScore = z.number().int().min(1).max(5).optional()
+
+export const ReviewUpdateInput = z.object({
+  rating: z.number().int().min(1).max(5).optional(),
+  punctuality: updateScore,
+  comfort: updateScore,
+  cleanliness: updateScore,
+  service: updateScore,
+  comment: z.string().max(2000).nullable().optional(),
+})
+
 // Re-exported for callers
 export { dateRange }
