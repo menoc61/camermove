@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExportButton } from "../controls/ExportButton";
 import { CancelButton } from "../controls/CancelButton";
 import { cancelBooking } from "@/lib/api/bookings";
+import { cancelParcel, createParcelPayment } from "@/lib/api/parcels";
 import { PaginationControls } from "../controls/PaginationControls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "../cards/EmptyState";
@@ -208,6 +209,21 @@ export function DashboardTabs({
                 : undefined
             }
           />
+        ) : tab === "parcels" ? (
+          <div className="flex flex-col gap-2">
+            <DataTable columns={[...columns]} data={data.items} />
+            <div className="flex flex-wrap gap-2">
+              {data.items
+                .filter((row) => String(row.status) === "registered")
+                .slice(0, 3)
+                .map((row) => (
+                  <div key={String(row.id)} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                    <span className="font-mono text-xs text-muted-foreground">{String(row.trackingNumber ?? row.id)}</span>
+                    <ParcelRowActions id={String(row.id)} token={token} />
+                  </div>
+                ))}
+            </div>
+          </div>
         ) : tab === "trips" ? (
           <div className="flex flex-col gap-2">
             <DataTable columns={[...columns]} data={data.items} />
@@ -269,6 +285,36 @@ export function DashboardTabs({
         </TabsContent>
       ))}
     </Tabs>
+  );
+}
+
+function ParcelRowActions({ id, token }: { id: string; token: string }) {
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+  async function pay() {
+    setPaying(true);
+    setPayError(null);
+    try {
+      const res = await createParcelPayment(id, token);
+      window.location.href = res.paymentUrl ?? res.authorizationUrl;
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : "Paiement impossible");
+      setPaying(false);
+    }
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        disabled={paying}
+        onClick={pay}
+        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+      >
+        {paying ? "Paiement…" : "Payer"}
+      </button>
+      {payError ? <span role="alert" className="text-xs text-destructive">{payError}</span> : null}
+      <CancelButton visible onCancel={() => cancelParcel(token, id)} invalidateKeys={[["dashboard-parcels"], ["dashboard-v2"]]} />
+    </div>
   );
 }
 
