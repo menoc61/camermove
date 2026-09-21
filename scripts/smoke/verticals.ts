@@ -85,6 +85,33 @@ async function smokeVerticals() {
   console.log(`  ${cancelRes.status === 200 ? "✓" : "✗"} parcels.cancel → ${cancelRes.status}`);
   if (cancelRes.status !== 200) throw new Error(`parcels.cancel failed: ${cancelRes.status}`);
 
+  const hotelsRes = await fetch(`${BASE}/api/v1/hotels?perPage=5`, { headers: h });
+  check("hotels.list", hotelsRes);
+  const hotelsBody = (await hotelsRes.json()) as { items: Array<{ id: string; rooms?: Array<{ id: string }> }> };
+  if (!Array.isArray(hotelsBody.items)) throw new Error("hotels.list envelope missing items");
+
+  const withRooms = hotelsBody.items.find((x) => Array.isArray(x.rooms) && x.rooms.length > 0);
+  if (!withRooms) {
+    console.log("  ○ hotels.booking skipped — no hotel with rooms in seed");
+  } else {
+    const roomId = withRooms.rooms![0]!.id;
+    const hbRes = await fetch(`${BASE}/api/v1/hotels/bookings`, {
+      method: "POST",
+      headers: { ...h, "Content-Type": "application/json" },
+      body: JSON.stringify({ hotelId: withRooms.id, roomTypeId: roomId, checkIn: "2026-12-01", checkOut: "2026-12-03", guests: 2 }),
+    });
+    console.log(`  ${hbRes.status === 201 ? "✓" : "✗"} hotels.booking.create → ${hbRes.status}`);
+    if (hbRes.status !== 201) throw new Error(`hotels.booking.create failed: ${hbRes.status} ${await hbRes.text()}`);
+    const hb = (await hbRes.json()) as { id: string };
+    const hbCancel = await fetch(`${BASE}/api/v1/hotels/bookings/${hb.id}/cancel`, { method: "POST", headers: h });
+    console.log(`  ${hbCancel.status === 200 ? "✓" : "✗"} hotels.booking.cancel → ${hbCancel.status}`);
+    if (hbCancel.status !== 200) throw new Error(`hotels.booking.cancel failed: ${hbCancel.status}`);
+  }
+
+  const pHotels = await fetch(`${BASE}/api/v1/partner/hotels`, { headers: h });
+  console.log(`  ${pHotels.status === 403 ? "✓" : "✗"} partner.hotels-traveler-403 → ${pHotels.status}`);
+  if (pHotels.status !== 403) throw new Error(`partner.hotels guard failed: ${pHotels.status}`);
+
   // Idempotency replay: same key twice → same status+body
   const key = `smoke-${Date.now()}`;
   const payload = { name: "Smoke", email: "s@s.cm", message: "hello smoke replay" };
