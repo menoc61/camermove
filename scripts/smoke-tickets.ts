@@ -274,8 +274,14 @@ async function main() {
   process.exit(failures === 0 ? 0 : 1)
 }
 
-main().catch(async (e) => {
-  console.error(e)
-  await prisma.$disconnect()
-  process.exit(1)
-})
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(async (e) => {
+    console.error(e)
+    await prisma.$disconnect()
+    process.exit(1)
+  })
+}
+
+export async function smokeTickets() {
+  await main()
+}
