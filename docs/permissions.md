@@ -43,6 +43,19 @@ Slices append their rows here. Slice 1 (interurban) below.
 
 No DELETE on parcels by design (cancel covers withdrawal; delivered rows immutable).
 
+## Slice 3 — hotels
+
+| Endpoint | public | traveler | transporter_staff | admin / super_admin |
+|---|---|---|---|---|
+| `GET /hotels`, `GET /hotels/:id` | allow | allow | allow | allow |
+| `POST /hotels/bookings`, `GET /hotels/bookings/me`, `GET /hotels/bookings/export`, `GET /hotels/bookings/:id` | deny | own only | own only | any |
+| `POST /hotels/bookings/:id/cancel`, `POST /hotels/bookings/:id/pay` | deny | owner only | owner only | owner only (cancel: any — kernel rule) |
+| `GET /partner/hotels`, `POST /partner/hotels`, `PUT /partner/hotels/:id`, `POST /partner/hotels/:id/rooms` | deny | 403 | own `ownerId` | any |
+| `DELETE /partner/hotels/:id`, `DELETE /partner/hotels/:id/rooms/:roomId` | deny | 403 | owner, no `pending_payment`/`confirmed` bookings (409) | any scope, same 409 guard |
+| `GET /admin/hotels`, `GET /admin/hotels/export`, `PUT /admin/hotels/:id`, `DELETE /admin/hotels/:id` | deny | deny | deny | allow (delete: same 409 guard) |
+
+No `POST /admin/hotels` by design (partner-only creation; admin moderates via `partnerStatus`).
+
 ## Later slices (rows by those slices)
 
-- Slice 2 parcels (admin list, statuses) · Slice 3 hotels · Slice 4 rentals · Slice 5 events · Slice 6 insurance · Slice 7 cross-cutting (favorites, agencies, places, contact/newsletter admin, notifications bulk) · Slice 8 consoles polish · Slice 9 arch upgrades.
+- Slice 4 rentals · Slice 5 events · Slice 6 insurance · Slice 7 cross-cutting (favorites, agencies, places, contact/newsletter admin, notifications bulk) · Slice 8 consoles polish · Slice 9 arch upgrades.
