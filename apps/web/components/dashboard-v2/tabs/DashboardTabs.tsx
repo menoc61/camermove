@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExportButton } from "../controls/ExportButton";
+import { CancelButton } from "../controls/CancelButton";
+import { cancelBooking } from "@/lib/api/bookings";
 import { PaginationControls } from "../controls/PaginationControls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "../cards/EmptyState";
@@ -206,6 +208,23 @@ export function DashboardTabs({
                 : undefined
             }
           />
+        ) : tab === "trips" ? (
+          <div className="flex flex-col gap-2">
+            <DataTable columns={[...columns]} data={data.items} />
+            <div className="flex flex-wrap gap-2">
+              {data.items
+                .filter((row) => ["pending_payment", "confirmed"].includes(String(row.status)))
+                .slice(0, 3)
+                .map((row) => (
+                  <CancelButton
+                    key={String(row.id)}
+                    visible
+                    onCancel={() => cancelBooking(String(row.id), token)}
+                    invalidateKeys={[["dashboard-trips"], ["dashboard-v2"]]}
+                  />
+                ))}
+            </div>
+          </div>
         ) : (
           <DataTable columns={[...columns]} data={data.items} />
         )}
