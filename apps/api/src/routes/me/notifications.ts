@@ -11,6 +11,7 @@ import type { FastifyInstance } from "fastify"
 import { z } from "zod"
 import { prisma } from "@camermove/db"
 import { NotFoundError } from "@camermove/config"
+import { parseExportQuery, sendExport } from "../../lib/export.js"
 
 const ListQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -34,8 +35,6 @@ export async function meNotificationRoutes(app: FastifyInstance) {
     req.log.info({ ...meta, userId: user.id, page: query.page, perPage: query.perPage }, "me.notifications.list")
 
     // AGENTS.md §6: periodic list → dateFrom/dateTo filter on createdAt.
-    // No /me/notifications/export endpoint (owner-scoped, low volume) — gap
-    // documented here instead of a dead export stub.
     const where: Record<string, unknown> = { userId: user.id }
     if (query.dateFrom || query.dateTo) {
       const createdAt: Record<string, Date> = {}
@@ -62,6 +61,29 @@ export async function meNotificationRoutes(app: FastifyInstance) {
       perPage: take,
       totalPages: Math.ceil(total / take),
     }
+  })
+
+  app.get("/me/notifications/export", { preHandler: app.requireAuth() }, async (req, reply) => {
+    const { dateFrom, dateTo, format } = parseExportQuery(req.query as Record<string, unknown>)
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, userId: user.id, dateFrom, dateTo, format }, "me.notifications.export")
+    const where: Record<string, unknown> = { userId: user.id }
+    if (dateFrom || dateTo) {
+      const createdAt: Record<string, Date> = {}
+      if (dateFrom) createdAt.gte = new Date(dateFrom)
+      if (dateTo) createdAt.lte = new Date(`${dateTo}T23:59:59Z`)
+      where.createdAt = createdAt
+    }
+    const { loadEnv } = await import("@camermove/config")
+    const env = loadEnv()
+    const rows = await prisma.notification.findMany({
+      where: where as never,
+      take: env.SEARCH_MAX_LIMIT,
+      orderBy: { createdAt: "desc" },
+    })
+    const columns = ["id", "channel", "type", "status", "sentAt", "createdAt"]
+    return sendExport(reply, "notifications", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
 
   app.patch("/me/notifications/:id/read", { preHandler: app.requireAuth() }, async (req) => {

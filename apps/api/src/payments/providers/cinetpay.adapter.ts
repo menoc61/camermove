@@ -3,9 +3,12 @@ import { verifyCinetToken } from "../webhooks/verify.js"
 import type {
   CreatePaymentInput,
   CreatePaymentResult,
+  CreateRefundInput,
+  CreateRefundResult,
   PaymentProvider,
   SupportedProvider,
   VerifyPaymentResult,
+  VerifyRefundResult,
 } from "./types.js"
 
 export class CinetPayAdapter implements PaymentProvider {
@@ -180,5 +183,13 @@ export class CinetPayAdapter implements PaymentProvider {
     }
     // Delegate to isolated helper — never inline HMAC
     return verifyCinetToken(form, signature, secret)
+  }
+
+  async createRefund(input: CreateRefundInput): Promise<CreateRefundResult> {
+    throw new Error("CinetPay refunds not implemented")
+  }
+
+  async verifyRefund(providerRefundId: string): Promise<VerifyRefundResult> {
+    throw new Error("CinetPay refunds not implemented")
   }
 }

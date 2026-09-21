@@ -10,6 +10,11 @@ export const CreatePaymentBody = z.object({
 
 export const PaymentParams = z.object({ id: z.string().cuid() })
 
+export const RefundBody = z.object({
+  reason: z.string().max(500).optional(),
+  amount: z.number().int().positive().optional(),
+})
+
 export const PaymentListQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(20),
@@ -32,5 +37,6 @@ export const PaymentExportQuery = z.object({
 
 export type CreatePaymentBody = z.infer<typeof CreatePaymentBody>
 export type PaymentParams = z.infer<typeof PaymentParams>
+export type RefundBody = z.infer<typeof RefundBody>
 export type PaymentListQuery = z.infer<typeof PaymentListQuery>
 export type PaymentExportQuery = z.infer<typeof PaymentExportQuery>

@@ -340,12 +340,36 @@ model Payment {
   parcel          Parcel?
   insurancePolicy InsurancePolicy?
   eventBooking    EventBooking?
+  refunds       Refund[]
   // providerRef is nullable until creation; one-pending-per-booking enforced via app guard + partial index migration (not hard unique on nullable)
-
   @@index([status, createdAt])
   @@index([provider, providerRef])
   @@index([bookingId, status])
   @@index([providerRef])
+}
+
+model Refund {
+  id              String           @id @default(cuid())
+  paymentId       String           @unique
+  payment         Payment          @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  providerRefundId String?
+  amount          Int
+  currency        String           @default("XAF")
+  reason          String?
+  status          RefundStatus     @default(pending)
+  actorId         String?
+  webhookPayload  Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([status])
+}
+
+enum RefundStatus {
+  pending
+  processing
+  complete
+  failed
 }
 
 enum RentalVehicleStatus {

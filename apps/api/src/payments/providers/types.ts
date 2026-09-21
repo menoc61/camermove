@@ -37,9 +37,34 @@ export interface VerifyPaymentResult {
   rawPayload: unknown
 }
 
+export interface CreateRefundInput {
+  paymentRef: string
+  amount?: number
+  reason?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface CreateRefundResult {
+  providerRefundId: string
+  status: "pending" | "processing" | "complete" | "failed"
+  amount: number
+  currency: string
+  rawResponse: unknown
+}
+
+export interface VerifyRefundResult {
+  status: "pending" | "processing" | "complete" | "failed"
+  amount: number
+  currency: string
+  providerRefundId: string
+  rawPayload: unknown
+}
+
 export interface PaymentProvider {
   readonly name: SupportedProvider
   createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult>
   verifyPayment(providerRef: string): Promise<VerifyPaymentResult>
   verifyWebhookSignature(rawBody: string | Buffer, signature: string, secret: string): boolean
+  createRefund(input: CreateRefundInput): Promise<CreateRefundResult>
+  verifyRefund(providerRefundId: string): Promise<VerifyRefundResult>
 }

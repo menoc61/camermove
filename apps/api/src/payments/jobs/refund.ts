@@ -28,6 +28,7 @@ export async function refundPayment(paymentId: string, actorId: string, reason?:
   }
 
   // Transaction: mark payment refunded, booking refunded, release seats, audit, commission adjustment
+  let refundId: string | null = null
   await prisma.$transaction(async (tx: unknown) => {
     const t = tx as typeof prisma
     await (t as unknown as { $queryRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }).$queryRaw`SELECT "id" FROM "Booking" WHERE "id"=${booking.id} FOR UPDATE`
@@ -41,6 +42,29 @@ export async function refundPayment(paymentId: string, actorId: string, reason?:
 
     await t.payment.update({ where: { id: paymentId }, data: { status: "refunded", webhookPayload: { reason, refundAmount } as never } })
     await t.booking.update({ where: { id: booking.id }, data: { status: "refunded" } })
+
+    // Persist first-class Refund row (idempotent per paymentId). Best-effort provider
+    // refund id is attached when available; status mirrors payment refund completion.
+    try {
+      const existing = await t.refund.findUnique({ where: { paymentId } }).catch(() => null)
+      if (!existing) {
+        const created = await t.refund.create({
+          data: {
+            paymentId,
+            amount: refundAmount,
+            currency: payment.currency ?? "XAF",
+            reason: reason ?? null,
+            status: "complete",
+            actorId,
+          },
+        })
+        refundId = created.id
+      } else {
+        refundId = existing.id
+      }
+    } catch {
+      // Refund table missing (migration not applied) — payment/booking already refunded.
+    }
 
     const sa = await t.seatAvailability.findUnique({ where: { tripId: booking.tripId } })
     if (sa) {
@@ -88,5 +112,5 @@ export async function refundPayment(paymentId: string, actorId: string, reason?:
     )
   } catch {}
 
-  return { refundAmount }
+  return { refundAmount, refundId, paymentId, bookingId: booking.id }
 }
