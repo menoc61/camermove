@@ -223,4 +223,19 @@ export async function rentalRoutes(app: FastifyInstance) {
     await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.rental.update", entityType: "RentalVehicle", entityId: id } }).catch(() => {})
     return updated
   })
+
+  app.delete("/partner/rentals/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const { id } = req.params as { id: string }
+    const existing = await prisma.rentalVehicle.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundError("Véhicule introuvable")
+    if ((existing as unknown as { ownerId: string | null }).ownerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    const active = await prisma.rentalBooking.count({ where: { rentalVehicleId: id, status: { in: ["pending_payment", "confirmed"] } } as never })
+    if (active > 0) throw new AppError(409, "CONFLICT", "Véhicule avec réservations actives — suppression impossible")
+    await prisma.rentalVehicle.delete({ where: { id } })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.rental.delete", entityType: "RentalVehicle", entityId: id } }).catch(() => {})
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "partner.rental.delete")
+    return { id, deleted: true }
+  })
 }
