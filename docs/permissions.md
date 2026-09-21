@@ -29,6 +29,20 @@ Slices append their rows here. Slice 1 (interurban) below.
 | `GET /me/dashboard`, `GET /me/profile`, `PATCH /me/profile`, notifications + export + read | deny | allow | allow | allow |
 | `GET /partner/events`, `GET /partner/parcels` | deny | 403 (unified slice 1, like hotels/rentals) | own scope | all |
 
+## Slice 2 — parcels
+
+| Endpoint | public | traveler | transporter_staff | admin / super_admin |
+|---|---|---|---|---|
+| `GET /parcels/quote`, `GET /parcels/track/:n` | allow (sanitized, phones masked) | allow | allow | allow |
+| `POST /parcels`, `GET /parcels`, `GET /parcels/:id`, `GET /parcels/export` | deny | own only | own only | any |
+| `PATCH /parcels/:id` (recipient/description while `registered`) | deny | owner only | owner only | any scope, `registered` only (even admin) |
+| `POST /parcels/:id/cancel` | deny | owner, `registered` + unpaid only | owner only | any |
+| `POST /parcels/:id/pay` | deny | owner only | owner only | owner only |
+| `GET /partner/parcels` | deny | 403 | own operators | all |
+| `GET /admin/parcels`, `GET /admin/parcels/export`, `PATCH /admin/parcels/:id/status` (FSM) | deny | deny | deny | allow |
+
+No DELETE on parcels by design (cancel covers withdrawal; delivered rows immutable).
+
 ## Later slices (rows by those slices)
 
 - Slice 2 parcels (admin list, statuses) · Slice 3 hotels · Slice 4 rentals · Slice 5 events · Slice 6 insurance · Slice 7 cross-cutting (favorites, agencies, places, contact/newsletter admin, notifications bulk) · Slice 8 consoles polish · Slice 9 arch upgrades.
