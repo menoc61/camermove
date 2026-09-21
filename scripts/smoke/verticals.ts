@@ -31,6 +31,22 @@ async function smokeVerticals() {
   check("notifications.list", await fetch(`${BASE}/api/v1/me/notifications`, { headers: h }));
   check("dashboard.me", await fetch(`${BASE}/api/v1/me/dashboard`, { headers: h }));
   check("profile.get", await fetch(`${BASE}/api/v1/me/profile`, { headers: h }));
+  const tripsRes = await fetch(`${BASE}/api/v1/trips?perPage=5`, { headers: h });
+  check("trips.list", tripsRes);
+  const tripsBody = (await tripsRes.json()) as { items: unknown[] };
+  if (!Array.isArray(tripsBody.items)) throw new Error("trips.list envelope missing items");
+
+  const revRes = await fetch(`${BASE}/api/v1/reviews/c000000000000000000000001`, { headers: h });
+  console.log(`  ${revRes.status === 404 ? "✓" : "✗"} reviews.missing-404 → ${revRes.status}`);
+  if (revRes.status !== 404) throw new Error(`reviews.missing-404 failed: ${revRes.status}`);
+
+  const trComm = await fetch(`${BASE}/api/v1/transporter/commissions`, { headers: h });
+  console.log(`  ${trComm.status === 403 ? "✓" : "✗"} transporter.commissions-traveler-403 → ${trComm.status}`);
+  if (trComm.status !== 403) throw new Error(`transporter.commissions guard failed: ${trComm.status}`);
+
+  const pEvents = await fetch(`${BASE}/api/v1/partner/events`, { headers: h });
+  console.log(`  ${pEvents.status === 403 ? "✓" : "✗"} partner.events-traveler-403 → ${pEvents.status}`);
+  if (pEvents.status !== 403) throw new Error(`partner.events guard failed: ${pEvents.status}`);
 
   // Idempotency replay: same key twice → same status+body
   const key = `smoke-${Date.now()}`;
