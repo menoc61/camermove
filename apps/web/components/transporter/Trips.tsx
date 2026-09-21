@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { listTrips, createTrip, deleteTrip, updateTrip, listRoutes, setTripStatus } from "@/lib/api/transporter"
+import { listTrips, createTrip, deleteTrip, listRoutes, setTripStatus } from "@/lib/api/transporter"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export function TripsClient({ token }: { token: string }) {
@@ -51,10 +51,12 @@ export function TripsClient({ token }: { token: string }) {
           <li key={t.id} className="flex items-center justify-between p-4">
             <div><div className="font-medium">{t.route?.originCity} → {t.route?.destinationCity} — {new Date(t.departureAt).toLocaleString("fr-CM")} </div><div className="text-xs text-muted-foreground">{t.price.toLocaleString()} XAF · {t.totalSeats} places · {t.status}</div></div>
             <div className="flex items-center gap-2">
-              <select value={t.status} onChange={async(e)=>{try{await setTripStatus(token, t.id, e.target.value as "pause" | "close" | "reopen"); refresh()}catch(err){setError((err as Error).message)}}} className="rounded-lg border px-2 py-1 text-sm" aria-label="Statut du trajet">
-                <option value="pause">pause</option>
-                <option value="close">close</option>
-                <option value="reopen">reopen</option>
+              <span className="text-xs text-muted-foreground">{t.status}</span>
+              <select value="" onChange={async(e)=>{try{await setTripStatus(token, t.id, e.target.value as "pause" | "close" | "reopen"); refresh()}catch(err){setError((err as Error).message)}}} className="rounded-lg border px-2 py-1 text-sm" aria-label="Statut du trajet">
+                <option value="">Changer statut…</option>
+                <option value="pause">Suspendre</option>
+                <option value="close">Clore</option>
+                <option value="reopen">Rouvrir</option>
               </select>
               <button onClick={async()=>{try{await deleteTrip(token,t.id); refresh()}catch(err){setError((err as Error).message)}}} className="text-sm text-destructive">Supprimer</button>
             </div>

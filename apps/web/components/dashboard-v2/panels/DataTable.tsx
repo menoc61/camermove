@@ -36,7 +36,7 @@ function StatusBadge({ status }: { status: string }) {
     used: { label: "Utilisé", variant: "default" },
     valid: { label: "Valide", variant: "default" },
     void: { label: "Annulé", variant: "destructive" },
-    delivered: { label: "Livre", variant: "default" },
+    delivered: { label: "Livré", variant: "default" },
     in_transit: { label: "En transit", variant: "secondary" },
     picked_up: { label: "Récupéré", variant: "default" },
     registered: { label: "Enregistré", variant: "secondary" },

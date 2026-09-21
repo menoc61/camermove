@@ -144,7 +144,7 @@ export class NotchPayAdapter implements PaymentProvider {
       const refundData = json.refund ?? json
       const providerRefundId = (refundData as { id?: string; reference?: string })?.id ?? (refundData as { reference?: string })?.reference
       if (!providerRefundId) {
-        throw new Error("NotchPay refund create: missing refund.id/reference")
+        throw new AppError(502, "PROVIDER_ERROR", "NotchPay refund create: missing refund.id/reference")
       }
       const rawStatus = String((refundData as { status?: string })?.status ?? "pending").toLowerCase()
       let status: CreateRefundResult["status"]
@@ -162,7 +162,7 @@ export class NotchPayAdapter implements PaymentProvider {
       }
     } catch (err) {
       if ((err as Error).name === "AbortError") {
-        throw new Error("NotchPay refund create timeout after 10s")
+        throw new AppError(502, "PROVIDER_ERROR", "NotchPay refund create timeout after 10s")
       }
       throw err
     } finally {

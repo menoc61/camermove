@@ -50,19 +50,21 @@ async function smokeVerticals() {
 
   // Idempotency replay: same key twice → same status+body
   const key = `smoke-${Date.now()}`;
-  const payload = { reason: "smoke-replay" };
+  const payload = { name: "Smoke", email: "s@s.cm", message: "hello smoke replay" };
   const first = await fetch(`${BASE}/api/v1/contact`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": key },
-    body: JSON.stringify({ name: "Smoke", email: "s@s.cm", message: "hello smoke replay" }),
+    body: JSON.stringify(payload),
   });
   const second = await fetch(`${BASE}/api/v1/contact`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": key },
     body: JSON.stringify(payload),
   });
-  console.log(`  ${first.status === second.status ? "✓" : "✗"} idempotency.replay → ${first.status}/${second.status}`);
-  if (first.status !== second.status) throw new Error("idempotency replay mismatch");
+  const firstText = await first.text();
+  const secondText = await second.text();
+  console.log(`  ${first.status === second.status && firstText === secondText ? "✓" : "✗"} idempotency.replay → ${first.status}/${second.status}`);
+  if (first.status !== second.status || firstText !== secondText) throw new Error("idempotency replay mismatch");
 
   console.log("✓ verticals smoke passed");
 }

@@ -74,6 +74,19 @@ export async function reviewRoutes(app: FastifyInstance) {
       comment: patch.comment ?? existing.comment ?? undefined,
     })
     req.log.info({ ...meta, userId: user.id, reviewId: id }, "review.update")
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "review.update",
+          entityType: "Review",
+          entityId: id,
+          metadata: { ...meta, userId: user.id, reviewId: id } as never,
+        },
+      })
+    } catch (err) {
+      req.log.warn({ err: (err as Error).message, reviewId: id }, "audit review.update failed")
+    }
     return { id: review.id, rating: review.rating, createdAt: review.createdAt.toISOString() }
   })
 
@@ -81,7 +94,22 @@ export async function reviewRoutes(app: FastifyInstance) {
     const user = (req as unknown as { user: { id: string; role: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     const { id } = ReviewIdParams.parse(req.params)
+    const result = await deleteReview(id, user)
     req.log.info({ ...meta, userId: user.id, reviewId: id }, "review.delete")
-    return deleteReview(id, user)
+    try {
+      const { prisma } = await import("@camermove/db")
+      await prisma.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "review.delete",
+          entityType: "Review",
+          entityId: id,
+          metadata: { ...meta, userId: user.id, reviewId: id } as never,
+        },
+      })
+    } catch (err) {
+      req.log.warn({ err: (err as Error).message, reviewId: id }, "audit review.delete failed")
+    }
+    return result
   })
 }

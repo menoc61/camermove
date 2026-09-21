@@ -186,10 +186,10 @@ export class CinetPayAdapter implements PaymentProvider {
   }
 
   async createRefund(input: CreateRefundInput): Promise<CreateRefundResult> {
-    throw new Error("CinetPay refunds not implemented")
+    throw new AppError(502, "PROVIDER_ERROR", "CinetPay refunds not implemented")
   }
 
   async verifyRefund(providerRefundId: string): Promise<VerifyRefundResult> {
-    throw new Error("CinetPay refunds not implemented")
+    throw new AppError(502, "PROVIDER_ERROR", "CinetPay refunds not implemented")
   }
 }

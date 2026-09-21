@@ -39,6 +39,19 @@ export async function meProfileRoutes(app: FastifyInstance) {
       },
       select: { id: true, email: true, role: true, status: true },
     })
+    try {
+      await prisma.auditLog.create({
+        data: {
+          actorId: user.id,
+          action: "me.profile.update",
+          entityType: "User",
+          entityId: user.id,
+          metadata: { ...meta, userId: user.id } as never,
+        },
+      })
+    } catch (err) {
+      req.log.warn({ err: (err as Error).message, userId: user.id }, "audit me.profile.update failed")
+    }
     return updated
   })
 }

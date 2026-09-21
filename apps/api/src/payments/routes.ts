@@ -48,7 +48,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const user = (req as unknown as { user: { id: string; role: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, paymentId: id, actorId: user.id, reason: body.reason }, "payment.refund")
-    const result = await refundPayment(id, user.id, body.reason)
+    const result = await refundPayment(id, user.id, body.reason, body.amount)
     return reply.code(201).send(result)
   })
 

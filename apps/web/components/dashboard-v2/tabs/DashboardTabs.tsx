@@ -216,12 +216,14 @@ export function DashboardTabs({
                 .filter((row) => ["pending_payment", "confirmed"].includes(String(row.status)))
                 .slice(0, 3)
                 .map((row) => (
-                  <CancelButton
-                    key={String(row.id)}
-                    visible
-                    onCancel={() => cancelBooking(String(row.id), token)}
-                    invalidateKeys={[["dashboard-trips"], ["dashboard-v2"]]}
-                  />
+                  <div key={String(row.id)} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                    <span className="font-mono text-xs text-muted-foreground">Réf. {String(row.reference ?? row.id)}</span>
+                    <CancelButton
+                      visible
+                      onCancel={() => cancelBooking(String(row.id), token)}
+                      invalidateKeys={[["dashboard-trips"], ["dashboard-v2"]]}
+                    />
+                  </div>
                 ))}
             </div>
           </div>

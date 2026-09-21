@@ -13,7 +13,7 @@
  * 20260918000000_reviews_seats_metadata).
  */
 import { prisma } from "@camermove/db"
-import { ForbiddenError, NotFoundError } from "@camermove/config"
+import { BadRequestError, ForbiddenError, NotFoundError } from "@camermove/config"
 import { cacheKey, getCached, invalidateCache, setCached } from "../lib/cache.js"
 
 export interface ReviewAuthor {
@@ -58,14 +58,10 @@ export async function upsertReview(userId: string, input: {
   comment?: string
 }) {
   if (input.target === "trip" && !input.tripId) {
-    const err = new Error("tripId requis pour target=trip")
-    ;(err as Error & { statusCode: number }).statusCode = 400
-    throw err
+    throw new BadRequestError("tripId requis pour target=trip")
   }
   if (input.target === "transporter" && !input.transporterId) {
-    const err = new Error("transporterId requis pour target=transporter")
-    ;(err as Error & { statusCode: number }).statusCode = 400
-    throw err
+    throw new BadRequestError("transporterId requis pour target=transporter")
   }
 
   const where =
@@ -96,24 +92,16 @@ export async function upsertReview(userId: string, input: {
       select: { id: true, tripId: true, status: true, trip: { select: { transportId: true } } },
     })
     if (!bk) {
-      const err = new Error("Réservation introuvable ou non autorisée")
-      ;(err as Error & { statusCode: number }).statusCode = 403
-      throw err
+      throw new ForbiddenError("Réservation introuvable ou non autorisée")
     }
     if (bk.status !== "confirmed") {
-      const err = new Error("Seuls les voyages effectués peuvent être notés")
-      ;(err as Error & { statusCode: number }).statusCode = 403
-      throw err
+      throw new ForbiddenError("Seuls les voyages effectués peuvent être notés")
     }
     if (input.target === "trip" && bk.tripId !== input.tripId) {
-      const err = new Error("La réservation ne correspond pas à ce trajet")
-      ;(err as Error & { statusCode: number }).statusCode = 403
-      throw err
+      throw new ForbiddenError("La réservation ne correspond pas à ce trajet")
     }
     if (input.target === "transporter" && bk.trip.transportId !== input.transporterId) {
-      const err = new Error("La réservation ne correspond pas à cette agence")
-      ;(err as Error & { statusCode: number }).statusCode = 403
-      throw err
+      throw new ForbiddenError("La réservation ne correspond pas à cette agence")
     }
     return tx.review.upsert({
       where,
