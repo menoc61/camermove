@@ -1,4 +1,4 @@
-import { request, resourceClient } from "./resource"
+import { resourceClient } from "./resource"
 
 const transporter = resourceClient<TransporterStats>("/api/v1/transporter")
 
@@ -125,6 +125,10 @@ export async function deleteTrip(token: string, id: string): Promise<void> {
   await transporter.remove(`/trips/${id}`, { token })
 }
 
+export function setTripStatus(token: string, id: string, action: "pause" | "close" | "reopen"): Promise<Trip> {
+  return transporter.request<Trip>(`/api/v1/trips/${id}/status`, { method: "POST", token, body: { action } })
+}
+
 export function listBookings(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<TransporterBooking>> {
   return transporter.list<TransporterBooking>("/bookings", { token, params })
 }
@@ -137,13 +141,7 @@ export async function listPayments(token: string, params: Record<string, string>
   }
 }
 
-// NOTE: there is no transporter-scoped commissions endpoint yet — this route is
-// admin-only. Do not silently swallow the 403; surface it so the UI can tell the
-// user the section is unavailable instead of showing a fake empty list.
-export function listCommissions(token: string): Promise<PaginatedResponse<{ id: string; commissionAmount: number; netAmount: number; payoutStatus: string }>> {
-  return request(`/api/v1/admin/commissions`, { method: "GET", token })
-}
-
-export function bulkCreateTrips(token: string, trips: Record<string, unknown>[]): Promise<{ count: number }> {
-  return transporter.request<{ count: number }>("/api/v1/trips/bulk", { method: "POST", token, body: { trips } })
+// Transporter-scoped commissions (own transporterId) — see GET /transporter/commissions.
+export function listCommissions(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<{ id: string; commissionAmount: number; netAmount: number; payoutStatus: string }>> {
+  return transporter.list("/commissions", { token, params })
 }

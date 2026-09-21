@@ -294,6 +294,17 @@ export async function transporterRoutes(app: FastifyInstance) {
     return svc.getTransporterBooking(id, tid)
   })
 
+  // ── Commissions (scoped to own transporterId) ─────────────────────────────
+  app.get("/transporter/commissions", { preHandler: app.requireAuth() }, async (req) => {
+    const user = req.user!
+    const tid = await resolveTransporter(user.role, user.id)
+    if (tid === "__admin__") throw new ForbiddenError("Utilisez le panneau admin")
+    const q = TransporterBookingsQuery.parse(req.query)
+    const { listCommissions } = await import("../admin/service")
+    req.log.info({ ...req.meta, userId: user.id }, "transporter.commissions.list")
+    return listCommissions({ page: q.page, limit: q.limit, transporterId: tid })
+  })
+
   // ── Dashboard stats ─────────────────────────────────────────────────────────
   app.get("/transporter/stats", { preHandler: app.requireAuth() }, async (req) => {
     const user = req.user!

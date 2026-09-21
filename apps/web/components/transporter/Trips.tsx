@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { listTrips, createTrip, deleteTrip, bulkCreateTrips, listRoutes } from "@/lib/api/transporter"
+import { listTrips, createTrip, deleteTrip, updateTrip, listRoutes, setTripStatus } from "@/lib/api/transporter"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export function TripsClient({ token }: { token: string }) {
@@ -15,8 +15,12 @@ export function TripsClient({ token }: { token: string }) {
   async function onBulk(){
     if(!form.routeId || !form.departureAt) { setError("Route et date requis pour lot"); return }
     const base = new Date(form.departureAt)
-    const trips = Array.from({length:3}).map((_,i)=>({ routeId: form.routeId, departureAt: new Date(base.getTime()+i*24*3600*1000).toISOString(), price: Number(form.price), totalSeats: Number(form.totalSeats)}))
-    try{ await bulkCreateTrips(token, trips); refresh() }catch(err){ setError((err as Error).message)}
+    try{
+      for (let i = 0; i < 3; i++) {
+        await createTrip(token, { routeId: form.routeId, departureAt: new Date(base.getTime()+i*24*3600*1000).toISOString(), price: Number(form.price), totalSeats: Number(form.totalSeats) })
+      }
+      refresh()
+    }catch(err){ setError((err as Error).message)}
   }
   return (
     <div className="space-y-6">
@@ -46,7 +50,14 @@ export function TripsClient({ token }: { token: string }) {
         {!loading && items.map((t)=>(
           <li key={t.id} className="flex items-center justify-between p-4">
             <div><div className="font-medium">{t.route?.originCity} → {t.route?.destinationCity} — {new Date(t.departureAt).toLocaleString("fr-CM")} </div><div className="text-xs text-muted-foreground">{t.price.toLocaleString()} XAF · {t.totalSeats} places · {t.status}</div></div>
-            <button onClick={async()=>{try{await deleteTrip(token,t.id); refresh()}catch(err){setError((err as Error).message)}}} className="text-sm text-destructive">Supprimer</button>
+            <div className="flex items-center gap-2">
+              <select value={t.status} onChange={async(e)=>{try{await setTripStatus(token, t.id, e.target.value as "pause" | "close" | "reopen"); refresh()}catch(err){setError((err as Error).message)}}} className="rounded-lg border px-2 py-1 text-sm" aria-label="Statut du trajet">
+                <option value="pause">pause</option>
+                <option value="close">close</option>
+                <option value="reopen">reopen</option>
+              </select>
+              <button onClick={async()=>{try{await deleteTrip(token,t.id); refresh()}catch(err){setError((err as Error).message)}}} className="text-sm text-destructive">Supprimer</button>
+            </div>
           </li>
         ))}
         {!loading && items.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucun trajet.</li>}
