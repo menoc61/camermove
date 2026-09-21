@@ -3,9 +3,9 @@ import { z } from "zod"
 import { prisma } from "@camermove/db"
 import { AppError, ForbiddenError, NotFoundError } from "@camermove/config"
 import { loadEnv } from "@camermove/config"
-import { CreateParcelSchema, ParcelStatusUpdateSchema, ParcelSearchQuery, ParcelIdParams, ParcelTrackParams } from "./schema.js"
+import { CreateParcelSchema, ParcelStatusUpdateSchema, ParcelSearchQuery, ParcelIdParams, ParcelTrackParams, ParcelUpdateSchema } from "./schema.js"
 import { buildParcelWhere, findParcels, countParcels, findParcelById, findParcelByTrackingNumber } from "./repository.js"
-import { createParcel, advanceParcelStatus, sanitizeParcelForTrack, createParcelPayment, cancelParcel, calcShippingCost } from "./service.js"
+import { createParcel, advanceParcelStatus, sanitizeParcelForTrack, createParcelPayment, cancelParcel, calcShippingCost, updateParcel } from "./service.js"
 import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
@@ -216,6 +216,16 @@ export async function parcelRoutes(app: FastifyInstance) {
     ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "parcels.cancel")
     await cancelParcel(id, user.id, user.role)
     return { id, status: "cancelled" }
+  })
+
+  // PATCH /parcels/:id — sender edit while registered (owner or admin)
+  app.patch("/parcels/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const { id } = ParcelIdParams.parse(req.params)
+    const body = ParcelUpdateSchema.parse(req.body ?? {})
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "parcels.update")
+    return updateParcel(id, user.id, user.role, body)
   })
 
   // POST /parcels/:id/pay — polymorphic via Payment bookingId null
