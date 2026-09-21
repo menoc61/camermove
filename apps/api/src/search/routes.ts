@@ -79,6 +79,22 @@ export async function searchRoutes(app: FastifyInstance) {
     return setTripStatus({ tripId: id, action: body.action, actor: { id: user.id, role: user.role } })
   })
 
+  app.get("/trips", async (req) => {
+    const query = AdvancedSearchQuery.parse(req.query)
+    const meta = (req as unknown as { meta?: Record<string, unknown> }).meta ?? {}
+    req.log.info(
+      { ...meta, q: query.q, filters: { minPrice: query.minPrice, maxPrice: query.maxPrice, transporterId: query.transporterId }, sort: query.sortBy ?? query.orderBy, page: query.page, limit: query.perPage },
+      "trips.list",
+    )
+    observeSearch(query.origin ?? "all", query.destination ?? "all")
+    const key = cacheKey("trips-list", query as unknown as Record<string, unknown>)
+    const cached = await getCached<Record<string, unknown>>(key)
+    if (cached) return { ...(cached as object), meta: { cached: true } }
+    const result = await advancedSearch(query)
+    await setCached(key, result, 60).catch(() => {})
+    return { ...(result as object), meta: { cached: false } }
+  })
+
   app.get("/trips/:id", async (req) => {
     const { id } = req.params as { id: string }
     const meta = (req as unknown as { meta?: Record<string, unknown> }).meta
