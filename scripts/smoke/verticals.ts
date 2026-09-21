@@ -48,6 +48,43 @@ async function smokeVerticals() {
   console.log(`  ${pEvents.status === 403 ? "✓" : "✗"} partner.events-traveler-403 → ${pEvents.status}`);
   if (pEvents.status !== 403) throw new Error(`partner.events guard failed: ${pEvents.status}`);
 
+  const createRes = await fetch(`${BASE}/api/v1/parcels`, {
+    method: "POST",
+    headers: { ...h, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      senderName: "Smoke Sender",
+      senderPhone: "+237600000001",
+      recipientName: "Smoke Receiver",
+      recipientPhone: "+237600000002",
+      senderCity: "Yaoundé",
+      recipientCity: "Douala",
+      parcelType: "standard",
+    }),
+  });
+  console.log(`  ${createRes.status === 201 ? "✓" : "✗"} parcels.create → ${createRes.status}`);
+  if (createRes.status !== 201) throw new Error(`parcels.create failed: ${createRes.status}`);
+  const created = (await createRes.json()) as { id: string; trackingNumber: string };
+
+  const patchRes = await fetch(`${BASE}/api/v1/parcels/${created.id}`, {
+    method: "PATCH",
+    headers: { ...h, "Content-Type": "application/json" },
+    body: JSON.stringify({ recipientPhone: "+237600000003" }),
+  });
+  console.log(`  ${patchRes.status === 200 ? "✓" : "✗"} parcels.patch → ${patchRes.status}`);
+  if (patchRes.status !== 200) throw new Error(`parcels.patch failed: ${patchRes.status}`);
+
+  const trackRes = await fetch(`${BASE}/api/v1/parcels/track/${created.trackingNumber}`);
+  console.log(`  ${trackRes.status === 200 ? "✓" : "✗"} parcels.track → ${trackRes.status}`);
+  if (trackRes.status !== 200) throw new Error(`parcels.track failed: ${trackRes.status}`);
+
+  const adminList = await fetch(`${BASE}/api/v1/admin/parcels`, { headers: h });
+  console.log(`  ${adminList.status === 403 ? "✓" : "✗"} admin.parcels-traveler-403 → ${adminList.status}`);
+  if (adminList.status !== 403) throw new Error(`admin.parcels guard failed: ${adminList.status}`);
+
+  const cancelRes = await fetch(`${BASE}/api/v1/parcels/${created.id}/cancel`, { method: "POST", headers: h });
+  console.log(`  ${cancelRes.status === 200 ? "✓" : "✗"} parcels.cancel → ${cancelRes.status}`);
+  if (cancelRes.status !== 200) throw new Error(`parcels.cancel failed: ${cancelRes.status}`);
+
   // Idempotency replay: same key twice → same status+body
   const key = `smoke-${Date.now()}`;
   const payload = { name: "Smoke", email: "s@s.cm", message: "hello smoke replay" };
