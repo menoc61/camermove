@@ -50,7 +50,7 @@ docker compose down -v          # stop + wipe Postgres, Minio, Grafana volumes
 |-----------|-------|------|---------|
 | `postgres` | `postgres:16-alpine` | 5432 | Transactional DB |
 | `redis` | `redis:7-alpine` | 6379 | Cache, rate limit, idempotency |
-| `minio` | `minio/minio:latest` | 9000/9001 | S3-compatible object store |
+| `minio` | `quay.io/minio/minio:latest` | 9000/9001 | S3-compatible object store |
 | `kafka` | `bitnamilegacy/kafka:3.7` | 9092 | Event backbone |
 | `mailhog` | `mailhog/mailhog:latest` | 1025/8025 | Local SMTP capture |
 | `kafka-ui` | `provectuslabs/kafka-ui:latest` | 8080 | Kafka inspection |
