@@ -1,10 +1,13 @@
 "use client"
 import { useEffect, useState } from "react"
 import { listRoutes, createRoute, deleteRoute } from "@/lib/api/transporter"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DataTable, type Column } from "@/components/dashboard-v2/panels/DataTable"
+import { Button } from "@/components/ui/button"
+
+type RouteRow = { id: string; originCity: string; destinationCity: string; active: boolean }
 
 export function RoutesClient({ token }: { token: string }) {
-  const [items, setItems] = useState<{ id: string; originCity: string; destinationCity: string; active: boolean }[]>([])
+  const [items, setItems] = useState<RouteRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ originCity: "", destinationCity: "" })
@@ -14,33 +17,49 @@ export function RoutesClient({ token }: { token: string }) {
     e.preventDefault()
     try { await createRoute(token, form); setForm({ originCity: "", destinationCity: "" }); refresh() } catch (err) { setError((err as Error).message) }
   }
+  async function onDelete(id: string) {
+    if (!window.confirm("Supprimer cet itinéraire ?")) return
+    try { await deleteRoute(token, id); refresh() } catch (err) { setError((err as Error).message) }
+  }
+
+  const columns: Column[] = [
+    {
+      key: "route",
+      label: "Itinéraire",
+      render: (_v, row) => <span className="font-medium">{String(row.originCity)} → {String(row.destinationCity)}</span>,
+      sortValue: (row) => `${String(row.originCity ?? "")} ${String(row.destinationCity ?? "")}`,
+    },
+    {
+      key: "active",
+      label: "Statut",
+      render: (v) => (v ? "Actif" : "Inactif"),
+      sortValue: (row) => (row.active ? 1 : 0),
+    },
+    {
+      key: "actions-col",
+      label: "Actions",
+      sortable: false,
+      render: (_v, row) => (
+        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void onDelete(String(row.id))}>Supprimer</Button>
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Itinéraires</h1>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <form onSubmit={onCreate} className="flex flex-wrap gap-2 rounded-2xl border p-4">
         <input placeholder="Ville départ (ex: Yaoundé)" value={form.originCity} onChange={(e)=>setForm({...form, originCity:e.target.value})} required className="rounded-lg border px-3 py-2 text-sm" />
         <input placeholder="Ville arrivée (ex: Douala)" value={form.destinationCity} onChange={(e)=>setForm({...form, destinationCity:e.target.value})} required className="rounded-lg border px-3 py-2 text-sm" />
         <button className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Créer</button>
       </form>
-      <ul className="divide-y rounded-2xl border">
-        {loading && Array.from({ length: 3 }).map((_, i) => (
-          <li key={`sk-${i}`} className="flex items-center justify-between p-4">
-            <div className="space-y-2 flex-1">
-              <Skeleton className="h-4 w-1/2" />
-              <Skeleton className="h-3 w-24" />
-            </div>
-            <Skeleton className="h-4 w-16" />
-          </li>
-        ))}
-        {!loading && items.map((r)=>(
-          <li key={r.id} className="flex items-center justify-between p-4">
-            <div><div className="font-medium">{r.originCity} → {r.destinationCity}</div><div className="text-xs text-muted-foreground">{r.active ? "Actif" : "Inactif"}</div></div>
-            <button onClick={async()=>{try{await deleteRoute(token,r.id); refresh()}catch(err){setError((err as Error).message)}}} className="text-sm text-destructive">Supprimer</button>
-          </li>
-        ))}
-        {!loading && items.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune route.</li>}
-      </ul>
+      <DataTable
+        columns={columns}
+        data={items as unknown as Record<string, unknown>[]}
+        isLoading={loading}
+        emptyMessage="Aucune route."
+      />
     </div>
   )
 }
