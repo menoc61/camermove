@@ -27,6 +27,12 @@ export function RentalsPartnerClient({ token }: { token: string }) {
     onError: (e) => toast.error((e as Error).message),
   })
 
+  const remove = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/v1/partner/rentals/${id}`, { method: "DELETE", token }),
+    onSuccess: () => { toast.success("Véhicule supprimé"); qc.invalidateQueries({ queryKey: ["partner-rentals"] }) },
+    onError: (e) => toast.error((e as Error).message),
+  })
+
   const presign = useMutation({
     mutationFn: async (file: File) => {
       const res = await apiFetch<{ objectKey: string; uploadUrl: string }>("/api/v1/partner/rentals/presign", { method: "POST", token, body: JSON.stringify({ filename: file.name, mimetype: file.type }), headers: { "Content-Type": "application/json" } })
@@ -60,7 +66,13 @@ export function RentalsPartnerClient({ token }: { token: string }) {
       </Card>
       <div className="space-y-3">
         {data?.items.map((v) => (
-          <Card key={v.id}><CardContent className="p-4 flex justify-between"><div><p className="font-medium">{v.make} {v.model} · {v.category}</p><p className="text-xs text-muted-foreground">{v.pickupCity} · {v.pricePerUnit} XAF</p></div><Badge variant={v.partnerStatus === "approved" ? "default" : "secondary"}>{v.partnerStatus}</Badge></CardContent></Card>
+          <Card key={v.id}><CardContent className="p-4 flex justify-between items-center">
+            <div><p className="font-medium">{v.make} {v.model} · {v.category}</p><p className="text-xs text-muted-foreground">{v.pickupCity} · {v.pricePerUnit} XAF</p></div>
+            <div className="flex items-center gap-2">
+              <Badge variant={v.partnerStatus === "approved" ? "default" : "secondary"}>{v.partnerStatus}</Badge>
+              <Button variant="outline" size="sm" disabled={remove.isPending} onClick={() => { if (window.confirm("Supprimer ce véhicule ?")) remove.mutate(v.id) }}>Supprimer</Button>
+            </div>
+          </CardContent></Card>
         ))}
         {!data?.items.length && <p className="text-sm text-muted-foreground">Aucun véhicule.</p>}
       </div>
