@@ -51,6 +51,8 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
   const adapter = getAdapter(input.kind as any)
   const holdMinutes = await getHoldExpiryMinutes()
 
+  // Interactive tx holds row locks while 5+ racers serialize; Prisma's 5s
+  // default expires slow runners (seen in CI). 15s still bounds lock hold.
   const result = await prisma.$transaction(async (tx: unknown) => {
     const t = tx as { $queryRawUnsafe: (q: string, ...v: unknown[]) => Promise<unknown> }
 
@@ -91,15 +93,6 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
       tx,
     )
 
-    // Schedule hold expiry (only kinds with expiring holds)
-    if (adapter.expiryTable) {
-      try {
-        await scheduleHoldExpiry(record.id as string, holdMinutes * 60 * 1000)
-      } catch (e) {
-        log.error({ err: (e as Error).message, entityId: record.id as string }, "scheduleHoldExpiry failed")
-      }
-    }
-
     // Transactional outbox write (migration 20260922000003_outbox, deploy-gated).
     // Until the table exists this throws a missing-table error (P2021) and we
     // fall through to the best-effort direct publish below. Any other error is
@@ -134,7 +127,18 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
     try { observeBooking("created") } catch {}
 
     return { id: record.id as string, reference, totalAmount, status: "pending_payment", holdExpiresAt, meta: input.meta }
-  })
+  }, { timeout: 15000 })
+
+  // Hold-expiry scheduling runs AFTER commit on purpose: the BullMQ Redis
+  // round-trip must not consume interactive-tx time, and scheduling before a
+  // rollback would orphan an expiry job for a nonexistent booking.
+  if (adapter.expiryTable) {
+    try {
+      await scheduleHoldExpiry(result.id as string, holdMinutes * 60 * 1000)
+    } catch (e) {
+      log.error({ err: (e as Error).message, entityId: result.id as string }, "scheduleHoldExpiry failed")
+    }
+  }
 
   return result
 }
