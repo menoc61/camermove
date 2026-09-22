@@ -56,6 +56,19 @@ No DELETE on parcels by design (cancel covers withdrawal; delivered rows immutab
 
 No `POST /admin/hotels` by design (partner-only creation; admin moderates via `partnerStatus`).
 
+## Slice 4 — rentals
+
+| Endpoint | public | traveler | transporter_staff | admin / super_admin |
+|---|---|---|---|---|
+| `GET /rentals`, `GET /rentals/:id` | allow | allow | allow | allow |
+| `POST /rentals/bookings`, `GET /rentals/bookings/me`, `GET /rentals/bookings/export`, `GET /rentals/bookings/:id` | deny | own only | own only | any |
+| `POST /rentals/bookings/:id/cancel`, `POST /rentals/bookings/:id/pay` | deny | owner only | owner only | owner only (cancel: any — kernel rule) |
+| `GET /partner/rentals`, `POST /partner/rentals`, `PUT /partner/rentals/:id` | deny | 403 | own `ownerId` | any |
+| `DELETE /partner/rentals/:id` | deny | 403 | owner, no `pending_payment`/`confirmed` bookings (409) | any scope, same 409 guard |
+| `GET /admin/rentals`, `GET /admin/rentals/export`, `PUT /admin/rentals/:id`, `DELETE /admin/rentals/:id` | deny | deny | deny | allow (delete: same 409 guard) |
+
+No `POST /admin/rentals` by design (partner-only creation; admin moderates via `partnerStatus`).
+
 ## Later slices (rows by those slices)
 
-- Slice 4 rentals · Slice 5 events · Slice 6 insurance · Slice 7 cross-cutting (favorites, agencies, places, contact/newsletter admin, notifications bulk) · Slice 8 consoles polish · Slice 9 arch upgrades.
+- Slice 5 events · Slice 6 insurance · Slice 7 cross-cutting (favorites, agencies, places, contact/newsletter admin, notifications bulk) · Slice 8 consoles polish · Slice 9 arch upgrades.
