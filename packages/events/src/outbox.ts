@@ -137,11 +137,17 @@ export async function closeOutbox(): Promise<void> {
  * fall back to direct publishEvent (see booking-kernel/reserve.ts).
  */
 export async function writeOutbox(
-  tx: { outbox: { create: (args: { data: { topic: string; key: string; payload: unknown } }) => Promise<unknown> } },
+  tx: { outbox?: { create?: (args: { data: { topic: string; key: string; payload: unknown } }) => Promise<unknown> } },
   topic: string,
   key: string,
   payload: unknown,
 ) {
+  // Absent model (stale generated client pre-migration, or a partial test
+  // double) means the table is unavailable: signal missing-table so callers
+  // take the direct-publish fallback instead of crashing on `.create`.
+  if (typeof tx.outbox?.create !== "function") {
+    throw Object.assign(new Error('Outbox table unavailable (model missing on this client)'), { code: "P2021" })
+  }
   await tx.outbox.create({ data: { topic, key, payload: payload as never } })
 }
 

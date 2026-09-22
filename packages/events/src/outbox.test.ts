@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { isMissingTableError } from "./outbox"
+import { isMissingTableError, writeOutbox } from "./outbox"
 
 describe("isMissingTableError", () => {
   it("treats Prisma P2021 as missing table", () => {
@@ -16,5 +16,19 @@ describe("isMissingTableError", () => {
 
   it("rejects unrelated errors", () => {
     expect(isMissingTableError(new Error("connection refused"))).toBe(false)
+  })
+})
+
+describe("writeOutbox", () => {
+  it("writes through when the model exists", async () => {
+    const calls: unknown[] = []
+    const tx = { outbox: { create: async (args: unknown) => { calls.push(args); return {} } } }
+    await writeOutbox(tx, "t", "k", { a: 1 })
+    expect(calls).toHaveLength(1)
+  })
+
+  it("signals missing-table when the model is absent (stale client / partial double)", async () => {
+    const err = await writeOutbox({} as never, "t", "k", {}).catch((e: unknown) => e)
+    expect(isMissingTableError(err)).toBe(true)
   })
 })
