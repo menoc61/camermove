@@ -16,6 +16,7 @@ import {
   AdminSearch,
   AdminTableFrame,
   AdminTextField,
+  SortableTh,
 } from "./shared"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
@@ -40,9 +41,11 @@ export function AdminHotels() {
   const [city, setCity] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [sort, setSort] = useState("createdAt.desc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)); setPage(1) }
   const limit = 20
 
-  const params: Record<string, string> = { page: String(page), limit: String(limit) }
+  const params: Record<string, string> = { page: String(page), limit: String(limit), sort }
   if (q) params.q = q
   if (city) params.city = city
   if (dateFrom) params.dateFrom = dateFrom
@@ -81,7 +84,7 @@ export function AdminHotels() {
       </AdminFilterBar>
       <AdminTableFrame>
         <Table>
-          <TableHeader><TableRow><TableHead>Hôtel</TableHead><TableHead>Ville</TableHead><TableHead>Chambres</TableHead><TableHead>Statut</TableHead><TableHead>Partner</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><SortableTh label="Hôtel" field="name" sort={sort} onSort={onSort} /><SortableTh label="Ville" field="city" sort={sort} onSort={onSort} /><TableHead>Chambres</TableHead><SortableTh label="Statut" field="status" sort={sort} onSort={onSort} /><TableHead>Partner</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 6 }).map((_, i) => (
               <TableRow key={i}>

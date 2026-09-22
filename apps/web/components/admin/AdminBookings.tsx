@@ -26,6 +26,7 @@ import {
   AdminSearch,
   AdminStatusSelect,
   AdminTableFrame,
+  SortableTh,
   fmtDate,
 } from "./shared"
 
@@ -64,11 +65,14 @@ export function AdminBookings() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [page, setPage] = useState(1)
+  const [sort, setSort] = useState("createdAt.desc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)); setPage(1) }
   const limit = 20
 
   const params: Record<string, string> = {
     page: String(page),
     limit: String(limit),
+    sort,
   }
   if (search) params.q = search
   if (statusFilter) params.status = statusFilter
@@ -142,9 +146,9 @@ export function AdminBookings() {
               <TableHead>Trajet</TableHead>
               <TableHead>Départ</TableHead>
               <TableHead>Places</TableHead>
-              <TableHead>Montant</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Créé le</TableHead>
+              <SortableTh label="Montant" field="totalAmount" sort={sort} onSort={onSort} />
+              <SortableTh label="Statut" field="status" sort={sort} onSort={onSort} />
+              <SortableTh label="Créé le" field="createdAt" sort={sort} onSort={onSort} />
             </TableRow>
           </TableHeader>
           <TableBody>

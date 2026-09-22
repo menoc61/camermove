@@ -13,6 +13,7 @@ export const PaginationQuery = z.object({
   q: z.string().optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
+  sort: z.string().optional(),
 })
 
 export const UserUpdateBody = z.object({

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Eye, FileText } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -13,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Link from "next/link";
+import { StatusBadge } from "../cards/StatusPill";
 
 export interface Column {
   key: string;
@@ -31,31 +31,6 @@ export interface DataTableProps {
   emptyMessage?: string;
   emptyActionLabel?: string;
   emptyActionHref?: string;
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    confirmed: { label: "Confirmé", variant: "default" },
-    pending_payment: { label: "En attente", variant: "secondary" },
-    cancelled: { label: "Annulé", variant: "destructive" },
-    used: { label: "Utilisé", variant: "default" },
-    valid: { label: "Valide", variant: "default" },
-    void: { label: "Annulé", variant: "destructive" },
-    delivered: { label: "Livré", variant: "default" },
-    in_transit: { label: "En transit", variant: "secondary" },
-    picked_up: { label: "Récupéré", variant: "default" },
-    registered: { label: "Enregistré", variant: "secondary" },
-    active: { label: "Actif", variant: "default" },
-    completed: { label: "Terminé", variant: "default" },
-    paid: { label: "Payé", variant: "default" },
-    failed: { label: "Échoué", variant: "destructive" },
-    available_for_pickup: { label: "Disponible", variant: "secondary" },
-    arrived: { label: "Arrivé", variant: "default" },
-    queued: { label: "En file", variant: "secondary" },
-    sent: { label: "Envoyé", variant: "default" },
-  };
-  const s = map[status] ?? { label: status, variant: "outline" };
-  return <Badge variant={s.variant}>{s.label}</Badge>;
 }
 
 function compareCellValues(a: unknown, b: unknown): number {

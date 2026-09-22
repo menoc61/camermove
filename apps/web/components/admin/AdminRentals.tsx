@@ -15,6 +15,7 @@ import {
   AdminPagination,
   AdminSearch,
   AdminTableFrame,
+  SortableTh,
 } from "./shared"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
@@ -38,8 +39,10 @@ export function AdminRentals() {
   const [q, setQ] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [sort, setSort] = useState("createdAt.desc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)); setPage(1) }
   const limit = 20
-  const params: Record<string, string> = { page: String(page), limit: String(limit) }
+  const params: Record<string, string> = { page: String(page), limit: String(limit), sort }
   if (q) params.q = q
   if (dateFrom) params.dateFrom = dateFrom
   if (dateTo) params.dateTo = dateTo
@@ -70,7 +73,7 @@ export function AdminRentals() {
       </AdminFilterBar>
       <AdminTableFrame>
         <Table>
-          <TableHeader><TableRow><TableHead>Véhicule</TableHead><TableHead>Catégorie</TableHead><TableHead>Ville</TableHead><TableHead>Statut</TableHead><TableHead>Partner</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><SortableTh label="Véhicule" field="make" sort={sort} onSort={onSort} /><TableHead>Catégorie</TableHead><SortableTh label="Ville" field="pickupCity" sort={sort} onSort={onSort} /><SortableTh label="Statut" field="status" sort={sort} onSort={onSort} /><TableHead>Partner</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
           <TableBody>
             {isLoading && Array.from({ length: 6 }).map((_, i) => (
               <TableRow key={i}>

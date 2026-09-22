@@ -33,6 +33,7 @@ import {
   AdminSearch,
   AdminStatusSelect,
   AdminTableFrame,
+  SortableTh,
   fmtDate,
   fmtNum,
 } from "./shared"
@@ -72,11 +73,14 @@ export function AdminTrips() {
   const [page, setPage] = useState(1)
   const [editingPrice, setEditingPrice] = useState<TripItem | null>(null)
   const [newPrice, setNewPrice] = useState("")
+  const [sort, setSort] = useState("departureAt.asc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)); setPage(1) }
   const limit = 20
 
   const params: Record<string, string> = {
     page: String(page),
     limit: String(limit),
+    sort,
   }
   if (search) params.q = search
   if (statusFilter) params.status = statusFilter
@@ -145,10 +149,10 @@ export function AdminTrips() {
             <TableRow>
               <TableHead>Route</TableHead>
               <TableHead>Transporteur</TableHead>
-              <TableHead>Départ</TableHead>
-              <TableHead>Prix</TableHead>
+              <SortableTh label="Départ" field="departureAt" sort={sort} onSort={onSort} />
+              <SortableTh label="Prix" field="price" sort={sort} onSort={onSort} />
               <TableHead>Places</TableHead>
-              <TableHead>Statut</TableHead>
+              <SortableTh label="Statut" field="status" sort={sort} onSort={onSort} />
               <TableHead>Réservations</TableHead>
               <TableHead className="w-20"></TableHead>
             </TableRow>

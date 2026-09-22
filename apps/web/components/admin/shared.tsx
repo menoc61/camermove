@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeftIcon, ChevronRightIcon, SearchIcon } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,6 +16,7 @@ import {
 import {
   TableBody,
   TableCell,
+  TableHead,
   TableRow,
 } from "@/components/ui/table"
 
@@ -172,6 +173,19 @@ export function AdminSkeletonRows({
   render: () => ReactNode
 }) {
   return <>{Array.from({ length: rows }).map((_, i) => <TableRow key={i}>{render()}</TableRow>)}</>
+}
+
+export function SortableTh({ label, field, sort, onSort }: { label: string; field: string; sort: string; onSort: (field: string) => void }) {
+  const active = sort.startsWith(`${field}.`);
+  const desc = sort === `${field}.desc`;
+  return (
+    <TableHead aria-sort={active ? (desc ? "descending" : "ascending") : "none"}>
+      <button type="button" onClick={() => onSort(field)} title={`Trier par ${label}`} className="inline-flex items-center gap-1 font-medium hover:text-foreground">
+        {label}
+        {active ? (desc ? <ArrowDown className="size-3.5" /> : <ArrowUp className="size-3.5" />) : <ArrowUpDown className="size-3.5 opacity-40" />}
+      </button>
+    </TableHead>
+  );
 }
 
 export function AdminPagination({

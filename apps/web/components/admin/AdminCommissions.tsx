@@ -26,6 +26,7 @@ import {
   AdminPagination,
   AdminStatusSelect,
   AdminTableFrame,
+  SortableTh,
   fmtDate,
 } from "./shared"
 
@@ -60,11 +61,14 @@ export function AdminCommissions() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [page, setPage] = useState(1)
+  const [sort, setSort] = useState("id.desc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)); setPage(1) }
   const limit = 20
 
   const params: Record<string, string> = {
     page: String(page),
     limit: String(limit),
+    sort,
   }
   if (payoutFilter) params.payoutStatus = payoutFilter
   if (dateFrom) params.dateFrom = dateFrom
@@ -176,11 +180,11 @@ export function AdminCommissions() {
           <TableHeader>
             <TableRow>
               <TableHead>Transporteur</TableHead>
-              <TableHead>Montant brut</TableHead>
-              <TableHead>Commission</TableHead>
-              <TableHead>Net</TableHead>
+              <SortableTh label="Montant brut" field="grossAmount" sort={sort} onSort={onSort} />
+              <SortableTh label="Commission" field="commissionAmount" sort={sort} onSort={onSort} />
+              <SortableTh label="Net" field="netAmount" sort={sort} onSort={onSort} />
               <TableHead>%</TableHead>
-              <TableHead>Statut</TableHead>
+              <SortableTh label="Statut" field="payoutStatus" sort={sort} onSort={onSort} />
               <TableHead>Date réservation</TableHead>
               <TableHead className="w-24"></TableHead>
             </TableRow>
