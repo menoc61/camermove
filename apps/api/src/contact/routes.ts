@@ -63,6 +63,12 @@ export async function contactRoutes(app: FastifyInstance) {
       where.createdAt = createdAt
     }
     const rows = await prisma.notification.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } })
-    return sendExport(reply, "contact", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], ["id", "createdAt"])
+    const flat = (rows as unknown as Array<{ payload?: Record<string, unknown> }>).map((n) => ({
+      ...(n as unknown as Record<string, unknown>),
+      name: (n.payload?.name as string | undefined) ?? "",
+      email: (n.payload?.email as string | undefined) ?? "",
+      message: (n.payload?.message as string | undefined) ?? "",
+    }))
+    return sendExport(reply, "contact", dateFrom, dateTo, format, flat, ["id", "createdAt", "name", "email", "message"])
   })
 }

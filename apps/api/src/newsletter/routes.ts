@@ -46,13 +46,10 @@ export async function newsletterRoutes(app: FastifyInstance) {
     const body = NewsletterBody.parse((req as { body: unknown }).body)
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
     req.log.info({ ...meta, email: body.email }, "newsletter.unsubscribe")
-    const existing = await prisma.notification.findFirst({
+    const removed = await prisma.notification.deleteMany({
       where: { type: "newsletter.subscribe", payload: { path: ["email"], equals: body.email } },
-      select: { id: true },
     })
-    if (!existing) return { unsubscribed: false, email: body.email }
-    await prisma.notification.delete({ where: { id: existing.id } })
-    return { unsubscribed: true, email: body.email }
+    return { unsubscribed: removed.count > 0, email: body.email }
   })
 
   // GET /admin/newsletter — subscriptions are Notification rows (type newsletter.subscribe)
@@ -85,6 +82,10 @@ export async function newsletterRoutes(app: FastifyInstance) {
       where.createdAt = createdAt
     }
     const rows = await prisma.notification.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } })
-    return sendExport(reply, "newsletter", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], ["id", "createdAt"])
+    const flat = (rows as unknown as Array<{ payload?: Record<string, unknown> }>).map((n) => ({
+      ...(n as unknown as Record<string, unknown>),
+      email: (n.payload?.email as string | undefined) ?? "",
+    }))
+    return sendExport(reply, "newsletter", dateFrom, dateTo, format, flat, ["id", "createdAt", "email"])
   })
 }
