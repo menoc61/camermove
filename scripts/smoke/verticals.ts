@@ -112,6 +112,29 @@ async function smokeVerticals() {
   console.log(`  ${pHotels.status === 403 ? "✓" : "✗"} partner.hotels-traveler-403 → ${pHotels.status}`);
   if (pHotels.status !== 403) throw new Error(`partner.hotels guard failed: ${pHotels.status}`);
 
+  const rentalsRes = await fetch(`${BASE}/api/v1/rentals?perPage=5`, { headers: h });
+  check("rentals.list", rentalsRes);
+  const rentalsBody = (await rentalsRes.json()) as { items: Array<{ id: string }> };
+  if (!Array.isArray(rentalsBody.items)) throw new Error("rentals.list envelope missing items");
+  const withVehicle = rentalsBody.items[0];
+  if (withVehicle) {
+    const rbRes = await fetch(`${BASE}/api/v1/rentals/bookings`, {
+      method: "POST",
+      headers: { ...h, "Content-Type": "application/json" },
+      body: JSON.stringify({ rentalVehicleId: withVehicle.id, startDate: "2026-12-05", endDate: "2026-12-07", pickupCity: "Douala" }),
+    });
+    console.log(`  ${rbRes.status === 201 ? "✓" : "✗"} rentals.booking.create → ${rbRes.status}`);
+    if (rbRes.status !== 201) throw new Error(`rentals.booking.create failed: ${rbRes.status} ${await rbRes.text()}`);
+    const rb = (await rbRes.json()) as { id: string };
+    const rbCancel = await fetch(`${BASE}/api/v1/rentals/bookings/${rb.id}/cancel`, { method: "POST", headers: h });
+    console.log(`  ${rbCancel.status === 200 ? "✓" : "✗"} rentals.booking.cancel → ${rbCancel.status}`);
+    if (rbCancel.status !== 200) throw new Error(`rentals.booking.cancel failed: ${rbCancel.status}`);
+  }
+
+  const pRentals = await fetch(`${BASE}/api/v1/partner/rentals`, { headers: h });
+  console.log(`  ${pRentals.status === 403 ? "✓" : "✗"} partner.rentals-traveler-403 → ${pRentals.status}`);
+  if (pRentals.status !== 403) throw new Error(`partner.rentals guard failed: ${pRentals.status}`);
+
   // Idempotency replay: same key twice → same status+body
   const key = `smoke-${Date.now()}`;
   const payload = { name: "Smoke", email: "s@s.cm", message: "hello smoke replay" };
