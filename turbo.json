@@ -1,6 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalEnv": ["NODE_ENV", "DATABASE_URL"],
+  "globalEnv": ["NODE_ENV", "DATABASE_URL", "REDIS_URL", "KAFKA_BROKERS", "JWT_SECRET", "JWT_REFRESH_SECRET", "MINIO_ENDPOINT", "MINIO_PORT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "NOTCHPAY_PUBLIC_KEY", "NOTCHPAY_PRIVATE_KEY", "NOTCHPAY_HASH_KEY"],
   "globalDependencies": [".env"],
   "tasks": {
     "build": {

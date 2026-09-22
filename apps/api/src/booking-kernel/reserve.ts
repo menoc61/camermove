@@ -51,6 +51,8 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
   const adapter = getAdapter(input.kind as any)
   const holdMinutes = await getHoldExpiryMinutes()
 
+  // Interactive tx holds row locks while 5+ racers serialize; Prisma's 5s
+  // default expires slow runners (seen in CI). 15s still bounds lock hold.
   const result = await prisma.$transaction(async (tx: unknown) => {
     const t = tx as { $queryRawUnsafe: (q: string, ...v: unknown[]) => Promise<unknown> }
 
@@ -91,31 +93,52 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
       tx,
     )
 
-    // Schedule hold expiry (only kinds with expiring holds)
-    if (adapter.expiryTable) {
-      try {
-        await scheduleHoldExpiry(record.id as string, holdMinutes * 60 * 1000)
-      } catch (e) {
-        log.error({ err: (e as Error).message, entityId: record.id as string }, "scheduleHoldExpiry failed")
-      }
-    }
-
-    // Publish booking.created event
+    // Transactional outbox write (migration 20260922000003_outbox, deploy-gated).
+    // Until the table exists this throws a missing-table error (P2021) and we
+    // fall through to the best-effort direct publish below. Any other error is
+    // rethrown so real failures are never masked. Direct publish runs ONLY when
+    // the outbox write signaled missing-table — never both (no double-publish).
+    const topic = EVENT_TOPICS.bookingCreated
+    const event = makeEvent(`${input.kind}.booking.created`, record.id as string, {
+      type: `${input.kind}.booking.created`,
+      userId: input.userId,
+      reference,
+      totalAmount,
+    })
+    let outboxed = false
     try {
-      await publishEvent(EVENT_TOPICS.bookingCreated, makeEvent(`${input.kind}.booking.created`, record.id as string, {
-        type: `${input.kind}.booking.created`,
-        userId: input.userId,
-        reference,
-        totalAmount,
-      }))
-    } catch {}
+      const outbox = await import("@camermove/events/outbox")
+      await outbox.writeOutbox(tx as never, topic, record.id as string, event)
+      outboxed = true
+    } catch (e) {
+      const { isMissingTableError } = await import("@camermove/events/outbox")
+      if (!isMissingTableError(e)) throw e
+      // Table not yet migrated: fall through to existing best-effort direct publish below.
+    }
+    if (!outboxed) {
+      // Publish booking.created event
+      try {
+        await publishEvent(topic, event)
+      } catch {}
+    }
 
     // Single source for the creation metric across all kinds (routes don't
     // observe created — otherwise trip would double-count).
     try { observeBooking("created") } catch {}
 
     return { id: record.id as string, reference, totalAmount, status: "pending_payment", holdExpiresAt, meta: input.meta }
-  })
+  }, { timeout: 15000 })
+
+  // Hold-expiry scheduling runs AFTER commit on purpose: the BullMQ Redis
+  // round-trip must not consume interactive-tx time, and scheduling before a
+  // rollback would orphan an expiry job for a nonexistent booking.
+  if (adapter.expiryTable) {
+    try {
+      await scheduleHoldExpiry(result.id as string, holdMinutes * 60 * 1000)
+    } catch (e) {
+      log.error({ err: (e as Error).message, entityId: result.id as string }, "scheduleHoldExpiry failed")
+    }
+  }
 
   return result
 }

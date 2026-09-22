@@ -25,7 +25,7 @@ RUN pnpm --filter @camermove/api build
 RUN pnpm --filter @camermove/worker build
 
 FROM node:22-alpine AS runner
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache dumb-init curl
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/node_modules ./node_modules

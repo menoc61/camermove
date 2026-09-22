@@ -5,6 +5,7 @@ import { initTelemetry, startMetricsServer } from "@camermove/observability"
 import { getStorage } from "@camermove/media"
 import { startHeartbeat, stopHeartbeat } from "./heartbeat"
 import { startQueues, closeQueues } from "./queues"
+import { startOutboxRelay } from "./outbox-relay"
 
 const env = loadEnv()
 const log = createLogger()
@@ -56,6 +57,8 @@ async function main() {
   log.info("worker running — payment handlers registered")
   // BullMQ owns hold-expiry + reconciliation + trip reminders (AGENTS.md §1).
   await startQueues()
+  // Transactional-outbox relay: idle until migration 20260922000003_outbox lands.
+  stopOutboxRelay = startOutboxRelay(log)
   startHeartbeat()
 }
 
@@ -64,8 +67,11 @@ main().catch((err) => {
   process.exit(1)
 })
 
+let stopOutboxRelay: (() => void) | undefined
+
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   log.info({ signal }, "worker shutdown signal received")
+  stopOutboxRelay?.()
   await stopHeartbeat().catch(() => {})
   await closeQueues().catch(() => {})
   await metricsServer?.close().catch(() => {})

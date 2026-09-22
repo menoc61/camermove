@@ -10,6 +10,15 @@ const url = `/things/${runId}`
 
 async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify()
+  // Simulate auth populating req.user before the idempotency preHandler runs:
+  // onRequest precedes preHandler, so this mirrors `Authorization: Bearer <userId>`.
+  app.addHook("onRequest", async (req) => {
+    const auth = req.headers["authorization"] as string | undefined
+    const token = auth?.startsWith("Bearer ") ? auth.slice(7).trim() : ""
+    if (token) {
+      ;(req as unknown as { user?: { id?: string } }).user = { id: token }
+    }
+  })
   await app.register(idempotencyPlugin)
   app.post(url, async (_req, reply) => {
     calls.count += 1
@@ -33,7 +42,9 @@ describe("idempotencyPlugin replay", () => {
 
   afterAll(async () => {
     await app?.close()
-    await getRedis().del(`idemp:${url}:gate-key-1`, `idemp:${url}:gate-key-2`).catch(() => {})
+    await getRedis()
+      .del(`idemp:POST:${url}:anon:gate-key-1`, `idemp:POST:${url}:anon:gate-key-2`)
+      .catch(() => {})
     await closeRedis()
   })
 
@@ -44,7 +55,7 @@ describe("idempotencyPlugin replay", () => {
     expect(first.statusCode).toBe(201)
     expect(first.json()).toEqual({ ok: true, execution: 1 })
 
-    await waitForIdempotencyCache(`idemp:${url}:gate-key-1`)
+    await waitForIdempotencyCache(`idemp:POST:${url}:anon:gate-key-1`)
 
     const replay = await app.inject({ method: "POST", url, headers })
     expect(replay.statusCode).toBe(201)
@@ -66,5 +77,18 @@ describe("idempotencyPlugin replay", () => {
     expect(noKeyA.statusCode).toBe(201)
     expect(noKeyB.json()).toEqual({ ok: true, execution: 4 })
     expect(calls.count).toBe(4)
+  }, 20000)
+
+  it("same key on different users executes independently", async () => {
+    const headersA = { "idempotency-key": "shared-cross-user-key", authorization: "Bearer user-a" }
+    const headersB = { "idempotency-key": "shared-cross-user-key", authorization: "Bearer user-b" }
+    const before = calls.count
+    const resA = await app.inject({ method: "POST", url, headers: headersA })
+    const resB = await app.inject({ method: "POST", url, headers: headersB })
+    expect(resA.statusCode).toBe(201)
+    expect(resB.statusCode).toBe(201)
+    expect(resA.json()).toEqual({ ok: true, execution: before + 1 })
+    expect(resB.json()).toEqual({ ok: true, execution: before + 2 })
+    expect(calls.count).toBe(before + 2)
   }, 20000)
 })
