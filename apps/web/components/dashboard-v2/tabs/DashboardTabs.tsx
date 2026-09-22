@@ -12,6 +12,7 @@ import { DataTable } from "../panels";
 import { GENERIC_COLUMNS, EMPTY_MESSAGES } from "./tabColumns";
 import { FavoritesPanel, SupportPanel } from "./tabStatic";
 import { EXPORT_ENDPOINTS, TAB_ACTIONS, TABS } from "./tabConfig";
+import { rowActionsColumn } from "./rowActions";
 
 export const TAB_PER_PAGE = 20;
 
@@ -172,23 +173,8 @@ export function DashboardTabs({
                 : undefined
             }
           />
-        ) : action ? (
-          <div className="flex flex-col gap-2">
-            <DataTable columns={[...columns]} data={data.items} />
-            <div className="flex flex-wrap gap-2">
-              {data.items
-                .filter((row) => action.statuses.includes(String(row.status)))
-                .slice(0, 3)
-                .map((row) => (
-                  <div key={String(row.id)} className="flex items-center gap-2 rounded-lg border px-3 py-2">
-                    <span className="font-mono text-xs text-muted-foreground">{action.label(row)}</span>
-                    <action.Action id={String(row.id)} token={token} />
-                  </div>
-                ))}
-            </div>
-          </div>
         ) : (
-          <DataTable columns={[...columns]} data={data.items} />
+          <DataTable columns={action ? [...columns, rowActionsColumn(action, token)] : [...columns]} data={data.items} />
         )}
         <PaginationControls
           page={data.page}
