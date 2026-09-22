@@ -93,4 +93,16 @@ describe("POST /partner/events/:id/categories", () => {
     const res = await app.inject({ method: "POST", url: `/api/v1/partner/events/${MISSING}/categories`, payload: { name: "VIP", price: 10000, quantity: 50 } })
     expect(res.json()).not.toHaveProperty("message", expect.stringContaining("not found"))
   })
+
+  it("staff token on missing id → 404 (owner lookup path)", async () => {
+    const { accessToken } = signTokens({ id: "no-such-user", role: "transporter_staff" }, loadEnv())
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/v1/partner/events/${MISSING}/categories`,
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { name: "VIP", price: 10000, quantity: 50 },
+    })
+    expect(res.statusCode).toBe(404)
+    expect(res.json()).toHaveProperty("message", expect.stringContaining("Événement introuvable"))
+  })
 })
