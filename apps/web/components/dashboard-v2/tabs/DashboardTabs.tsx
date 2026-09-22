@@ -201,7 +201,7 @@ export function DashboardTabs({
   }
 
   function renderStaticPanel(tab: DashboardTabId) {
-    if (tab === "favorites") return <FavoritesPanel />;
+    if (tab === "favorites") return <FavoritesPanel token={token} />;
     if (tab === "support") return <SupportPanel />;
     return renderPanel(tab);
   }
