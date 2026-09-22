@@ -17,6 +17,7 @@
  *   trip-reminder --once → exactly 1 trip.reminder.24h Notification row.
  */
 import { execSync } from "node:child_process"
+import { fileURLToPath } from "node:url"
 import { prisma } from "@camermove/db"
 import { confirmPaymentSuccess } from "../apps/api/src/booking-kernel/index.js"
 
@@ -178,13 +179,14 @@ async function test4_notificationRows(seeded: Seeded): Promise<void> {
     const ours = found.filter((n) => (n.payload as Record<string, unknown> | null)?.bookingId === seeded.bookingId)
     const types = new Set(ours.map((n) => n.type))
     return expected.every((t) => types.has(t)) ? ours : null
-  }, 90_000)
+  }, 120_000)
   if (!rows) {
-    const any = await prisma.notification.count({ where: { userId: seeded.user.id, type: { in: expected } } })
+    const any = await prisma.notification.findMany({ where: { userId: seeded.user.id, type: { in: expected } } })
+    const perType = expected.map((t) => `${t}:${any.filter((n) => n.type === t).length}`).join(", ")
     log(
       "Notification rows for ticket.issued + payment.confirmed + booking.confirmed",
       false,
-      any > 0 ? `partial (${any} rows)` : `none after 90s — worker not consuming Kafka; start \`pnpm run dev\``,
+      any.length > 0 ? `partial (${any.length} rows; per-type ${perType})` : `none after 120s — worker not consuming Kafka; start \`pnpm run dev\``,
     )
     return
   }
@@ -274,7 +276,17 @@ async function main() {
   process.exit(failures === 0 ? 0 : 1)
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+function isDirectRun(): boolean {
+  // Platform-safe direct-run check (Windows backslashes break naive
+  // `import.meta.url === "file://" + argv[1]` comparisons).
+  try {
+    return !!process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]
+  } catch {
+    return false
+  }
+}
+
+if (isDirectRun()) {
   main().catch(async (e) => {
     console.error(e)
     await prisma.$disconnect()

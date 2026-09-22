@@ -19,6 +19,7 @@
  * skips with a clear message. Runs against API at $API_URL (default localhost:3000)
  * and WEB at $WEB_URL (default localhost:3002).
  */
+import { fileURLToPath } from "node:url"
 import { prisma } from "@camermove/db"
 
 const API = process.env.API_URL ?? "http://localhost:3000"
@@ -169,7 +170,17 @@ async function main() {
   await prisma.$disconnect()
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+function isDirectRun(): boolean {
+  // Platform-safe direct-run check (Windows backslashes break naive
+  // `import.meta.url === "file://" + argv[1]` comparisons).
+  try {
+    return !!process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]
+  } catch {
+    return false
+  }
+}
+
+if (isDirectRun()) {
   main().catch(async (e) => {
     console.error(e)
     await prisma.$disconnect()
