@@ -20,6 +20,7 @@ import {
   AdminStatusSelect,
   AdminTableFrame,
   AdminTextField,
+  SortableTh,
 } from "./shared"
 
 interface EventAdmin {
@@ -65,8 +66,10 @@ export function AdminEvents() {
   const [eventTypeFilter, setEventTypeFilter] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [sort, setSort] = useState("startDate.asc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)); setPage(1) }
 
-  const params: Record<string, string> = { page: String(page), perPage: "20" }
+  const params: Record<string, string> = { page: String(page), perPage: "20", sort }
   if (q) params.q = q
   if (cityFilter) params.city = cityFilter
   if (eventTypeFilter) params.eventType = eventTypeFilter
@@ -149,11 +152,11 @@ export function AdminEvents() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Ville</TableHead>
+                <SortableTh label="Nom" field="name" sort={sort} onSort={onSort} />
+                <SortableTh label="Ville" field="city" sort={sort} onSort={onSort} />
                 <TableHead>Type</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Statut</TableHead>
+                <SortableTh label="Date" field="startDate" sort={sort} onSort={onSort} />
+                <SortableTh label="Statut" field="status" sort={sort} onSort={onSort} />
                 <TableHead>Billets</TableHead>
               </TableRow>
             </TableHeader>

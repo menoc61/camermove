@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentType } from "react";
+import type { Column } from "../panels";
 import { CancelButton } from "../controls/CancelButton";
 import { cancelBooking } from "@/lib/api/bookings";
 import { cancelHotelBooking, createHotelPayment } from "@/lib/api/hotels";
@@ -113,3 +114,25 @@ export const InsuranceRowActions = makeActions(
   cancelInsurancePolicy,
   [["dashboard-insurance"], ["dashboard-v2"]],
 );
+
+/** Builds a per-row `Actions` column from a TAB_ACTIONS entry. Rows whose
+ * status is not actionable render an empty cell. */
+export function rowActionsColumn(
+  config: { statuses: string[]; label: (row: Record<string, unknown>) => string; Action: ComponentType<{ id: string; token: string }> },
+  token: string,
+): Column {
+  return {
+    key: "__actions",
+    label: "Actions",
+    sortable: false,
+    render: (_v, row) => {
+      if (!config.statuses.includes(String(row.status))) return null;
+      return (
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <span className="font-mono text-xs text-muted-foreground">{config.label(row)}</span>
+          <config.Action id={String(row.id)} token={token} />
+        </div>
+      );
+    },
+  };
+}

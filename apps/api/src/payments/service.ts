@@ -475,13 +475,19 @@ export async function listPayments(
   }
   const take = query.perPage
   const skip = (query.page - 1) * take
+  // Allowlist des champs triables (champs scalaires du modèle Payment — cf. schema.prisma).
+  // Inliné localement : importer parseAdminSort depuis ../admin/service.js serait
+  // sans cycle mais couplerait payments à tout le module admin ; l'allowlist locale suffit.
+  const ALLOWED_PAYMENT_SORT_FIELDS = ["createdAt", "updatedAt", "amount", "status", "provider"]
   let orderBy: Record<string, unknown>[] | undefined
   if (query.orderBy) {
     const parts = query.orderBy.split(",").map((p) => p.trim())
-    orderBy = parts.map((p) => {
+    const valid = parts.flatMap((p) => {
       const [field, dir] = p.split(".")
-      return { [field!]: dir === "desc" ? "desc" : "asc" }
+      if (!field || !ALLOWED_PAYMENT_SORT_FIELDS.includes(field)) return []
+      return [{ [field]: dir === "desc" ? "desc" : "asc" }]
     })
+    orderBy = valid.length > 0 ? valid : [{ createdAt: "desc" }]
   } else {
     orderBy = [{ createdAt: "desc" }]
   }

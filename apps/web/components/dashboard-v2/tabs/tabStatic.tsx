@@ -18,6 +18,8 @@ import { fetchFavorites, removeFavorite } from "@/lib/api/favorites";
 export function FavoritesPanel({ token }: { token: string }) {
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const favs = useQuery({
     queryKey: ["dashboard-favorites", token, page],
     queryFn: () => fetchFavorites(token, page, 20),
@@ -33,7 +35,14 @@ export function FavoritesPanel({ token }: { token: string }) {
       </div>
     );
   }
-  if (items.length === 0) {
+  if (items.length === 0 && favs.isError) {
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        Impossible de charger les favoris.
+      </p>
+    );
+  }
+  if (items.length === 0 && !favs.isError) {
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">
@@ -53,6 +62,7 @@ export function FavoritesPanel({ token }: { token: string }) {
   }
   return (
     <div className="flex flex-col gap-3">
+      {removeError ? <p role="alert" className="text-xs text-destructive">{removeError}</p> : null}
       {items.map((f) => (
         <div key={f.id} className="flex items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
           <div>
@@ -64,12 +74,21 @@ export function FavoritesPanel({ token }: { token: string }) {
           <button
             type="button"
             className="rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+            disabled={pendingId === f.id}
             onClick={async () => {
-              await removeFavorite(token, f.id);
-              qc.invalidateQueries({ queryKey: ["dashboard-favorites"] });
+              setPendingId(f.id);
+              setRemoveError(null);
+              try {
+                await removeFavorite(token, f.id);
+                qc.invalidateQueries({ queryKey: ["dashboard-favorites"] });
+              } catch {
+                setRemoveError("Retrait impossible");
+              } finally {
+                setPendingId(null);
+              }
             }}
           >
-            Retirer
+            {pendingId === f.id ? "…" : "Retirer"}
           </button>
         </div>
       ))}

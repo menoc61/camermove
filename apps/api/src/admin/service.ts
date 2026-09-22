@@ -2,11 +2,22 @@ import { prisma } from "@camermove/db"
 import { NotFoundError, ForbiddenError, ConflictError, loadEnv } from "@camermove/config"
 import type { Prisma } from "@prisma/client"
 
+export function parseAdminSort(
+  raw: unknown,
+  allowed: string[],
+  def: Record<string, "asc" | "desc">,
+): Record<string, "asc" | "desc"> {
+  const s = typeof raw === "string" ? raw : ""
+  const [field, dir] = s.split(".")
+  if (field && allowed.includes(field)) return { [field]: dir === "desc" ? "desc" : "asc" }
+  return def
+}
+
 // ─── Users ──────────────────────────────────────────────────────────────────
 
 export async function listUsers(params: {
   page: number; limit: number; q?: string; role?: string; status?: string;
-  dateFrom?: string; dateTo?: string;
+  dateFrom?: string; dateTo?: string; sort?: unknown;
 }) {
   const env = loadEnv()
   const take = params.limit
@@ -29,7 +40,7 @@ export async function listUsers(params: {
   }
 
   const [items, total] = await Promise.all([
-    prisma.user.findMany({ where, skip, take, orderBy: { createdAt: "desc" }, select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, status: true, createdAt: true, _count: { select: { bookings: true } } } }),
+    prisma.user.findMany({ where, skip, take, orderBy: parseAdminSort(params.sort, ["email", "createdAt", "role", "status"], { createdAt: "desc" }), select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, status: true, createdAt: true, _count: { select: { bookings: true } } } }),
     prisma.user.count({ where }),
   ])
   return { items, total, page: params.page, perPage: take, totalPages: Math.ceil(total / take) }
@@ -70,7 +81,7 @@ export async function deleteUser(id: string, actorId: string) {
 
 export async function listTransporters(params: {
   page: number; limit: number; q?: string; status?: string;
-  dateFrom?: string; dateTo?: string;
+  dateFrom?: string; dateTo?: string; sort?: unknown;
 }) {
   const take = params.limit
   const skip = (params.page - 1) * take
@@ -91,7 +102,7 @@ export async function listTransporters(params: {
 
   const [items, total] = await Promise.all([
     prisma.transporter.findMany({
-      where, skip, take, orderBy: { createdAt: "desc" },
+      where, skip, take, orderBy: parseAdminSort(params.sort, ["companyName", "createdAt", "status"], { createdAt: "desc" }),
       include: { _count: { select: { vehicles: true, routes: true, trips: true, staffUsers: true } } },
     }),
     prisma.transporter.count({ where }),
@@ -120,7 +131,7 @@ export async function updateTransporter(id: string, actorId: string, data: { sta
 
 // ─── Partner Applications ──────────────────────────────────────────────────
 
-export async function listPartnerApplications(params: { page: number; limit: number; q?: string; status?: string; dateFrom?: string; dateTo?: string }) {
+export async function listPartnerApplications(params: { page: number; limit: number; q?: string; status?: string; dateFrom?: string; dateTo?: string; sort?: unknown }) {
   const take = params.limit
   const skip = (params.page - 1) * take
   const where: Prisma.PartnerApplicationWhereInput = {}
@@ -139,7 +150,7 @@ export async function listPartnerApplications(params: { page: number; limit: num
 
   const [items, total] = await Promise.all([
     prisma.partnerApplication.findMany({
-      where, skip, take, orderBy: { createdAt: "desc" },
+      where, skip, take, orderBy: parseAdminSort(params.sort, ["companyName", "createdAt", "status"], { createdAt: "desc" }),
       include: { documents: true, transporter: true },
     }),
     prisma.partnerApplication.count({ where }),
@@ -198,7 +209,7 @@ export async function reviewPartnerApplication(id: string, actorId: string, data
 
 export async function listTrips(params: {
   page: number; limit: number; q?: string; status?: string;
-  transporterId?: string; dateFrom?: string; dateTo?: string;
+  transporterId?: string; dateFrom?: string; dateTo?: string; sort?: unknown;
 }) {
   const take = params.limit
   const skip = (params.page - 1) * take
@@ -220,7 +231,7 @@ export async function listTrips(params: {
 
   const [items, total] = await Promise.all([
     prisma.trip.findMany({
-      where, skip, take, orderBy: { departureAt: "asc" },
+      where, skip, take, orderBy: parseAdminSort(params.sort, ["departureAt", "price", "createdAt", "status"], { departureAt: "asc" }),
       select: {
         id: true, routeId: true, transportId: true, vehicleId: true,
         departureAt: true, price: true, totalSeats: true, status: true, createdAt: true,
@@ -262,7 +273,7 @@ export async function deleteTrip(id: string, actorId: string) {
 
 export async function listBookings(params: {
   page: number; limit: number; q?: string; status?: string;
-  transporterId?: string; userId?: string; dateFrom?: string; dateTo?: string;
+  transporterId?: string; userId?: string; dateFrom?: string; dateTo?: string; sort?: unknown;
 }) {
   const take = params.limit
   const skip = (params.page - 1) * take
@@ -284,7 +295,7 @@ export async function listBookings(params: {
 
   const [items, total] = await Promise.all([
     prisma.booking.findMany({
-      where, skip, take, orderBy: { createdAt: "desc" },
+      where, skip, take, orderBy: parseAdminSort(params.sort, ["createdAt", "totalAmount", "status"], { createdAt: "desc" }),
       select: {
         id: true, reference: true, tripId: true, userId: true,
         seatCount: true, totalAmount: true, status: true, createdAt: true,
@@ -309,7 +320,7 @@ export async function listBookings(params: {
 
 export async function listPayments(params: {
   page: number; limit: number; q?: string; status?: string;
-  provider?: string; dateFrom?: string; dateTo?: string;
+  provider?: string; dateFrom?: string; dateTo?: string; sort?: unknown;
 }) {
   const take = params.limit
   const skip = (params.page - 1) * take
@@ -330,7 +341,7 @@ export async function listPayments(params: {
 
   const [items, total] = await Promise.all([
     prisma.payment.findMany({
-      where, skip, take, orderBy: { createdAt: "desc" },
+      where, skip, take, orderBy: parseAdminSort(params.sort, ["createdAt", "amount", "status"], { createdAt: "desc" }),
       include: { booking: { select: { id: true, reference: true, totalAmount: true, user: { select: { email: true } } } } },
     }),
     prisma.payment.count({ where }),
@@ -340,7 +351,7 @@ export async function listPayments(params: {
 
 // ─── Commissions ────────────────────────────────────────────────────────────
 
-export async function listCommissions(params: { page: number; limit: number; transporterId?: string; payoutStatus?: string; dateFrom?: string; dateTo?: string }) {
+export async function listCommissions(params: { page: number; limit: number; transporterId?: string; payoutStatus?: string; dateFrom?: string; dateTo?: string; sort?: unknown }) {
   const take = params.limit
   const skip = (params.page - 1) * take
   const where: Prisma.CommissionWhereInput = {}
@@ -356,7 +367,7 @@ export async function listCommissions(params: { page: number; limit: number; tra
 
   const [items, total, sumResult, statusCounts] = await Promise.all([
     prisma.commission.findMany({
-      where, skip, take, orderBy: { id: "desc" },
+      where, skip, take, orderBy: parseAdminSort(params.sort, ["grossAmount", "commissionAmount", "netAmount", "payoutStatus", "id"], { id: "desc" }),
       include: { booking: { include: { trip: { include: { transport: { select: { id: true, companyName: true } } } } } } },
     }),
     prisma.commission.count({ where }),
@@ -377,7 +388,7 @@ export async function listCommissions(params: { page: number; limit: number; tra
 
 // ─── Audit Logs ──────────────────────────────────────────────────────────────
 
-export async function listAuditLogs(params: { page: number; limit: number; q?: string; actorId?: string; action?: string; dateFrom?: string; dateTo?: string }) {
+export async function listAuditLogs(params: { page: number; limit: number; q?: string; actorId?: string; action?: string; dateFrom?: string; dateTo?: string; sort?: unknown }) {
   const take = params.limit
   const skip = (params.page - 1) * take
   const where: Prisma.AuditLogWhereInput = {}
@@ -398,7 +409,7 @@ export async function listAuditLogs(params: { page: number; limit: number; q?: s
 
   const [items, total] = await Promise.all([
     prisma.auditLog.findMany({
-      where, skip, take, orderBy: { createdAt: "desc" },
+      where, skip, take, orderBy: parseAdminSort(params.sort, ["createdAt", "action"], { createdAt: "desc" }),
       include: { actor: { select: { id: true, email: true, role: true } } },
     }),
     prisma.auditLog.count({ where }),

@@ -10,6 +10,7 @@ import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
 import { observeEventTicket } from "@camermove/observability"
+import { parseAdminSort } from "../admin/service.js"
 
 const EventPayBody = z.object({
   provider: z.enum(["notchpay", "cinetpay"]).default("notchpay"),
@@ -149,7 +150,7 @@ export async function eventRoutes(app: FastifyInstance) {
       if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59Z")
       where.createdAt = createdAt
     }
-    const rows = await prisma.eventBooking.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" }, include: { event: true, ticketCategory: true } })
+    const rows = await prisma.eventBooking.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } /* stable export order */, include: { event: true, ticketCategory: true } })
     const columns = ["id", "eventId", "ticketCategoryId", "userId", "quantity", "totalAmount", "ticketNumber", "qrCode", "status", "createdAt"]
     return sendExport(reply, "event-bookings", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
@@ -213,8 +214,9 @@ export async function eventRoutes(app: FastifyInstance) {
     }
     const skip = pagination.skip
     const take = pagination.take
+    const orderBy = parseAdminSort(query.sort, ["name", "city", "startDate", "status", "createdAt"], { startDate: "asc" })
     const [items, total] = await Promise.all([
-      prisma.event.findMany({ where: where as never, include: { ticketCategories: true }, skip, take, orderBy: { startDate: "asc" } }),
+      prisma.event.findMany({ where: where as never, include: { ticketCategories: true }, skip, take, orderBy }),
       prisma.event.count({ where: where as never }),
     ])
     const page = pagination.page ?? q.page
@@ -237,7 +239,7 @@ export async function eventRoutes(app: FastifyInstance) {
       if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59Z")
       where.createdAt = createdAt
     }
-    const rows = await prisma.event.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" }, include: { ticketCategories: true } })
+    const rows = await prisma.event.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } /* stable export order */, include: { ticketCategories: true } })
     const columns = ["id", "name", "eventType", "city", "venue", "startDate", "status", "partnerStatus", "createdAt"]
     return sendExport(reply, "events", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
@@ -262,8 +264,9 @@ export async function eventRoutes(app: FastifyInstance) {
       where.createdAt = createdAt
     }
     const skip = (page - 1) * perPage
+    const orderBy = parseAdminSort(query.sort, ["createdAt", "totalAmount", "status"], { createdAt: "desc" })
     const [items, total] = await Promise.all([
-      prisma.eventBooking.findMany({ where: where as never, include: { event: true, ticketCategory: true, user: { select: { id: true, email: true } }, payment: true }, orderBy: { createdAt: "desc" }, skip, take: perPage }),
+      prisma.eventBooking.findMany({ where: where as never, include: { event: true, ticketCategory: true, user: { select: { id: true, email: true } }, payment: true }, orderBy, skip, take: perPage }),
       prisma.eventBooking.count({ where: where as never }),
     ])
     return { items, total, page, perPage, totalPages: Math.ceil(total / perPage) }
@@ -284,7 +287,7 @@ export async function eventRoutes(app: FastifyInstance) {
       if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59Z")
       where.createdAt = createdAt
     }
-    const rows = await prisma.eventBooking.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" }, include: { event: true, ticketCategory: true } })
+    const rows = await prisma.eventBooking.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } /* stable export order */, include: { event: true, ticketCategory: true } })
     const columns = ["id", "eventId", "ticketCategoryId", "userId", "quantity", "totalAmount", "ticketNumber", "qrCode", "status", "createdAt"]
     return sendExport(reply, "event-bookings", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
