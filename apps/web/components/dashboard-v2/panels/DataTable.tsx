@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Eye, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -10,13 +12,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText } from "lucide-react";
 import Link from "next/link";
 
 export interface Column {
   key: string;
   label: string;
   render?: (value: unknown, row: Record<string, unknown>) => React.ReactNode;
+  /** Set false to disable sorting on this column (default: sortable). */
+  sortable?: boolean;
+  /** Raw value used for sorting (defaults to row[key]). */
+  sortValue?: (row: Record<string, unknown>) => string | number | null | undefined;
 }
 
 export interface DataTableProps {
@@ -53,6 +58,14 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant={s.variant}>{s.label}</Badge>;
 }
 
+function compareCellValues(a: unknown, b: unknown): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b), "fr", { numeric: true });
+}
+
 function LoadingRows({ cols, rows = 5 }: { cols: number; rows?: number }) {
   return (
     <>
@@ -69,14 +82,68 @@ function LoadingRows({ cols, rows = 5 }: { cols: number; rows?: number }) {
   );
 }
 
+function renderCell(col: Column, row: Record<string, unknown>, j: number) {
+  const cellKey = `${col.key}-${j}`;
+  const value = row[col.key];
+  if (col.render) {
+    const rendered = col.render(value, row);
+    return <TableCell key={cellKey}>{rendered as React.ReactNode}</TableCell>;
+  }
+  if (col.key === "status") {
+    return (
+      <TableCell key={cellKey}>
+        <StatusBadge status={String(value)} />
+      </TableCell>
+    );
+  }
+  if (col.key === "actions") {
+    const id = row.id != null ? String(row.id) : null;
+    return (
+      <TableCell key={cellKey}>
+        {id ? (
+          <Link href={`/trips/${id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent" aria-label={`Voir le détail ${id}`}>
+            <Eye className="size-4" aria-hidden />
+          </Link>
+        ) : null}
+      </TableCell>
+    );
+  }
+  return <TableCell key={cellKey}>{String(value ?? "")}</TableCell>;
+}
+
 export function DataTable({
   columns,
   data,
   isLoading = false,
-  emptyMessage = "Aucune donnee disponible",
+  emptyMessage = "Aucune donnée disponible",
   emptyActionLabel,
   emptyActionHref,
 }: DataTableProps) {
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return data;
+    const col = columns.find((c) => c.key === sortKey);
+    const get = col?.sortValue ?? ((row: Record<string, unknown>) => row[sortKey] as string | number | null | undefined);
+    return [...data].sort((a, b) => {
+      const cmp = compareCellValues(get(a), get(b));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [data, columns, sortKey, sortDir]);
+
+  function toggleSort(key: string) {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir("asc");
+    } else if (sortDir === "asc") {
+      setSortDir("desc");
+    } else {
+      setSortKey(null);
+      setSortDir("asc");
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="rounded-md border">
@@ -115,42 +182,39 @@ export function DataTable({
       <Table>
         <TableHeader>
           <TableRow>
-            {columns.map((col) => (
-              <TableHead key={col.key}>{col.label}</TableHead>
-            ))}
+            {columns.map((col) => {
+              const sortable = col.sortable !== false;
+              const sortedState = sortKey === col.key ? sortDir : null;
+              return (
+                <TableHead key={col.key} aria-sort={sortedState === "asc" ? "ascending" : sortedState === "desc" ? "descending" : "none"}>
+                  {sortable ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(col.key)}
+                      title={`Trier par ${col.label}`}
+                      className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+                    >
+                      {col.label}
+                      {sortedState === "asc" ? (
+                        <ArrowUp className="size-3.5" aria-hidden />
+                      ) : sortedState === "desc" ? (
+                        <ArrowDown className="size-3.5" aria-hidden />
+                      ) : (
+                        <ArrowUpDown className="size-3.5 opacity-40" aria-hidden />
+                      )}
+                    </button>
+                  ) : (
+                    col.label
+                  )}
+                </TableHead>
+              );
+            })}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map((row, i) => (
+          {sorted.map((row, i) => (
             <TableRow key={row.id != null ? String(row.id) : `row-${i}`}>
-              {columns.map((col, j) => {
-                const value = row[col.key];
-                const cellKey = `${col.key}-${j}`;
-                if (col.render) {
-                  const rendered = col.render(value, row);
-                  return <TableCell key={cellKey}>{rendered as React.ReactNode}</TableCell>;
-                }
-                if (col.key === "status") {
-                  return (
-                    <TableCell key={cellKey}>
-                      <StatusBadge status={String(value)} />
-                    </TableCell>
-                  );
-                }
-                if (col.key === "actions") {
-                  const id = row.id != null ? String(row.id) : null;
-                  return (
-                    <TableCell key={cellKey}>
-                      {id ? (
-                        <Link href={`/trips/${id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent" aria-label={`Voir le détail ${id}`}>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
-                        </Link>
-                      ) : null}
-                    </TableCell>
-                  );
-                }
-                return <TableCell key={cellKey}>{String(value ?? "")}</TableCell>;
-              })}
+              {columns.map((col, j) => renderCell(col, row, j))}
             </TableRow>
           ))}
         </TableBody>
@@ -158,4 +222,3 @@ export function DataTable({
     </div>
   );
 }
-

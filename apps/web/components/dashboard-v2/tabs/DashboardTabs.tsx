@@ -3,33 +3,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  Bus,
-  BedDouble,
-  CarFront,
-  Package,
-  ShieldCheck,
-  Ticket,
-  Wallet,
-  Bell,
-  Heart,
-  LifeBuoy,
-} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExportButton } from "../controls/ExportButton";
-import { CancelButton } from "../controls/CancelButton";
-import { cancelBooking } from "@/lib/api/bookings";
-import { cancelHotelBooking, createHotelPayment } from "@/lib/api/hotels";
-import { cancelParcel, createParcelPayment } from "@/lib/api/parcels";
-import { cancelRentalBooking, createRentalPayment } from "@/lib/api/rentals";
-import { cancelEventBooking, createEventBookingPayment } from "@/lib/api/events";
-import { cancelInsurancePolicy, createInsurancePayment } from "@/lib/api/insurance";
 import { PaginationControls } from "../controls/PaginationControls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "../cards/EmptyState";
 import { DataTable } from "../panels";
 import { GENERIC_COLUMNS, EMPTY_MESSAGES } from "./tabColumns";
 import { FavoritesPanel, SupportPanel } from "./tabStatic";
+import { EXPORT_ENDPOINTS, TAB_ACTIONS, TABS } from "./tabConfig";
 
 export const TAB_PER_PAGE = 20;
 
@@ -60,19 +42,6 @@ export type TabFetcher = (args: {
   perPage: number;
 }) => Promise<TabPage>;
 
-const TABS: { value: DashboardTabId; label: string; icon: typeof Bus }[] = [
-  { value: "trips", label: "Voyages", icon: Bus },
-  { value: "hotels", label: "Hôtels", icon: BedDouble },
-  { value: "rentals", label: "Véhicules", icon: CarFront },
-  { value: "parcels", label: "Colis", icon: Package },
-  { value: "insurance", label: "Assurances", icon: ShieldCheck },
-  { value: "events", label: "Événements", icon: Ticket },
-  { value: "payments", label: "Paiements", icon: Wallet },
-  { value: "notifications", label: "Notifications", icon: Bell },
-  { value: "favorites", label: "Favoris", icon: Heart },
-  { value: "support", label: "Support", icon: LifeBuoy },
-];
-
 const QUERY_KEYS: Record<DataTabId, string> = {
   trips: "dashboard-trips",
   hotels: "dashboard-hotels",
@@ -82,17 +51,6 @@ const QUERY_KEYS: Record<DataTabId, string> = {
   events: "dashboard-events",
   payments: "dashboard-payments",
   notifications: "dashboard-notifications",
-};
-
-const EXPORT_ENDPOINTS: Record<DataTabId, string> = {
-  trips: "/api/v1/bookings/export",
-  hotels: "/api/v1/hotels/bookings/export",
-  rentals: "/api/v1/rentals/bookings/export",
-  parcels: "/api/v1/parcels/export",
-  insurance: "/api/v1/insurance/policies/export",
-  events: "/api/v1/events/bookings/export",
-  payments: "/api/v1/payments/export",
-  notifications: "/api/v1/me/notifications/export",
 };
 
 const EMPTY_PAGE: TabPage = { items: [], page: 1, perPage: TAB_PER_PAGE, totalPages: 1 };
@@ -117,10 +75,10 @@ function isTabId(value: string | null): value is DashboardTabId {
   return TABS.some((t) => t.value === value);
 }
 
-/* Per-tab column definitions and empty-state copy live in ./tabColumns.tsx
- * — extracted so this orchestrator file stays under 250 lines
- * (AGENTS.md §4: "any file >300 lines is a split candidate"). */
-
+/* Tab chrome (TABS/QUERY_KEYS/EXPORT_ENDPOINTS/TAB_ACTIONS) lives in
+ * ./tabConfig.tsx, columns in ./tabColumns.tsx, static panels in
+ * ./tabStatic.tsx and row actions in ./rowActions.tsx — so this
+ * orchestrator stays under 250 lines (AGENTS.md §4). */
 
 export function DashboardTabs({
   token,
@@ -189,6 +147,7 @@ export function DashboardTabs({
     const columns = GENERIC_COLUMNS[tab] ?? [];
     const empty = EMPTY_MESSAGES[tab] ?? { message: "Aucun élément pour le moment." };
     const totalLabel = `${data.items.length} élément(s) · page ${data.page}/${Math.max(data.totalPages, 1)}`;
+    const action = TAB_ACTIONS[tab];
     return (
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -213,104 +172,17 @@ export function DashboardTabs({
                 : undefined
             }
           />
-        ) : tab === "parcels" ? (
+        ) : action ? (
           <div className="flex flex-col gap-2">
             <DataTable columns={[...columns]} data={data.items} />
             <div className="flex flex-wrap gap-2">
               {data.items
-                .filter((row) => String(row.status) === "registered")
+                .filter((row) => action.statuses.includes(String(row.status)))
                 .slice(0, 3)
                 .map((row) => (
                   <div key={String(row.id)} className="flex items-center gap-2 rounded-lg border px-3 py-2">
-                    <span className="font-mono text-xs text-muted-foreground">{String(row.trackingNumber ?? row.id)}</span>
-                    <ParcelRowActions id={String(row.id)} token={token} />
-                  </div>
-                ))}
-            </div>
-          </div>
-        ) : tab === "trips" ? (
-          <div className="flex flex-col gap-2">
-            <DataTable columns={[...columns]} data={data.items} />
-            <div className="flex flex-wrap gap-2">
-              {data.items
-                .filter((row) => ["pending_payment", "confirmed"].includes(String(row.status)))
-                .slice(0, 3)
-                .map((row) => (
-                  <div key={String(row.id)} className="flex items-center gap-2 rounded-lg border px-3 py-2">
-                    <span className="font-mono text-xs text-muted-foreground">Réf. {String(row.reference ?? row.id)}</span>
-                    <CancelButton
-                      visible
-                      onCancel={() => cancelBooking(String(row.id), token)}
-                      invalidateKeys={[["dashboard-trips"], ["dashboard-v2"]]}
-                    />
-                  </div>
-                ))}
-            </div>
-          </div>
-        ) : tab === "hotels" ? (
-          <div className="flex flex-col gap-2">
-            <DataTable columns={[...columns]} data={data.items} />
-            <div className="flex flex-wrap gap-2">
-              {data.items
-                .filter((row) => String(row.status) === "pending_payment")
-                .slice(0, 3)
-                .map((row) => (
-                  <div key={String(row.id)} className="flex items-center gap-2 rounded-lg border px-3 py-2">
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {String((row.hotel as { name?: string } | null)?.name ?? row.id)}
-                    </span>
-                    <HotelRowActions id={String(row.id)} token={token} />
-                  </div>
-                ))}
-            </div>
-          </div>
-        ) : tab === "rentals" ? (
-          <div className="flex flex-col gap-2">
-            <DataTable columns={[...columns]} data={data.items} />
-            <div className="flex flex-wrap gap-2">
-              {data.items
-                .filter((row) => String(row.status) === "pending_payment")
-                .slice(0, 3)
-                .map((row) => (
-                  <div key={String(row.id)} className="flex items-center gap-2 rounded-lg border px-3 py-2">
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {String((row.vehicle as { make?: string; model?: string } | null)?.make ?? row.id)}
-                    </span>
-                    <RentalRowActions id={String(row.id)} token={token} />
-                  </div>
-                ))}
-            </div>
-          </div>
-        ) : tab === "events" ? (
-          <div className="flex flex-col gap-2">
-            <DataTable columns={[...columns]} data={data.items} />
-            <div className="flex flex-wrap gap-2">
-              {data.items
-                .filter((row) => String(row.status) === "pending_payment")
-                .slice(0, 3)
-                .map((row) => (
-                  <div key={String(row.id)} className="flex items-center gap-2 rounded-lg border px-3 py-2">
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {String((row.event as { name?: string })?.name ?? row.id)}
-                    </span>
-                    <EventRowActions id={String(row.id)} token={token} />
-                  </div>
-                ))}
-            </div>
-          </div>
-        ) : tab === "insurance" ? (
-          <div className="flex flex-col gap-2">
-            <DataTable columns={[...columns]} data={data.items} />
-            <div className="flex flex-wrap gap-2">
-              {data.items
-                .filter((row) => String(row.status) === "pending_payment")
-                .slice(0, 3)
-                .map((row) => (
-                  <div key={String(row.id)} className="flex items-center gap-2 rounded-lg border px-3 py-2">
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {String(row.policyNumber ?? row.id)}
-                    </span>
-                    <InsuranceRowActions id={String(row.id)} token={token} />
+                    <span className="font-mono text-xs text-muted-foreground">{action.label(row)}</span>
+                    <action.Action id={String(row.id)} token={token} />
                   </div>
                 ))}
             </div>
@@ -359,189 +231,3 @@ export function DashboardTabs({
     </Tabs>
   );
 }
-
-function ParcelRowActions({ id, token }: { id: string; token: string }) {
-  const [paying, setPaying] = useState(false);
-  const [payError, setPayError] = useState<string | null>(null);
-  async function pay() {
-    setPaying(true);
-    setPayError(null);
-    try {
-      const res = await createParcelPayment(id, token);
-      const url = res.paymentUrl ?? res.authorizationUrl;
-      if (!url) {
-        setPayError("Paiement impossible");
-        setPaying(false);
-        return;
-      }
-      window.location.href = url;
-    } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Paiement impossible");
-      setPaying(false);
-    }
-  }
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        disabled={paying}
-        onClick={pay}
-        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-      >
-        {paying ? "Paiement…" : "Payer"}
-      </button>
-      {payError ? <span role="alert" className="text-xs text-destructive">{payError}</span> : null}
-      <CancelButton visible onCancel={() => cancelParcel(token, id)} invalidateKeys={[["dashboard-parcels"], ["dashboard-v2"]]} />
-    </div>
-  );
-}
-
-function HotelRowActions({ id, token }: { id: string; token: string }) {
-  const [paying, setPaying] = useState(false);
-  const [payError, setPayError] = useState<string | null>(null);
-  async function pay() {
-    setPaying(true);
-    setPayError(null);
-    try {
-      const res = await createHotelPayment(token, id, { provider: "notchpay" });
-      const url = res.paymentUrl ?? res.authorizationUrl;
-      if (!url) {
-        setPayError("Paiement impossible");
-        setPaying(false);
-        return;
-      }
-      window.location.href = url;
-    } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Paiement impossible");
-      setPaying(false);
-    }
-  }
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        disabled={paying}
-        onClick={pay}
-        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-      >
-        {paying ? "Paiement…" : "Payer"}
-      </button>
-      {payError ? <span role="alert" className="text-xs text-destructive">{payError}</span> : null}
-      <CancelButton
-        visible
-        onCancel={() => cancelHotelBooking(token, id)}
-        invalidateKeys={[["dashboard-hotels"], ["dashboard-v2"]]}
-      />
-    </div>
-  );
-}
-
-function RentalRowActions({ id, token }: { id: string; token: string }) {
-  const [paying, setPaying] = useState(false);
-  const [payError, setPayError] = useState<string | null>(null);
-  async function pay() {
-    setPaying(true);
-    setPayError(null);
-    try {
-      const res = await createRentalPayment(token, id, { provider: "notchpay" });
-      const url = res.paymentUrl ?? res.authorizationUrl;
-      if (!url) {
-        setPayError("Paiement impossible");
-        setPaying(false);
-        return;
-      }
-      window.location.href = url;
-    } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Paiement impossible");
-      setPaying(false);
-    }
-  }
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        disabled={paying}
-        onClick={pay}
-        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-      >
-        {paying ? "Paiement…" : "Payer"}
-      </button>
-      {payError ? <span role="alert" className="text-xs text-destructive">{payError}</span> : null}
-      <CancelButton visible onCancel={() => cancelRentalBooking(token, id)} invalidateKeys={[["dashboard-rentals"], ["dashboard-v2"]]} />
-    </div>
-  );
-}
-
-function EventRowActions({ id, token }: { id: string; token: string }) {
-  const [paying, setPaying] = useState(false);
-  const [payError, setPayError] = useState<string | null>(null);
-  async function pay() {
-    setPaying(true);
-    setPayError(null);
-    try {
-      const res = await createEventBookingPayment(id, token);
-      const url = res.paymentUrl ?? res.authorizationUrl;
-      if (!url) {
-        setPayError("Paiement impossible");
-        setPaying(false);
-        return;
-      }
-      window.location.href = url;
-    } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Paiement impossible");
-      setPaying(false);
-    }
-  }
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        disabled={paying}
-        onClick={pay}
-        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-      >
-        {paying ? "Paiement…" : "Payer"}
-      </button>
-      {payError ? <span role="alert" className="text-xs text-destructive">{payError}</span> : null}
-      <CancelButton visible onCancel={() => cancelEventBooking(token, id)} invalidateKeys={[["dashboard-events"], ["dashboard-v2"]]} />
-    </div>
-  );
-}
-
-function InsuranceRowActions({ id, token }: { id: string; token: string }) {
-  const [paying, setPaying] = useState(false);
-  const [payError, setPayError] = useState<string | null>(null);
-  async function pay() {
-    setPaying(true);
-    setPayError(null);
-    try {
-      const res = await createInsurancePayment(token, id, {});
-      const url = res.paymentUrl ?? res.authorizationUrl;
-      if (!url) {
-        setPayError("Paiement impossible");
-        setPaying(false);
-        return;
-      }
-      window.location.href = url;
-    } catch (e) {
-      setPayError(e instanceof Error ? e.message : "Paiement impossible");
-      setPaying(false);
-    }
-  }
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        disabled={paying}
-        onClick={pay}
-        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-      >
-        {paying ? "Paiement…" : "Payer"}
-      </button>
-      {payError ? <span role="alert" className="text-xs text-destructive">{payError}</span> : null}
-      <CancelButton visible onCancel={() => cancelInsurancePolicy(token, id)} invalidateKeys={[["dashboard-insurance"], ["dashboard-v2"]]} />
-    </div>
-  );
-}
-
-
