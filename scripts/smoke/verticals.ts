@@ -161,6 +161,27 @@ async function smokeVerticals() {
   console.log(`  ${pEvents2.status === 403 ? "✓" : "✗"} partner.events-traveler-403 → ${pEvents2.status}`);
   if (pEvents2.status !== 403) throw new Error(`partner.events guard failed: ${pEvents2.status}`);
 
+  const insList = await fetch(`${BASE}/api/v1/insurance/policies?perPage=5`, { headers: h });
+  check("insurance.list", insList);
+  const insBody = (await insList.json()) as { items: unknown[] };
+  if (!Array.isArray(insBody.items)) throw new Error("insurance.list envelope missing items");
+
+  const insCreate = await fetch(`${BASE}/api/v1/insurance/policies`, {
+    method: "POST",
+    headers: { ...h, "Content-Type": "application/json" },
+    body: JSON.stringify({ destination: "France", startDate: "2026-12-01", endDate: "2026-12-10", travelersCount: 2, coverageType: "standard" }),
+  });
+  console.log(`  ${insCreate.status === 201 ? "✓" : "✗"} insurance.create → ${insCreate.status}`);
+  if (insCreate.status !== 201) throw new Error(`insurance.create failed: ${insCreate.status} ${await insCreate.text()}`);
+  const ins = (await insCreate.json()) as { id: string };
+  const insCancel = await fetch(`${BASE}/api/v1/insurance/policies/${ins.id}/cancel`, { method: "POST", headers: h });
+  console.log(`  ${insCancel.status === 200 ? "✓" : "✗"} insurance.cancel → ${insCancel.status}`);
+  if (insCancel.status !== 200) throw new Error(`insurance.cancel failed: ${insCancel.status}`);
+
+  const insAdmin = await fetch(`${BASE}/api/v1/admin/insurance/policies`, { headers: h });
+  console.log(`  ${insAdmin.status === 403 ? "✓" : "✗"} admin.insurance-traveler-403 → ${insAdmin.status}`);
+  if (insAdmin.status !== 403) throw new Error(`admin.insurance guard failed: ${insAdmin.status}`);
+
   // Idempotency replay: same key twice → same status+body
   const key = `smoke-${Date.now()}`;
   const payload = { name: "Smoke", email: "s@s.cm", message: "hello smoke replay" };
