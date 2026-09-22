@@ -111,3 +111,18 @@ export function createEventBookingPayment(
     body: { provider: provider ?? "notchpay" },
   })
 }
+
+export interface TicketVerifyResult {
+  kind: "event" | "trip"
+  valid: boolean
+  status: string
+  label: string
+  detail: string | null
+  holder: string
+  quantity: number
+  category: string | null
+}
+
+export function verifyTicket(token: string, code: string): Promise<TicketVerifyResult> {
+  return request<TicketVerifyResult>("/api/v1/tickets/verify", { method: "POST", token, body: { code } })
+}
