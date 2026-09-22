@@ -18,6 +18,11 @@ services:
     ports: ["127.0.0.1:6379:6379"]
     volumes: ["redisdata:/data"]
     command: redis-server --appendonly yes --save "" --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   minio:
     image: minio/minio:latest
@@ -28,6 +33,11 @@ services:
       MINIO_API_CORS_ALLOW_ORIGIN: "*"
     ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: ["miniodata:/data"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka:
     image: bitnamilegacy/kafka:3.7
@@ -47,6 +57,12 @@ services:
       ALLOW_PLAINTEXT_LISTENER: "yes"
     ports: ["127.0.0.1:9092:9092"]
     volumes: ["kafkapersistence:/bitnami/kafka"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
 
   mailhog:
     image: mailhog/mailhog:latest
@@ -77,8 +93,8 @@ services:
     ports: ["127.0.0.1:3001:3000"]
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_started }
-      kafka: { condition: service_started }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
       api: { condition: service_healthy }
     volumes: ["grafanadata:/var/lib/grafana", "./infra/dashboards:/etc/grafana/provisioning/dashboards:ro", "./infra/datasources:/etc/grafana/provisioning/datasources:ro"]
 
@@ -102,9 +118,9 @@ services:
       CORS_ALLOWED_ORIGINS: "http://localhost:3002,http://localhost:3000"
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_started }
-      kafka: { condition: service_started }
-      minio: { condition: service_started }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      minio: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
@@ -134,8 +150,8 @@ services:
       retries: 10
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_started }
-      kafka: { condition: service_started }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
       api: { condition: service_healthy }
     restart: unless-stopped
 
