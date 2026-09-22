@@ -49,8 +49,10 @@ export function mapTicketStatus(status: string): StatusKind {
 }
 
 export function StatusPill({ status, kind }: { status?: string; kind?: StatusKind }) {
-  const resolved: StatusKind = kind ?? (status ? mapBookingStatus(status) : "pending");
-  return <Badge variant={VARIANTS[resolved]}>{LABELS[resolved]}</Badge>;
+  if (kind) {
+    return <Badge variant={VARIANTS[kind]}>{LABELS[kind]}</Badge>;
+  }
+  return <StatusBadge status={status ?? "pending"} />;
 }
 
 const GENERIC_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "ghost" }> = {
