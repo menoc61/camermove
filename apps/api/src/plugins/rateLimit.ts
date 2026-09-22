@@ -49,11 +49,15 @@ export const rateLimitPlugin = fp(async (app: FastifyInstance) => {
     let ipMax = env.RATE_LIMIT_IP_GENERAL_MAX
     if (path.startsWith("/api/v1/auth")) ipMax = env.RATE_LIMIT_IP_AUTH_MAX
     else if (path.startsWith("/api/v1/search")) ipMax = env.RATE_LIMIT_IP_SEARCH_MAX
+    // Public POST with DB write per hit (contact + newsletter), tighter than general.
+    else if (path.startsWith("/api/v1/contact") || path.startsWith("/api/v1/newsletter")) ipMax = env.RATE_LIMIT_IP_CONTACT_MAX
 
     // App-wide limits — from .env
     let appMax = env.RATE_LIMIT_APP_GENERAL_MAX
     if (path.startsWith("/api/v1/search")) appMax = env.RATE_LIMIT_APP_SEARCH_MAX
     else if (path.startsWith("/api/v1/auth")) appMax = env.RATE_LIMIT_APP_AUTH_MAX
+    // Public POST with DB write per hit (contact + newsletter), tighter than general.
+    else if (path.startsWith("/api/v1/contact") || path.startsWith("/api/v1/newsletter")) appMax = env.RATE_LIMIT_APP_CONTACT_MAX
 
     const ipKey = `rl:ip:${ip}:${path}`
     const appKey = `rl:app:${path}`
