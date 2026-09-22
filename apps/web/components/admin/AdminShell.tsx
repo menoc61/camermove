@@ -19,6 +19,7 @@ import { AdminHotels } from "./AdminHotels"
 import { AdminRentals } from "./AdminRentals"
 import { AdminParcels } from "./AdminParcels"
 import { AdminEvents } from "./AdminEvents"
+import { AdminInsurance } from "./AdminInsurance"
 
 const NAV = [
   "Tableau de bord",
@@ -32,6 +33,7 @@ const NAV = [
   "Véhicules",
   "Colis",
   "Événements",
+  "Assurances",
   "Paramètres",
   "Journal d'audit",
 ] as const
@@ -66,6 +68,8 @@ function renderSection(active: NavItem) {
       return <AdminParcels />
     case "Événements":
       return <AdminEvents />
+    case "Assurances":
+      return <AdminInsurance />
     default:
       return null
   }
