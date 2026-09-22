@@ -57,8 +57,9 @@ export const GENERIC_COLUMNS: Record<string, Column[]> = {
       key: "vehicle",
       label: "Véhicule",
       render: (v: unknown) => {
-        const obj = v && typeof v === "object" ? (v as { name?: string }) : null;
-        return <span className="font-medium">{obj?.name ?? "—"}</span>;
+        const obj = v && typeof v === "object" ? (v as { make?: string; model?: string }) : null;
+        const label = [obj?.make, obj?.model].filter(Boolean).join(" ").trim();
+        return <span className="font-medium">{label || "—"}</span>;
       },
     },
     {
