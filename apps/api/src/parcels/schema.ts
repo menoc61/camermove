@@ -43,3 +43,12 @@ export const ParcelTrackParams = z.object({ trackingNumber: z.string().min(1) })
 export type CreateParcelInput = z.infer<typeof CreateParcelSchema>
 export type ParcelStatusUpdateInput = z.infer<typeof ParcelStatusUpdateSchema>
 export type ParcelSearchQueryInput = z.infer<typeof ParcelSearchQuery>
+
+export const ParcelUpdateSchema = z.object({
+  recipientName: z.string().min(2).max(100).optional(),
+  recipientPhone: z.string().min(6).max(20).optional(),
+  recipientCity: z.string().min(2).max(100).optional(),
+  recipientAddress: z.string().max(200).optional(),
+  description: z.string().max(500).nullable().optional(),
+}).refine((o) => Object.keys(o).length > 0, { message: "Aucun champ à modifier" })
+export type ParcelUpdateInput = z.infer<typeof ParcelUpdateSchema>

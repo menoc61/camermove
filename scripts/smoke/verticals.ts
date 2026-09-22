@@ -48,6 +48,70 @@ async function smokeVerticals() {
   console.log(`  ${pEvents.status === 403 ? "✓" : "✗"} partner.events-traveler-403 → ${pEvents.status}`);
   if (pEvents.status !== 403) throw new Error(`partner.events guard failed: ${pEvents.status}`);
 
+  const createRes = await fetch(`${BASE}/api/v1/parcels`, {
+    method: "POST",
+    headers: { ...h, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      senderName: "Smoke Sender",
+      senderPhone: "+237600000001",
+      recipientName: "Smoke Receiver",
+      recipientPhone: "+237600000002",
+      senderCity: "Yaoundé",
+      recipientCity: "Douala",
+      parcelType: "standard",
+    }),
+  });
+  console.log(`  ${createRes.status === 201 ? "✓" : "✗"} parcels.create → ${createRes.status}`);
+  if (createRes.status !== 201) throw new Error(`parcels.create failed: ${createRes.status}`);
+  const created = (await createRes.json()) as { id: string; trackingNumber: string };
+
+  const patchRes = await fetch(`${BASE}/api/v1/parcels/${created.id}`, {
+    method: "PATCH",
+    headers: { ...h, "Content-Type": "application/json" },
+    body: JSON.stringify({ recipientPhone: "+237600000003" }),
+  });
+  console.log(`  ${patchRes.status === 200 ? "✓" : "✗"} parcels.patch → ${patchRes.status}`);
+  if (patchRes.status !== 200) throw new Error(`parcels.patch failed: ${patchRes.status}`);
+
+  const trackRes = await fetch(`${BASE}/api/v1/parcels/track/${created.trackingNumber}`);
+  console.log(`  ${trackRes.status === 200 ? "✓" : "✗"} parcels.track → ${trackRes.status}`);
+  if (trackRes.status !== 200) throw new Error(`parcels.track failed: ${trackRes.status}`);
+
+  const adminList = await fetch(`${BASE}/api/v1/admin/parcels`, { headers: h });
+  console.log(`  ${adminList.status === 403 ? "✓" : "✗"} admin.parcels-traveler-403 → ${adminList.status}`);
+  if (adminList.status !== 403) throw new Error(`admin.parcels guard failed: ${adminList.status}`);
+
+  const cancelRes = await fetch(`${BASE}/api/v1/parcels/${created.id}/cancel`, { method: "POST", headers: h });
+  console.log(`  ${cancelRes.status === 200 ? "✓" : "✗"} parcels.cancel → ${cancelRes.status}`);
+  if (cancelRes.status !== 200) throw new Error(`parcels.cancel failed: ${cancelRes.status}`);
+
+  const hotelsRes = await fetch(`${BASE}/api/v1/hotels?perPage=5`, { headers: h });
+  check("hotels.list", hotelsRes);
+  const hotelsBody = (await hotelsRes.json()) as { items: Array<{ id: string; rooms?: Array<{ id: string }> }> };
+  if (!Array.isArray(hotelsBody.items)) throw new Error("hotels.list envelope missing items");
+
+  const withRooms = hotelsBody.items.find((x) => Array.isArray(x.rooms) && x.rooms.length > 0);
+  if (!withRooms) {
+    console.log("  ○ hotels.booking skipped — no hotel with rooms in seed");
+  } else {
+    const roomId = withRooms.rooms![0]!.id;
+    const hbRes = await fetch(`${BASE}/api/v1/hotels/bookings`, {
+      method: "POST",
+      headers: { ...h, "Content-Type": "application/json" },
+      body: JSON.stringify({ hotelId: withRooms.id, roomTypeId: roomId, checkIn: "2026-12-01", checkOut: "2026-12-03", guests: 2 }),
+    });
+    console.log(`  ${hbRes.status === 201 ? "✓" : "✗"} hotels.booking.create → ${hbRes.status}`);
+    if (hbRes.status !== 201) throw new Error(`hotels.booking.create failed: ${hbRes.status} ${await hbRes.text()}`);
+    const hb = (await hbRes.json()) as { id: string };
+    const hbCancel = await fetch(`${BASE}/api/v1/hotels/bookings/${hb.id}/cancel`, { method: "POST", headers: h });
+    console.log(`  ${hbCancel.status === 200 ? "✓" : "✗"} hotels.booking.cancel → ${hbCancel.status}`);
+    if (hbCancel.status !== 200) throw new Error(`hotels.booking.cancel failed: ${hbCancel.status}`);
+  }
+
+  const pHotels = await fetch(`${BASE}/api/v1/partner/hotels`, { headers: h });
+  console.log(`  ${pHotels.status === 403 ? "✓" : "✗"} partner.hotels-traveler-403 → ${pHotels.status}`);
+  if (pHotels.status !== 403) throw new Error(`partner.hotels guard failed: ${pHotels.status}`);
+
   // Idempotency replay: same key twice → same status+body
   const key = `smoke-${Date.now()}`;
   const payload = { name: "Smoke", email: "s@s.cm", message: "hello smoke replay" };

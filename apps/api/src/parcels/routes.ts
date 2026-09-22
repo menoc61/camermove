@@ -3,9 +3,9 @@ import { z } from "zod"
 import { prisma } from "@camermove/db"
 import { AppError, ForbiddenError, NotFoundError } from "@camermove/config"
 import { loadEnv } from "@camermove/config"
-import { CreateParcelSchema, ParcelStatusUpdateSchema, ParcelSearchQuery, ParcelIdParams, ParcelTrackParams } from "./schema.js"
+import { CreateParcelSchema, ParcelStatusUpdateSchema, ParcelSearchQuery, ParcelIdParams, ParcelTrackParams, ParcelUpdateSchema } from "./schema.js"
 import { buildParcelWhere, findParcels, countParcels, findParcelById, findParcelByTrackingNumber } from "./repository.js"
-import { createParcel, advanceParcelStatus, sanitizeParcelForTrack, createParcelPayment, cancelParcel, calcShippingCost } from "./service.js"
+import { createParcel, advanceParcelStatus, sanitizeParcelForTrack, createParcelPayment, cancelParcel, calcShippingCost, updateParcel } from "./service.js"
 import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
@@ -117,6 +117,23 @@ export async function parcelRoutes(app: FastifyInstance) {
     return sendExport(reply, "parcels", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
 
+  // GET /admin/parcels — admin-only paginated list (same envelope as GET /parcels)
+  app.get("/admin/parcels", { preHandler: (app as unknown as { requireAuth: (role?: string) => unknown }).requireAuth("admin") as never }, async (req) => {
+    const q = ParcelSearchQuery.parse(req.query)
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const pagination = buildPagination({ page: q.page, perPage: q.perPage, limit: q.limit, offset: q.offset })
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.(
+      { ...meta, q: q.q, status: q.status, recipientCity: q.recipientCity, page: q.page, limit: q.perPage, actorId: user.id },
+      "parcels.admin.list",
+    )
+    const where = buildParcelWhere({ recipientCity: q.recipientCity, status: q.status, q: q.q, dateFrom: q.dateFrom, dateTo: q.dateTo })
+    const [items, total] = await Promise.all([findParcels(where, pagination.skip, pagination.take, undefined as never), countParcels(where)])
+    const page = pagination.page ?? q.page
+    const perPage = pagination.take
+    return { items, total, page, perPage, totalPages: Math.ceil(total / perPage) }
+  })
+
   // POST /parcels — idempotent via global plugin, tarif inside transaction
   app.post("/parcels", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req, reply) => {
     const body = CreateParcelSchema.parse(req.body)
@@ -199,6 +216,16 @@ export async function parcelRoutes(app: FastifyInstance) {
     ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "parcels.cancel")
     await cancelParcel(id, user.id, user.role)
     return { id, status: "cancelled" }
+  })
+
+  // PATCH /parcels/:id — sender edit while registered (owner or admin)
+  app.patch("/parcels/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const { id } = ParcelIdParams.parse(req.params)
+    const body = ParcelUpdateSchema.parse(req.body ?? {})
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "parcels.update")
+    return updateParcel(id, user.id, user.role, body)
   })
 
   // POST /parcels/:id/pay — polymorphic via Payment bookingId null

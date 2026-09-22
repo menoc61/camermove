@@ -79,7 +79,18 @@ export const GENERIC_COLUMNS: Record<string, Column[]> = {
     { key: "status", label: "Statut" },
   ],
   parcels: [
-    { key: "trackingCode", label: "Suivi" },
+    {
+      key: "trackingNumber",
+      label: "Suivi",
+      render: (v: unknown, row: Record<string, unknown>) =>
+        v ? (
+          <a href={`/parcels/track/${String(v)}`} className="font-mono underline underline-offset-4">
+            {String(v)}
+          </a>
+        ) : (
+          <span className="font-mono">{String(row.id ?? "—")}</span>
+        ),
+    },
     { key: "recipientName", label: "Destinataire" },
     {
       key: "createdAt",

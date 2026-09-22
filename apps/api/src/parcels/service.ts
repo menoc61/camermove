@@ -293,6 +293,29 @@ export async function cancelParcel(id: string, actorId: string, actorRole = "tra
   return updated
 }
 
+export async function updateParcel(id: string, actorId: string, actorRole: string, patch: { recipientName?: string; recipientPhone?: string; recipientCity?: string; recipientAddress?: string; description?: string | null }) {
+  const parcel = (await prisma.parcel.findUnique({ where: { id } })) as unknown as { id: string; userId: string; status: string; trackingNumber: string } | null
+  if (!parcel) throw new NotFoundError("Colis introuvable")
+  const isAdmin = actorRole === "admin" || actorRole === "super_admin"
+  if (!isAdmin && parcel.userId !== actorId) throw new ForbiddenError("Accès refusé")
+  if (parcel.status !== "registered") throw new ConflictError(`Colis non modifiable — statut: ${parcel.status}`)
+  const data: Record<string, unknown> = {}
+  if (patch.recipientName !== undefined) data.recipientName = patch.recipientName
+  if (patch.recipientPhone !== undefined) data.recipientPhone = patch.recipientPhone
+  if (patch.recipientCity !== undefined) data.recipientCity = patch.recipientCity
+  if (patch.recipientAddress !== undefined) data.recipientAddress = patch.recipientAddress
+  if (patch.description !== undefined) data.description = patch.description
+  const updated = await prisma.parcel.update({ where: { id }, data: data as never })
+  try {
+    await prisma.auditLog.create({
+      data: { actorId, action: "parcel.update", entityType: "Parcel", entityId: id, metadata: { trackingNumber: parcel.trackingNumber, fields: Object.keys(data) } as never },
+    })
+  } catch {}
+  await invalidateCache("parcels*").catch(() => {})
+  await invalidateCache("search*").catch(() => {})
+  return updated
+}
+
 async function publishParcelTypedEvent(topic: EventTopic, type: string, typedEvent: Record<string, unknown>, key: string) {
   try {
     await publishEvent(
