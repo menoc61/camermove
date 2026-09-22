@@ -69,6 +69,21 @@ No `POST /admin/hotels` by design (partner-only creation; admin moderates via `p
 
 No `POST /admin/rentals` by design (partner-only creation; admin moderates via `partnerStatus`).
 
+## Slice 5 — events
+
+| Endpoint | public | traveler | transporter_staff | admin / super_admin |
+|---|---|---|---|---|
+| `GET /events`, `GET /events/:id` | allow (approved + on_sale/limited only) | allow | allow | allow |
+| `POST /events/bookings`, `GET /events/bookings/me`, `GET /events/bookings/export`, `GET /events/bookings/:id` | deny | own only | own only | any |
+| `POST /events/bookings/:id/cancel`, `POST /events/bookings/:id/pay` | deny | owner only | owner only | traveler/staff: owner only; admin: any (kernel) |
+| `POST /tickets/verify`, `GET /tickets/verify` | deny (auth required) | allow (sanitized view) | allow | allow |
+| `GET /partner/events` | deny | 403 | own `organizerId` + KPIs | all |
+| `POST /partner/events`, `PUT /partner/events/:id`, `POST /partner/events/:id/categories` | deny | 403 | owner (create: any staff; sets `organizerId`) | any |
+| `DELETE /partner/events/:id` | deny | 403 | owner, no `pending_payment`/`confirmed` bookings (409) | any scope, same 409 guard |
+| `GET /admin/events`, `GET /admin/events/export`, `GET /admin/event-bookings`, `GET /admin/event-bookings/export` | deny | deny | deny | allow |
+
+No booking PUT/DELETE by design (cancel + pay cover the lifecycle; tickets immutable once issued).
+
 ## Later slices (rows by those slices)
 
-- Slice 5 events · Slice 6 insurance · Slice 7 cross-cutting (favorites, agencies, places, contact/newsletter admin, notifications bulk) · Slice 8 consoles polish · Slice 9 arch upgrades.
+- Slice 6 insurance · Slice 7 cross-cutting (favorites, agencies, places, contact/newsletter admin, notifications bulk) · Slice 8 consoles polish · Slice 9 arch upgrades.
