@@ -12,6 +12,7 @@ import { useLiveSeats } from "@/hooks/useLiveSeats"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
 import { useBookingStore } from "@camermove/frontend"
+import { priceXaf } from "@camermove/shared"
 import { ArrowRight } from "lucide-react"
 
 interface TripDetail {
@@ -178,7 +179,7 @@ export default function TripDetailPage() {
             </div>
             <div className="ml-auto text-right">
               <p className="text-muted-foreground">Prix</p>
-              <p className="text-lg font-bold">{new Intl.NumberFormat("fr-CM").format(trip.price)} XAF</p>
+              <p className="text-lg font-bold">{priceXaf(trip.price)}</p>
             </div>
           </div>
           <div className="flex items-center justify-between border-t pt-4">
@@ -235,7 +236,7 @@ export default function TripDetailPage() {
       <div className="fixed bottom-0 left-0 right-0 mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 border-t bg-white p-3 sm:p-4" style={{ borderColor: BORDER }}>
         <div>
           <p className="text-[10px]" style={{ color: "#5A6474" }}>{picked ? `Siège ${seatLabel}` : "Choisissez un siège"}</p>
-          <p className="font-bold text-sm" style={{ color: NAVY }}>{new Intl.NumberFormat("fr-CM").format(trip.price)} XAF</p>
+          <p className="font-bold text-sm" style={{ color: NAVY }}>{priceXaf(trip.price)}</p>
         </div>
         <Button
           disabled={!picked || !passenger.name.trim() || soldOut}

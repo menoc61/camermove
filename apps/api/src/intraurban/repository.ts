@@ -2,7 +2,7 @@ import { prisma, type Prisma } from "@camermove/db"
 
 export async function findUrbanRoutes() {
   return prisma.route.findMany({
-    where: { transporter: { email: "urban@camermove.cm" } },
+    where: { transporter: { isUrban: true } },
     include: { transporter: { select: { id: true, companyName: true } } },
   })
 }

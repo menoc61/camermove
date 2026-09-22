@@ -1,6 +1,4 @@
-function apiBase(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
-}
+import { request } from "./resource"
 
 export interface LandingAgency {
   id: string
@@ -65,20 +63,16 @@ export type LandingRailPayload =
   | { type: "events"; items: EventRailItem[] }
   | { type: "insurance"; pricing: Record<string, number> }
 
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${apiBase()}${path}`, { next: { revalidate: 60 } })
-  if (!res.ok) throw new Error(`landing fetch failed: ${path}`)
-  return res.json() as Promise<T>
+function getJson<T>(path: string, params?: Record<string, unknown>): Promise<T> {
+  return request<T>(path, { next: { revalidate: 60 }, errorLabel: "landing fetch failed", params })
 }
 
-export async function fetchLandingStats(): Promise<LandingStats> {
+export function fetchLandingStats(): Promise<LandingStats> {
   return getJson<LandingStats>("/api/v1/landing/stats")
 }
 
-export async function fetchLandingRail<T extends LandingRailType>(
+export function fetchLandingRail<T extends LandingRailType>(
   type: T,
 ): Promise<LandingRailPayload & { type: T }> {
-  return getJson<LandingRailPayload & { type: T }>(
-    `/api/v1/landing/rails?type=${encodeURIComponent(type)}`,
-  )
+  return getJson<LandingRailPayload & { type: T }>("/api/v1/landing/rails", { type })
 }

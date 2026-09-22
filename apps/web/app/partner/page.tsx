@@ -6,10 +6,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { getPartnerServices, type PartnerService } from "../../lib/api/partners"
 import { ApiError } from "../../lib/api/client"
+import { priceXaf } from "@camermove/shared"
 
 export const metadata = { title: "Espace Partenaire — CamerMove" }
-
-const fmtXaf = (amount: number) => new Intl.NumberFormat("fr-CM").format(amount)
 
 function KpiGrid({ service }: { service: PartnerService }) {
   const k = service.kpis
@@ -17,7 +16,7 @@ function KpiGrid({ service }: { service: PartnerService }) {
     { label: service.service === "parcels" ? "Colis traités" : service.service === "transporter" ? "Trajets publiés" : "Établissements", value: String(k.entities) },
   ]
   if (k.bookings !== undefined) cells.push({ label: service.service === "parcels" ? "Total colis" : "Réservations", value: String(k.bookings) })
-  if (k.revenue !== undefined) cells.push({ label: "Revenu confirmé (XAF)", value: fmtXaf(k.revenue) })
+  if (k.revenue !== undefined) cells.push({ label: "Revenu confirmé (XAF)", value: priceXaf(k.revenue) })
   if (k.activeTrips !== undefined) cells.push({ label: "Trajets actifs", value: String(k.activeTrips) })
   if (k.parcelsInTransit !== undefined) cells.push({ label: "En cours", value: String(k.parcelsInTransit) })
   if (k.parcelsDelivered !== undefined) cells.push({ label: "Livrés", value: String(k.parcelsDelivered) })

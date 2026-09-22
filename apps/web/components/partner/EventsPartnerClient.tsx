@@ -6,10 +6,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { priceXaf } from "@camermove/shared"
 
 interface Props { token: string }
-
-const fmtXaf = (amount: number) => new Intl.NumberFormat("fr-CM").format(amount)
 
 export function EventsPartnerClient({ token }: Props) {
   const { data, isLoading, error } = useQuery({
@@ -53,7 +52,7 @@ export function EventsPartnerClient({ token }: Props) {
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Revenu confirmé</p>
-                <p className="text-lg font-semibold">{fmtXaf(e.kpis.revenue)} XAF</p>
+                <p className="text-lg font-semibold">{priceXaf(e.kpis.revenue)}</p>
               </div>
               <Badge variant={e.partnerStatus === "approved" ? "default" : "secondary"}>{e.partnerStatus}</Badge>
             </div>

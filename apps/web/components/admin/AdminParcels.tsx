@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "sonner"
 import { Download, TriangleAlert } from "lucide-react"
+import { priceXaf } from "@camermove/shared"
 import {
   AdminDateRange,
   AdminEmptyRow,
@@ -200,7 +201,7 @@ export function AdminParcels() {
                         {STATUS_LABELS[p.status] ?? p.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{new Intl.NumberFormat("fr-CM").format(p.shippingCost)} XAF</TableCell>
+                    <TableCell>{priceXaf(p.shippingCost)}</TableCell>
                     <TableCell>
                       {next && (
                         <Button

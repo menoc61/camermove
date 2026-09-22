@@ -1,4 +1,6 @@
-import { apiFetch } from "./client"
+import { resourceClient } from "./resource"
+
+const payments = resourceClient<MyPaymentItem>("/api/v1/payments")
 
 export interface MyPaymentItem {
   id: string
@@ -25,6 +27,5 @@ export interface MyPaymentsResponse {
  * booking.userId for non-admin roles). Canonical envelope.
  */
 export function fetchMyPayments(token: string, params: Record<string, string> = {}): Promise<MyPaymentsResponse> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<MyPaymentsResponse>(`/api/v1/payments${qs ? `?${qs}` : ""}`, { method: "GET", token })
+  return payments.list<MyPaymentItem>("", { token, params }) as Promise<MyPaymentsResponse>
 }

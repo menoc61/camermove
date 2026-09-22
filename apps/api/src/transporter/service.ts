@@ -101,6 +101,25 @@ export async function listTrips(transporterId: string, params: { page?: number; 
   return { items, total, page: params.page ?? 1, perPage: take, totalPages: Math.ceil(total / take) }
 }
 
+export async function getTransporterTrip(tripId: string, transporterId: string) {
+  const { prisma } = await import("@camermove/db")
+  const trip = await prisma.trip.findFirst({
+    where: { id: tripId, transportId: transporterId },
+    select: {
+      id: true, departureAt: true, arrivalEstimateAt: true, price: true,
+      totalSeats: true, transportId: true, vehicleTypeInfo: true,
+      departurePointInfo: true, status: true,
+      route: { select: { id: true, originCity: true, destinationCity: true } },
+      seatAvailability: { select: { seatsAvailable: true, seatsHeld: true, seatsBooked: true } },
+    },
+  })
+  if (!trip) {
+    const { NotFoundError } = await import("@camermove/config")
+    throw new NotFoundError("Trajet introuvable")
+  }
+  return trip
+}
+
 export async function createTrip(transporterId: string, data: {
   routeId: string; vehicleId?: string | null; departureAt: Date; arrivalEstimateAt?: Date | null;
   durationEstimate?: number | null; price: number; totalSeats: number;

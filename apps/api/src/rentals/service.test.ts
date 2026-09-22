@@ -1,11 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { prisma } from "@camermove/db"
 
+vi.mock("@camermove/db", () => ({
+  prisma: {
+    $transaction: vi.fn(),
+    auditLog: { create: vi.fn() },
+    payment: { findUnique: vi.fn() },
+    // Inventory-first reserve: adapter.find loads the RentalVehicle row.
+    rentalVehicle: { findUnique: vi.fn().mockResolvedValue({ id: "cmvehicle1234567890123456", pricePerUnit: 50000, durationUnit: "day", status: "available" }) },
+    rentalBooking: { findUnique: vi.fn(), findFirst: vi.fn(), count: vi.fn(), create: vi.fn() },
+    hotelBooking: { create: vi.fn(), findUnique: vi.fn() },
+    seatAvailability: { findUnique: vi.fn(), update: vi.fn() },
+  },
+  getAppSettingsCached: vi.fn().mockResolvedValue({ holdExpiryMinutes: 15 }),
+}))
+
 vi.mock("../lib/cache.js", () => ({
   getCached: vi.fn().mockResolvedValue(null),
   setCached: vi.fn().mockResolvedValue(undefined),
   invalidateCache: vi.fn().mockResolvedValue(undefined),
   cacheKey: (p: string, _o: unknown) => `${p}:mock`,
+}))
+
+vi.mock("@camermove/shared/queues", () => ({
+  scheduleHoldExpiry: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock("@camermove/events", () => ({
@@ -16,6 +34,19 @@ vi.mock("@camermove/events", () => ({
       disconnect: vi.fn().mockResolvedValue(undefined),
     }),
   }),
+  EVENT_TOPICS: {
+    rentalBookingCreated: "camermove.rental.booking.created",
+    rentalBookingConfirmed: "camermove.rental.booking.confirmed",
+    bookingStatusChanged: "camermove.booking.status.changed",
+    paymentInitiated: "camermove.payment.initiated",
+  },
+  publishEvent: vi.fn().mockResolvedValue(undefined),
+  makeEvent: (type: string, aggregateId: string, data: unknown) => ({ id: `${type}-${aggregateId}`, type, ts: new Date().toISOString(), aggregateId, data }),
+  makeDataEvent: (type: string, key: string, data: unknown) => ({ id: `${type}-${key}-${Date.now()}`, type, ts: new Date().toISOString(), aggregateId: key, data }),
+}))
+
+vi.mock("@camermove/shared/queues", () => ({
+  scheduleHoldExpiry: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock("@camermove/config", async (importOriginal) => {
@@ -62,11 +93,12 @@ describe("rentals/service ACID overlap", () => {
     const userId = "cmuser123456789012345678"
     vi.spyOn(prisma.auditLog, "create").mockResolvedValue({} as never)
     // @ts-ignore mock transaction for test
-    vi.spyOn(prisma as unknown as { $transaction: unknown }, "$transaction" as never).mockImplementation(async (cb: any) => {
+    prisma.$transaction = vi.fn().mockImplementation(async (cb: any) => {
       const tx = {
-        $queryRaw: vi.fn().mockResolvedValue([{ id: rentalVehicleId, pricePerUnit: 50000, durationUnit: "day", status: "available" }]),
+        $queryRawUnsafe: vi.fn().mockResolvedValue([{ id: rentalVehicleId, pricePerUnit: 50000, durationUnit: "day", status: "available" }]),
         rentalBooking: {
           findFirst: vi.fn().mockResolvedValue({ id: "existing" }),
+          count: vi.fn().mockResolvedValue(1),
           create: vi.fn(),
         },
       }
@@ -88,13 +120,14 @@ describe("rentals/service ACID overlap", () => {
     vi.spyOn(prisma.auditLog, "create").mockResolvedValue({} as never)
     let call = 0
     // @ts-ignore mock transaction for test
-    vi.spyOn(prisma as unknown as { $transaction: unknown }, "$transaction" as never).mockImplementation(async (cb: any) => {
+    prisma.$transaction = vi.fn().mockImplementation(async (cb: any) => {
       call++
       const overlapping = call === 1 ? null : { id: "existing" }
       const tx = {
-        $queryRaw: vi.fn().mockResolvedValue([{ id: rentalVehicleId, pricePerUnit: 50000, durationUnit: "day", status: "available" }]),
+        $queryRawUnsafe: vi.fn().mockResolvedValue([{ id: rentalVehicleId, pricePerUnit: 50000, durationUnit: "day", status: "available" }]),
         rentalBooking: {
           findFirst: vi.fn().mockResolvedValue(overlapping),
+          count: vi.fn().mockResolvedValue(overlapping ? 1 : 0),
           create: vi.fn().mockResolvedValue({ id: `rb-concurrent-${call}`, totalAmount: 100000, rentalVehicleId, duration: 2 }),
         },
       }

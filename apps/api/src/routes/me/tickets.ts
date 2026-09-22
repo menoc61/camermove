@@ -13,6 +13,7 @@ import type { FastifyInstance } from "fastify"
 import { z } from "zod"
 import { prisma } from "@camermove/db"
 import { NotFoundError } from "@camermove/config"
+import { AGENCIES, BRAND_HUES } from "@camermove/shared"
 
 const TicketParams = z.object({ id: z.string().cuid() })
 
@@ -29,8 +30,26 @@ export interface TicketDetailResponse {
     arrivalAt: string | null
     vehiclePlate: string | null
     seatCount: number
+    vehicleTypeInfo: string | null
   }
-  passengers: Array<{ firstName: string; lastName: string; seatNumber: number }>
+  passengers: Array<{ firstName: string; lastName: string; seatNumber: string }>
+  /** Boarding pass surface — agencies + boarding/drop-off corridor. */
+  agency: {
+    companyName: string
+    brandColor: string
+    accentIcon: string
+    phone: string | null
+    tagline: string | null
+  }
+  boardingStop: { name: string; offsetMinutes: number } | null
+  dropOffStop: { name: string; offsetMinutes: number } | null
+  seatLabels: string[]
+  /** Used by the new sub-score rating panel. */
+  ratingContext: {
+    tripId: string
+    transporterId: string
+    bookingId: string
+  }
 }
 
 export async function meTicketRoutes(app: FastifyInstance) {
@@ -45,8 +64,16 @@ export async function meTicketRoutes(app: FastifyInstance) {
       include: {
         booking: {
           include: {
-            trip: { include: { route: true, vehicle: { select: { plateNumber: true } } } },
+            trip: {
+              include: {
+                route: true,
+                vehicle: { select: { plateNumber: true } },
+                transport: { select: { id: true, companyName: true, phone: true, tagline: true, email: true } },
+              },
+            },
             passengers: { select: { fullName: true } },
+            boardingStop: { select: { name: true, offsetMinutes: true } },
+            dropOffStop: { select: { name: true, offsetMinutes: true } },
           },
         },
       },
@@ -65,8 +92,12 @@ export async function meTicketRoutes(app: FastifyInstance) {
       const parts = p.fullName.trim().split(/\s+/)
       const firstName = parts[0] ?? ""
       const lastName = parts.slice(1).join(" ") ?? ""
-      return { firstName, lastName, seatNumber: i + 1 }
+      const seat = (ticket.booking.seatLabels[i] ?? `${i + 1}`).toString()
+      return { firstName, lastName, seatNumber: seat }
     })
+
+    const registry = AGENCIES.find((a) => a.email === (ticket.booking.trip.transport as unknown as { email: string }).email)
+    const hue = registry ? BRAND_HUES[registry.brandKey] : undefined
 
     const body: TicketDetailResponse = {
       id: ticket.id,
@@ -83,8 +114,28 @@ export async function meTicketRoutes(app: FastifyInstance) {
           : null,
         vehiclePlate: ticket.booking.trip.vehicle?.plateNumber ?? null,
         seatCount: ticket.booking.seatCount,
+        vehicleTypeInfo: ticket.booking.trip.vehicleTypeInfo ?? null,
       },
       passengers,
+      agency: {
+        companyName: ticket.booking.trip.transport.companyName,
+        brandColor: hue?.primary ?? registry?.logoColor ?? "#0E0E0E",
+        accentIcon: registry?.accentIcon ?? "Bus",
+        phone: ticket.booking.trip.transport.phone ?? null,
+        tagline: ticket.booking.trip.transport.tagline ?? null,
+      },
+      boardingStop: ticket.booking.boardingStop
+        ? { name: ticket.booking.boardingStop.name, offsetMinutes: ticket.booking.boardingStop.offsetMinutes }
+        : null,
+      dropOffStop: ticket.booking.dropOffStop
+        ? { name: ticket.booking.dropOffStop.name, offsetMinutes: ticket.booking.dropOffStop.offsetMinutes }
+        : null,
+      seatLabels: ticket.booking.seatLabels,
+      ratingContext: {
+        tripId: ticket.booking.tripId,
+        transporterId: ticket.booking.trip.transport.id,
+        bookingId: ticket.booking.id,
+      },
     }
 
     // Best-effort audit log per AGENTS.md §2.

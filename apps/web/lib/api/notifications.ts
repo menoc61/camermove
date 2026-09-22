@@ -1,4 +1,6 @@
-import { apiFetch } from "./client"
+import { resourceClient } from "./resource"
+
+const notifications = resourceClient<MyNotification>("/api/v1/me/notifications")
 
 export interface MyNotification {
   id: string
@@ -20,14 +22,9 @@ export interface MyNotificationsResponse {
 }
 
 export function fetchMyNotifications(token: string, params: Record<string, string> = {}): Promise<MyNotificationsResponse> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<MyNotificationsResponse>(`/api/v1/me/notifications${qs ? `?${qs}` : ""}`, { method: "GET", token })
+  return notifications.list<MyNotification>("", { token, params }) as Promise<MyNotificationsResponse>
 }
 
 export function markNotificationRead(token: string, id: string): Promise<MyNotification> {
-  return apiFetch<MyNotification>(`/api/v1/me/notifications/${id}/read`, {
-    method: "PATCH",
-    headers: { "Idempotency-Key": crypto.randomUUID() },
-    token,
-  })
+  return notifications.request<MyNotification>(`/api/v1/me/notifications/${id}/read`, { method: "PATCH", token })
 }

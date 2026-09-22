@@ -1,20 +1,34 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { motion, useReducedMotion } from "motion/react"
+import { motion } from "motion/react"
+import { useReelController, useMotionPreference } from "@/lib/motion"
 import { SearchBar } from "../search/search-bar"
 import { Button } from "@/components/ui/button"
+import { priceXaf } from "@camermove/shared"
 
 /* Reel chapters: each paints a CamerMove service with an on-brand gradient +
  * a stable Unsplash poster (Ken Burns motion). The gradient stays on-brand
- * while the poster loads; no CDN hard dependency for layout. */
+ * while the poster loads; no CDN hard dependency for layout.
+ *
+ * Per the user directive ("the main app activity should be on the intra urban
+ * transport"), intra-urban is the FIRST chapter — the hero opens on transit,
+ * not on inter-city travel. */
 const REEL = [
+  {
+    label: "Bus & BRT urbains",
+    title: "Trans-Yaoundé & BRT Douala — votre trajet quotidien, dès 250 XAF",
+    poster: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=1600&q=70",
+    chapter: "01",
+    eyebrow: "Intra-urbain · Tap&Go",
+    gradient: "linear-gradient(135deg, #0E5C40 0%, #15715A 50%, #A6E8B0 100%)",
+    accent: "#A6E8B0",
+  },
   {
     label: "Transport interurbain",
     title: "Yaoundé ⇄ Douala, billets comparés en un clin d'œil",
     poster: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1600&q=70",
-    chapter: "01",
+    chapter: "02",
     eyebrow: "Bus & voiture",
     gradient: "linear-gradient(135deg, #0E0E0E 0%, #1F3A5F 55%, #C2772A 100%)",
     accent: "#E8A548",
@@ -23,7 +37,7 @@ const REEL = [
     label: "Hôtels vérifiés",
     title: "Suites et chambres climatisées, de Yaoundé à Kribi",
     poster: "https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=1600&q=70",
-    chapter: "02",
+    chapter: "03",
     eyebrow: "Hébergement",
     gradient: "linear-gradient(135deg, #1B1B1B 0%, #5C2A2A 50%, #C28A3A 100%)",
     accent: "#F1C27D",
@@ -32,7 +46,7 @@ const REEL = [
     label: "Colis & courses",
     title: "Envoyez un colis de Douala à Bafoussam, suivi en direct",
     poster: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1600&q=70",
-    chapter: "03",
+    chapter: "04",
     eyebrow: "Logistique",
     gradient: "linear-gradient(135deg, #0E1A1F 0%, #134E5E 60%, #71B280 100%)",
     accent: "#9DE0A5",
@@ -41,7 +55,7 @@ const REEL = [
     label: "Location de véhicules",
     title: "Prise en charge aéroport, retour libre — sans paperasse",
     poster: "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&w=1600&q=70",
-    chapter: "04",
+    chapter: "05",
     eyebrow: "Mobilité",
     gradient: "linear-gradient(135deg, #101524 0%, #2A2F6E 55%, #6F4FB8 100%)",
     accent: "#A48BF0",
@@ -50,7 +64,7 @@ const REEL = [
     label: "Assurance voyage",
     title: "Couverture santé, bagages et rapatriement, dès 2 500 XAF",
     poster: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1600&q=70",
-    chapter: "05",
+    chapter: "06",
     eyebrow: "Protection",
     gradient: "linear-gradient(135deg, #0A1320 0%, #1B3B6F 50%, #3FA7D6 100%)",
     accent: "#7DD3FC",
@@ -59,7 +73,7 @@ const REEL = [
     label: "Billetterie événementielle",
     title: "Concerts, matchs et festivals — billets mobiles authentiques",
     poster: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1600&q=70",
-    chapter: "06",
+    chapter: "07",
     eyebrow: "Loisirs",
     gradient: "linear-gradient(135deg, #1A0F1F 0%, #5B1E5B 55%, #E255A1 100%)",
     accent: "#F9A8D4",
@@ -68,7 +82,7 @@ const REEL = [
     label: "Mobile Money & carte",
     title: "Orange Money, MTN MoMo, carte Visa — paiement unifié",
     poster: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?auto=format&fit=crop&w=1600&q=70",
-    chapter: "07",
+    chapter: "08",
     eyebrow: "Paiement",
     gradient: "linear-gradient(135deg, #1A1300 0%, #4D3800 55%, #FFB000 100%)",
     accent: "#FFD75E",
@@ -93,65 +107,11 @@ function departureLabel(iso?: string): string {
 }
 
 export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
-  const reelRef = useRef<HTMLDivElement>(null)
-  const shouldReduce = useReducedMotion()
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [progress, setProgress] = useState(0)
-
-  // Drive the active video + global progress from the reel container's own scroll.
-  // Manual scroll pauses auto-advance so the user can browse without the reel
-  // jumping back to the previous chapter under their cursor.
-  useEffect(() => {
-    const root = reelRef.current
-    if (!root) return
-    let userPausedUntil = 0
-    const PAUSE_AFTER_SCROLL_MS = 8_000
-
-    const onScroll = () => {
-      const total = root.scrollWidth - root.clientWidth
-      const scrolled = Math.min(Math.max(root.scrollLeft, 0), total)
-      const pct = total > 0 ? scrolled / total : 0
-      setProgress(pct)
-      const idx = Math.min(
-        REEL.length - 1,
-        Math.max(0, Math.round(pct * (REEL.length - 1)))
-      )
-      setActiveIndex(idx)
-      userPausedUntil = Date.now() + PAUSE_AFTER_SCROLL_MS
-    }
-    onScroll()
-    root.addEventListener("scroll", onScroll, { passive: true })
-    window.addEventListener("resize", onScroll)
-
-    // Auto-advance: walk the reel forward at a calm cadence. Respects
-    // prefers-reduced-motion and the manual-scroll pause window.
-    const interval = setInterval(() => {
-      if (shouldReduce) return
-      if (Date.now() < userPausedUntil) return
-      setActiveIndex((i) => {
-        const next = (i + 1) % REEL.length
-        const total = root.scrollWidth - root.clientWidth
-        const targetX = (next / (REEL.length - 1)) * total
-        root.scrollTo({ left: targetX, behavior: "smooth" })
-        return next
-      })
-    }, AUTO_ADVANCE_MS)
-
-    return () => {
-      clearInterval(interval)
-      root.removeEventListener("scroll", onScroll)
-      window.removeEventListener("resize", onScroll)
-    }
-  }, [shouldReduce])
-
-  // Click on a chapter scrolls the reel container there.
-  const goTo = (i: number) => {
-    const root = reelRef.current
-    if (!root) return
-    const total = root.scrollWidth - root.clientWidth
-    const targetX = (i / (REEL.length - 1)) * total
-    root.scrollTo({ left: targetX, behavior: shouldReduce ? "auto" : "smooth" })
-  }
+  const shouldReduce = useMotionPreference()
+  // Reel lifecycle (index, autoplay, scroll sync, pause, keyboard) is owned
+  // by the shared motion adapter — this component only renders it.
+  const reel = useReelController({ slideCount: REEL.length, autoAdvanceMs: AUTO_ADVANCE_MS })
+  const { activeIndex, progress, reduced } = reel
 
   return (
     <section
@@ -209,10 +169,20 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
         </div>
       </div>
 
-      {/* Horizontal video reel — real scroll container with snap */}
+      {/* Horizontal video reel — real scroll container with snap.
+          Keyboard path: ← → Home End move between chapters. */}
       <div
-        ref={reelRef}
-        className="relative z-0 flex w-full snap-x snap-mandatory select-none overflow-x-auto no-scrollbar"
+        ref={reel.containerRef}
+        tabIndex={0}
+        role="group"
+        aria-roledescription="carrousel"
+        aria-label="Services CamerMove — utilisez les flèches pour naviguer"
+        onKeyDown={reel.onKeyDown}
+        onMouseEnter={reel.onMouseEnter}
+        onMouseLeave={reel.onMouseLeave}
+        onFocus={reel.onFocus}
+        onBlur={reel.onBlur}
+        className="relative z-0 flex w-full snap-x snap-mandatory select-none overflow-x-auto no-scrollbar outline-none focus-visible:ring-2 focus-visible:ring-paper/60"
         style={{ height: "min(78vh, 760px)" }}
       >
         {REEL.map((item, i) => (
@@ -235,7 +205,7 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
                 src={item.poster}
                 alt=""
                 loading={i === 0 ? "eager" : "lazy"}
-                className={`h-full w-full object-cover ${i === activeIndex && !shouldReduce ? "kenburns" : ""}`}
+                className={`h-full w-full object-cover ${i === activeIndex && !reduced ? "kenburns" : ""}`}
               />
             </div>
             {/* Service badge — keeps the reel legible over the imagery */}
@@ -280,11 +250,20 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
       <div className="sticky top-[72px] z-10 border-t border-white/10 bg-ink/85 backdrop-blur lg:top-24">
         <div className="mx-auto flex max-w-[1560px] flex-col gap-4 px-6 py-4 sm:px-8 md:flex-row md:items-center md:gap-8 md:px-12">
           <div className="no-scrollbar flex items-center gap-3 overflow-x-auto md:flex-1">
+            <button
+              type="button"
+              onClick={reel.prev}
+              aria-label="Chapitre précédent"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-paper/70 transition-colors hover:text-paper"
+            >
+              ←
+            </button>
             {REEL.map((item, i) => (
               <button
                 key={item.chapter}
-                onClick={() => goTo(i)}
+                onClick={() => reel.goTo(i)}
                 aria-current={i === activeIndex}
+                aria-label={`Aller au chapitre ${item.chapter} — ${item.label}`}
                 className="group flex min-h-[44px] shrink-0 items-center gap-2 px-4 py-1 text-left"
               >
                 <span
@@ -309,6 +288,14 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
                 </span>
               </button>
             ))}
+            <button
+              type="button"
+              onClick={reel.next}
+              aria-label="Chapitre suivant"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-paper/70 transition-colors hover:text-paper"
+            >
+              →
+            </button>
           </div>
           <div
             className="relative h-px w-full bg-white/10 md:w-48"
@@ -339,7 +326,7 @@ export function Hero({ minPrice, nextDepartureAt }: HeroProps) {
                   <>
                     {" · dès "}
                     <span className="num-tabular font-medium text-ink">
-                      {new Intl.NumberFormat("fr-FR").format(minPrice)} XAF
+                      {priceXaf(minPrice)}
                     </span>
                   </>
                 )}

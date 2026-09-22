@@ -20,7 +20,7 @@ services:
     command: redis-server --appendonly yes --save "" --loglevel warning
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -96,6 +96,8 @@ services:
       KAFKA_BROKERS: kafka:29092
       MINIO_ENDPOINT: minio
       API_URL: http://api:3000
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
       METRICS_ENABLED: "true"
       CORS_ALLOWED_ORIGINS: "http://localhost:3002,http://localhost:3000"
     depends_on:
@@ -114,6 +116,7 @@ services:
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
+    ports: ["127.0.0.1:4001:4001"]
     env_file: .env
     environment:
       NODE_ENV: production
@@ -121,6 +124,14 @@ services:
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:29092
       MINIO_ENDPOINT: minio
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+      WORKER_METRICS_PORT: "4001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }

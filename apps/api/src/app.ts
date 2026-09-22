@@ -20,6 +20,7 @@ import { partnerApplicationRoutes } from "./partner-applications/routes"
 import { partnerServiceRoutes } from "./partners/routes"
 import { placesRoutes } from "./places/routes"
 import { agenciesRoutes } from "./agencies/routes"
+import { reviewRoutes } from "./reviews/routes"
 import { transporterRoutes } from "./transporter/routes"
 import { adminRoutes } from "./admin/routes"
 import { swaggerPlugin } from "./plugins/swagger"
@@ -115,6 +116,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(newsletterRoutes, { prefix: "/api/v1" })
   await app.register(favoriteRoutes, { prefix: "/api/v1" })
   await app.register(landingRoutes, { prefix: "/api/v1" })
+  await app.register(reviewRoutes, { prefix: "/api/v1" })
   app.get("/health", async () => ({ status: "ok" }))
   return app
 }

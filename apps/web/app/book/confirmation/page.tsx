@@ -7,6 +7,7 @@ import { Check } from "lucide-react"
 import { useAuthStore } from "@camermove/frontend"
 import { getBooking } from "@/lib/api/bookings"
 import { Card, CardContent } from "@/components/ui/card"
+import { priceXaf } from "@camermove/shared"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -64,7 +65,7 @@ function ConfirmationInner() {
           {booking && (
             <div className="space-y-1 text-sm" style={{ color: "#14213D" }}>
               {seats != null && <p><span className="font-semibold">Sièges :</span> {seats}</p>}
-              <p className="text-base font-bold">Total : {new Intl.NumberFormat("fr-CM").format(booking.totalAmount)} XAF</p>
+              <p className="text-base font-bold">Total : {priceXaf(booking.totalAmount)}</p>
               <p><span className="font-semibold">Statut :</span> {booking.status}</p>
             </div>
           )}

@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Bed, Search, ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react"
+import { priceXaf } from "@camermove/shared"
 
 export default function HotelsPage() {
   const [city, setCity] = useState("")
@@ -124,7 +125,7 @@ export default function HotelsPage() {
                   <div className="flex flex-wrap gap-1">
                     {h.amenities.slice(0, 3).map((a) => <Badge key={a} variant="secondary" className="text-[11px]">{a}</Badge>)}
                   </div>
-                  <p className="text-sm font-bold">{h.rooms?.[0] ? `${new Intl.NumberFormat("fr-CM").format(h.rooms[0].pricePerNight)} XAF / nuit` : "Voir disponibilités"}</p>
+                  <p className="text-sm font-bold">{h.rooms?.[0] ? `${priceXaf(h.rooms[0].pricePerNight)} / nuit` : "Voir disponibilités"}</p>
                 </CardContent>
               </Card>
             </Link>

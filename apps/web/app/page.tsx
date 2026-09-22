@@ -19,6 +19,7 @@ import { InsuranceRail } from "@/components/landing/rails/InsuranceRail"
 import { EventsRail } from "@/components/landing/rails/EventsRail"
 import { fetchLandingStats, type LandingAgency } from "@/lib/api/landing"
 import { FAQ_TEASER } from "@/lib/data/faq"
+import { UrbanBands } from "@/components/landing/UrbanBands"
 
 function RailSkeleton() {
   return (
@@ -65,6 +66,10 @@ export default async function HomePage() {
           hotelsCount={hotelsCount}
           rentalsCount={rentalsCount}
         />
+
+        {/* Per user directive: intra-urban is the hero activity — show this
+            rail BEFORE the interurban rails so it leads the page. */}
+        <UrbanBands />
 
         <Suspense fallback={<RailSkeleton />}>
           <TransportRail />

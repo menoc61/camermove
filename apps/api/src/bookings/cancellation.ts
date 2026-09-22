@@ -1,4 +1,5 @@
-import { prisma } from "@camermove/db"
+import { prisma, getAppSettingsCached } from "@camermove/db"
+import { calcRefund } from "@camermove/shared"
 
 export type CancelActor = "traveler" | "transporter" | "admin" | "super_admin" | "system"
 export type CancelResult = {
@@ -33,8 +34,8 @@ export const DEFAULT_TIERS: CancellationTier[] = [
 
 export async function getCancellationTiers(): Promise<CancellationTier[]> {
   try {
-    const settings = await prisma.appSettings.findUnique({ where: { id: "global" } })
-    const flags = settings?.featureFlags as Record<string, unknown> | null
+    const settings = await getAppSettingsCached()
+    const flags = (settings?.featureFlags ?? null) as Record<string, unknown> | null
     const tiers = (flags?.cancellationTiers as CancellationTier[] | undefined)
     if (Array.isArray(tiers) && tiers.length > 0) return tiers
   } catch {}
@@ -118,8 +119,8 @@ export async function evaluateCancellation(input: {
     return { allowed: false, reason: tier.label, refundPercent: 0, refundAmount: 0, feeAmount: 0, feePercent: tier.feePercent, tier: tier.tier, policy: tier.label }
   }
 
-  const refundAmount = Math.round((input.booking.totalAmount * tier.refundPercent) / 100)
-  const feeAmount = Math.round((input.booking.totalAmount * tier.feePercent) / 100)
+  const refundAmount = calcRefund(input.booking.totalAmount, tier.refundPercent)
+  const feeAmount = calcRefund(input.booking.totalAmount, tier.feePercent)
 
   return { allowed: true, refundPercent: tier.refundPercent, refundAmount, feeAmount, feePercent: tier.feePercent, tier: tier.tier, policy: tier.label }
 }

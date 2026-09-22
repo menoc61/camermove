@@ -1,4 +1,4 @@
-function apiBase() { return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000" }
+import { request } from "./resource"
 
 export type BookingResponse = { booking: { id: string; reference: string; holdExpiresAt: string; totalAmount: number; status: string }; totalAmount: number; holdExpiresAt: string }
 
@@ -49,94 +49,49 @@ export interface MyTicketsParams {
   perPage?: number
 }
 
-export async function fetchMyBookings(token: string, params: MyBookingsParams = {}): Promise<MyBookingsResponse> {
-  const qs = new URLSearchParams()
-  if (params.page) qs.set("page", String(params.page))
-  if (params.perPage) qs.set("perPage", String(params.perPage))
-  if (params.scope) qs.set("scope", params.scope)
-  const res = await fetch(`${apiBase()}/api/v1/me/bookings${qs.toString() ? `?${qs.toString()}` : ""}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
+export function fetchMyBookings(token: string, params: MyBookingsParams = {}): Promise<MyBookingsResponse> {
+  return request<MyBookingsResponse>("/api/v1/me/bookings", {
+    token,
+    params: { page: params.page, perPage: params.perPage, scope: params.scope },
   })
-  if (!res.ok) {
-    const text = await res.text()
-    const err = new Error(text) as Error & { status?: number }
-    err.status = res.status
-    throw err
-  }
-  return res.json()
 }
 
-export async function fetchMyTickets(token: string, params: MyTicketsParams = {}): Promise<MyTicketsResponse> {
-  const qs = new URLSearchParams()
-  if (params.page) qs.set("page", String(params.page))
-  if (params.perPage) qs.set("perPage", String(params.perPage))
-  const res = await fetch(`${apiBase()}/api/v1/tickets/me${qs.toString() ? `?${qs.toString()}` : ""}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
+export function fetchMyTickets(token: string, params: MyTicketsParams = {}): Promise<MyTicketsResponse> {
+  return request<MyTicketsResponse>("/api/v1/tickets/me", {
+    token,
+    params: { page: params.page, perPage: params.perPage },
   })
-  if (!res.ok) {
-    const text = await res.text()
-    const err = new Error(text) as Error & { status?: number }
-    err.status = res.status
-    throw err
-  }
-  return res.json()
 }
 
-export async function createBooking(input: { tripId: string; seatCount: number; passengers: Array<{ fullName: string; phone?: string }> }, token: string): Promise<BookingResponse> {
-  const res = await fetch(`${apiBase()}/api/v1/bookings`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
-    body: JSON.stringify(input),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    const err = new Error(text) as Error & { status?: number }
-    err.status = res.status
-    throw err
-  }
-  return res.json()
+export function createBooking(input: { tripId: string; seatCount: number; passengers: Array<{ fullName: string; phone?: string }> }, token: string): Promise<BookingResponse> {
+  return request<BookingResponse>("/api/v1/bookings", { method: "POST", token, body: input })
 }
+
 export type TripPaymentResult = {
   payment: { id: string }
   authorizationUrl: string | null
   paymentUrl: string | null
 }
-export async function createTripPayment(
+export function createTripPayment(
   token: string,
   bookingId: string,
   opts: { provider: "notchpay" | "cinetpay"; method?: string; phone?: string; email?: string }
 ): Promise<TripPaymentResult> {
-  const res = await fetch(`${apiBase()}/api/v1/payments`, {
+  return request<TripPaymentResult>("/api/v1/payments", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
-    body: JSON.stringify({ bookingId, provider: opts.provider, method: opts.method, phone: opts.phone, email: opts.email }),
+    token,
+    body: { bookingId, provider: opts.provider, method: opts.method, phone: opts.phone, email: opts.email },
   })
-  if (!res.ok) {
-    const text = await res.text()
-    const err = new Error(text) as Error & { status?: number }
-    err.status = res.status
-    throw err
-  }
-  return res.json()
 }
-export async function getBooking(id: string, token: string) {
-  const res = await fetch(`${apiBase()}/api/v1/bookings/${id}`, { headers: { Authorization: `Bearer ${token}` } })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
+
+export function getBooking(id: string, token: string): Promise<unknown> {
+  return request(`/api/v1/bookings/${id}`, { token })
 }
-export async function cancelBooking(id: string, token: string) {
-  const res = await fetch(`${apiBase()}/api/v1/bookings/${id}/cancel`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() } })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
+
+export function cancelBooking(id: string, token: string): Promise<unknown> {
+  return request(`/api/v1/bookings/${id}/cancel`, { method: "POST", token })
 }
-export async function bulkCancelBookings(ids: string[], token: string) {
-  const res = await fetch(`${apiBase()}/api/v1/bookings/bulk/cancel`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "Idempotency-Key": crypto.randomUUID() },
-    body: JSON.stringify({ ids }),
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json() as Promise<{ affected: number }>
+
+export function bulkCancelBookings(ids: string[], token: string): Promise<{ affected: number }> {
+  return request<{ affected: number }>("/api/v1/bookings/bulk/cancel", { method: "POST", token, body: { ids } })
 }

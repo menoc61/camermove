@@ -11,6 +11,7 @@ export function getProvider(name: SupportedProvider): PaymentProvider {
       NOTCHPAY_BASE_URL: env.NOTCHPAY_BASE_URL,
       NOTCHPAY_PUBLIC_KEY: env.NOTCHPAY_PUBLIC_KEY,
       NOTCHPAY_HASH_KEY: env.NOTCHPAY_HASH_KEY,
+      NOTCHPAY_PRIVATE_KEY: env.NOTCHPAY_PRIVATE_KEY,
     })
   }
   if (name === "cinetpay") {

@@ -1,8 +1,6 @@
-import { apiFetch } from "./client"
+import { request, resourceClient } from "./resource"
 
-function apiBase(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"
-}
+const rentals = resourceClient<RentalVehicle>("/api/v1/rentals")
 
 export interface RentalVehicle {
   id: string
@@ -45,26 +43,25 @@ export interface RentalsResponse {
   meta?: { cached: boolean }
 }
 
-export async function fetchRentals(params: RentalsParams): Promise<RentalsResponse> {
-  const qs = new URLSearchParams()
-  if (params.pickupCity) qs.set("pickupCity", params.pickupCity)
-  else if (params.city) qs.set("pickupCity", params.city)
-  if (params.category) qs.set("category", params.category)
-  if (params.hasDriver != null) qs.set("hasDriver", String(params.hasDriver))
-  if (params.minPrice != null) qs.set("minPrice", String(params.minPrice))
-  if (params.maxPrice != null) qs.set("maxPrice", String(params.maxPrice))
-  if (params.q) qs.set("q", params.q)
-  qs.set("page", String(params.page ?? 1))
-  qs.set("perPage", String(params.perPage ?? params.limit ?? 20))
-  const res = await fetch(`${apiBase()}/api/v1/rentals?${qs.toString()}`, { cache: "no-store" })
-  if (!res.ok) throw new Error("rentals search failed")
-  return res.json()
+export function fetchRentals(params: RentalsParams): Promise<RentalsResponse> {
+  return rentals.request<RentalsResponse>("/api/v1/rentals", {
+    cache: "no-store",
+    errorLabel: "rentals search failed",
+    params: {
+      pickupCity: params.pickupCity ?? params.city,
+      category: params.category,
+      hasDriver: params.hasDriver,
+      minPrice: params.minPrice,
+      maxPrice: params.maxPrice,
+      q: params.q,
+      page: params.page ?? 1,
+      perPage: params.perPage ?? params.limit ?? 20,
+    },
+  })
 }
 
-export async function fetchRental(id: string): Promise<RentalVehicle> {
-  const res = await fetch(`${apiBase()}/api/v1/rentals/${id}`, { cache: "no-store" })
-  if (!res.ok) throw new Error("rental not found")
-  return res.json()
+export function fetchRental(id: string): Promise<RentalVehicle> {
+  return rentals.get<RentalVehicle>(`/${id}`, { cache: "no-store", errorLabel: "rental not found" })
 }
 
 export interface CreateRentalBookingBody {
@@ -80,17 +77,11 @@ export interface CreateRentalBookingBody {
 }
 
 export function createRentalBooking(token: string, body: CreateRentalBookingBody) {
-  const headers: Record<string, string> = { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() }
-  return apiFetch<{ id: string; totalAmount: number; status: string }>(`/api/v1/rentals/bookings`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    token,
-  })
+  return rentals.create<{ id: string; totalAmount: number; status: string }>("/bookings", body, { token })
 }
 
 export function fetchRentalBooking(token: string, id: string) {
-  return apiFetch<{
+  return rentals.get<{
     id: string
     status: string
     startDate: string
@@ -99,7 +90,7 @@ export function fetchRentalBooking(token: string, id: string) {
     totalAmount: number
     vehicle?: { id: string; make: string; model: string; category: string } | null
     payment?: { status: string } | null
-  }>(`/api/v1/rentals/bookings/${id}`, { method: "GET", token })
+  }>(`/bookings/${id}`, { token })
 }
 
 export interface MyRentalBookingsParams {
@@ -130,21 +121,11 @@ export interface MyRentalBookingsResponse {
 }
 
 export function fetchMyRentalBookings(token: string, params: MyRentalBookingsParams = {}): Promise<MyRentalBookingsResponse> {
-  const qs = new URLSearchParams()
-  if (params.page) qs.set("page", String(params.page))
-  if (params.perPage) qs.set("perPage", String(params.perPage))
-  if (params.q) qs.set("q", params.q)
-  if (params.dateFrom) qs.set("dateFrom", params.dateFrom)
-  if (params.dateTo) qs.set("dateTo", params.dateTo)
-  return apiFetch<MyRentalBookingsResponse>(`/api/v1/rentals/bookings/me${qs.toString() ? `?${qs.toString()}` : ""}`, { method: "GET", token })
+  return rentals.request<MyRentalBookingsResponse>("/api/v1/rentals/bookings/me", { token, params })
 }
 
 export function cancelRentalBooking(token: string, id: string) {
-  return apiFetch<{ id: string; status: string }>(`/api/v1/rentals/bookings/${id}/cancel`, {
-    method: "POST",
-    headers: { "Idempotency-Key": crypto.randomUUID() },
-    token,
-  })
+  return rentals.request<{ id: string; status: string }>(`/api/v1/rentals/bookings/${id}/cancel`, { method: "POST", token })
 }
 
 export interface RentalPaymentOpts {
@@ -165,13 +146,12 @@ export async function createRentalPayment(
   bookingId: string,
   opts: RentalPaymentOpts
 ): Promise<RentalPaymentResult> {
-  const res = await apiFetch<{ payment: { id: string }; authorizationUrl: string | null; paymentUrl?: string | null }>(
+  const res = await rentals.request<{ payment: { id: string }; authorizationUrl: string | null; paymentUrl?: string | null }>(
     `/api/v1/rentals/bookings/${bookingId}/pay`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
-      body: JSON.stringify({ provider: opts.provider, method: opts.method, phone: opts.phone, email: opts.email }),
       token,
+      body: { provider: opts.provider, method: opts.method, phone: opts.phone, email: opts.email },
     }
   )
   return { payment: res.payment, authorizationUrl: res.authorizationUrl, paymentUrl: res.paymentUrl ?? res.authorizationUrl }

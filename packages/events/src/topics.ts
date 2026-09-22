@@ -20,6 +20,13 @@ export const EVENT_TOPICS = {
   insurancePolicyIssued: "camermove.insurance.policy.issued",
   eventBookingConfirmed: "camermove.event.booking.confirmed",
   bookingStatusChanged: "camermove.booking.status.changed",
+  // Created/updated lifecycle events (closed union — never publish raw strings)
+  hotelBookingCreated: "camermove.hotel.booking.created",
+  rentalBookingCreated: "camermove.rental.booking.created",
+  eventBookingCreated: "camermove.event.booking.created",
+  parcelCreated: "camermove.parcel.created",
+  parcelStatusUpdated: "camermove.parcel.status.updated",
+  insurancePolicyCreated: "camermove.insurance.policy.created",
 } as const
 
 export type EventTopic = (typeof EVENT_TOPICS)[keyof typeof EVENT_TOPICS]

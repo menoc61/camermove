@@ -57,8 +57,8 @@ function StatCard({ label, description, value }: { label: string; description: s
 function LoadingGrid() {
   return el(
     "div",
-    { className: "grid gap-3 md:grid-cols-2 xl:grid-cols-5" },
-    ...Array.from({ length: 5 }).map((_, i) =>
+    { className: "grid gap-3 md:grid-cols-2 xl:grid-cols-6" },
+    ...Array.from({ length: 6 }).map((_, i) =>
       el(
         Card,
         { key: `skeleton-${i}` },

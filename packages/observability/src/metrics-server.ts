@@ -27,8 +27,8 @@ export interface MetricsServer {
   close(): Promise<void>
 }
 
-export function startMetricsServer(env: Pick<Env, "METRICS_PORT">): MetricsServer {
-  const port = env.METRICS_PORT
+export function startMetricsServer(env: Pick<Env, "METRICS_PORT">, portOverride?: number): MetricsServer {
+  const port = portOverride ?? env.METRICS_PORT
   const server = createServer(async (req, res) => {
     try {
       if (req.method === "GET" && req.url === "/metrics") {

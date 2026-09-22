@@ -9,7 +9,7 @@ import type { FastifyInstance } from "fastify"
 import { loadEnv } from "@camermove/config"
 import { verifyNotchSignature } from "./verify.js"
 import { getRedis } from "../../lib/redis.js"
-import { EVENT_TOPICS } from "@camermove/events"
+import { EVENT_TOPICS, publishEvent, makeEvent } from "@camermove/events"
 
 const memoryDedup = new Map<string, number>()
 const SEVEN_DAYS = 7 * 24 * 3600
@@ -44,16 +44,32 @@ export async function notchpayWebhookRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "FORBIDDEN", message: "invalid signature" })
       }
 
-      let event: { id: string; type: string; data: { id: string; reference: string; amount?: number } }
+      let event: {
+        id: string
+        type: string
+        data: {
+          id?: string
+          reference?: string
+          merchant_reference?: string
+          trxref?: string
+          amount?: number
+        }
+      }
       try {
         event = JSON.parse(rawBody) as typeof event
       } catch {
         return reply.code(400).send({ error: "BAD_REQUEST", message: "invalid JSON" })
       }
 
-      if (!event?.id || !event?.data?.reference) {
+      // Real payloads use data.reference, data.merchant_reference or
+      // data.trxref depending on event version — accept all, normalize.
+      const evtRef =
+        event?.data?.reference ?? event?.data?.merchant_reference ?? event?.data?.trxref
+      if (!event?.id || !evtRef) {
         return reply.code(400).send({ error: "BAD_REQUEST", message: "missing id or reference" })
       }
+      // Normalize so downstream (Kafka worker) always sees data.reference.
+      event.data.reference = evtRef
 
       const deliveryId = event.id // evt_xxx globally unique (T-03-13)
 
@@ -78,7 +94,8 @@ export async function notchpayWebhookRoutes(app: FastifyInstance) {
       }
 
       if (isDuplicate) {
-        req.log.info({ deliveryId }, "webhook duplicate, ack 200")
+        const dupMeta = (req as unknown as { meta?: Record<string, unknown> }).meta
+        req.log.info({ ...dupMeta, deliveryId }, "webhook duplicate, ack 200")
         return reply.code(200).send({ id: deliveryId, status: "duplicate" })
       }
 
@@ -92,19 +109,14 @@ export async function notchpayWebhookRoutes(app: FastifyInstance) {
       }
 
       try {
-        const { createKafkaClient } = await import("@camermove/events")
-        const env = loadEnv()
-        const kafka = createKafkaClient(env as never)
-        const producer = kafka.producer({ idempotent: true })
-        await producer.connect().catch(() => {})
-        await producer.send({
-          topic: EVENT_TOPICS.paymentWebhookReceived,
-          messages: [{ key: domainEvent.aggregateId, value: JSON.stringify(domainEvent) }],
-        })
-        await producer.disconnect().catch(() => {})
+        // Typed outbox (C4) replaces the hand-rolled kafkajs ceremony.
+        await publishEvent(
+          EVENT_TOPICS.paymentWebhookReceived,
+          makeEvent("payment.webhook.received", domainEvent.aggregateId, event as Record<string, unknown>),
+        )
       } catch (err) {
         // Fallback to Redis list if Kafka not available; keep dedup key so provider retries (500) will re-deliver
-        req.log.warn({ err, deliveryId }, "kafka publish failed, fallback to redis queue")
+        req.log.warn({ err, deliveryId }, "outbox publish failed, fallback to redis queue")
         try {
           const redis = getRedis()
           await redis.lpush("payment-webhooks", JSON.stringify(domainEvent))

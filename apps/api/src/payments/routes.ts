@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify"
-import { CreatePaymentBody, PaymentParams, PaymentListQuery } from "./schema.js"
-import { createPayment, getPaymentById, listPayments } from "./service.js"
+import { CreatePaymentBody, PaymentParams, PaymentListQuery, RefundBody } from "./schema.js"
+import { createTripPayment, getPaymentById, listPayments } from "./service.js"
+import { refundPayment } from "./jobs/refund.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { loadEnv } from "@camermove/config"
 import { observePayment } from "@camermove/observability"
@@ -12,7 +13,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta
     req.log.info({ ...meta, bookingId: body.bookingId, provider: body.provider, ip: (meta as Record<string, unknown>).ip, ua: (meta as Record<string, unknown>).userAgent, userId: user.id }, "payment.create")
     try {
-      const result = await createPayment({
+      const result = await createTripPayment({
         bookingId: body.bookingId,
         userId: user.id,
         provider: body.provider as never,
@@ -39,6 +40,16 @@ export async function paymentRoutes(app: FastifyInstance) {
     const { id } = PaymentParams.parse(req.params)
     const user = (req as unknown as { user: { id: string; role: string } }).user
     return getPaymentById(id, user)
+  })
+
+  app.post("/payments/:id/refund", { preHandler: app.requireAuth("admin") }, async (req, reply) => {
+    const { id } = PaymentParams.parse(req.params)
+    const body = RefundBody.parse(req.body ?? {})
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    req.log.info({ ...meta, paymentId: id, actorId: user.id, reason: body.reason }, "payment.refund")
+    const result = await refundPayment(id, user.id, body.reason, body.amount)
+    return reply.code(201).send(result)
   })
 
   app.get("/payments/export", { preHandler: app.requireAuth() }, async (req, reply) => {

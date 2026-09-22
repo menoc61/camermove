@@ -1,4 +1,5 @@
 import { fetchLandingRail } from "@/lib/api/landing"
+import { priceXaf } from "@camermove/shared"
 import { ServiceRail, ServiceRailCard } from "../ServiceRail"
 
 /* Rotating per-transporter bus imagery (Unsplash, stable IDs). */
@@ -14,10 +15,6 @@ function timeFr(iso: string): string {
     minute: "2-digit",
     timeZone: "Africa/Douala",
   })
-}
-
-function priceFr(n: number): string {
-  return `${new Intl.NumberFormat("fr-FR").format(n)} XAF`
 }
 
 /**
@@ -67,7 +64,7 @@ export async function TransportRail() {
           imageAlt={`${t.companyName} — bus ${t.origin} vers ${t.destination}`}
           top={`${t.origin} → ${t.destination} · ${timeFr(t.departureAt)}`}
           title={t.vehicleTypeInfo ? `${t.companyName} · ${t.vehicleTypeInfo}` : t.companyName}
-          bottom={`${priceFr(t.price)} · ${t.seatsAvailable} places`}
+          bottom={`${priceXaf(t.price)} · ${t.seatsAvailable} places`}
           badge={i === heroIndex ? "Héros" : undefined}
         />
       ))}

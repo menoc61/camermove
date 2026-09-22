@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { priceXaf } from "@camermove/shared";
 
 export interface RentalCardItem {
   id: string;
@@ -23,7 +24,6 @@ export interface RentalCardItem {
   dropoffCity: string | null;
 }
 
-const fmtXaf = (n: number) => new Intl.NumberFormat("fr-CM").format(n);
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("fr-FR");
 
 export function RentalBookingCard({ item }: { item: RentalCardItem }) {
@@ -59,7 +59,7 @@ export function RentalBookingCard({ item }: { item: RentalCardItem }) {
         <Separator />
       </CardContent>
       <CardFooter className="flex items-center justify-between">
-        <p className="text-sm font-bold">{fmtXaf(item.totalAmount)} XAF</p>
+        <p className="text-sm font-bold">{priceXaf(item.totalAmount)}</p>
         <a href={`/rentals/${item.id}`} className="text-sm underline underline-offset-4">
           Voir
         </a>

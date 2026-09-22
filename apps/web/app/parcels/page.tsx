@@ -13,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Truck, Package, TriangleAlert } from "lucide-react"
+import { priceXaf } from "@camermove/shared"
 
 type TabName = "send" | "my-parcels" | "track"
 
@@ -247,7 +248,7 @@ export default function ParcelsPage() {
                     <CardContent className="p-4 space-y-2">
                       <h3 className="font-semibold line-clamp-1">{p.recipientName}</h3>
                       <p className="text-xs text-muted-foreground">{p.senderCity} → {p.recipientCity}</p>
-                      <p className="text-sm font-bold">{new Intl.NumberFormat("fr-CM").format(p.shippingCost)} XAF</p>
+                      <p className="text-sm font-bold">{priceXaf(p.shippingCost)}</p>
                       <p className="text-xs text-muted-foreground">{statusBadgeText(p.status)} · {p.trackingNumber}</p>
                     </CardContent>
                   </Card>
@@ -317,7 +318,7 @@ export default function ParcelsPage() {
 
               <div>
                 <p className="text-sm font-medium">Coût d&apos;expédition</p>
-                <p className="text-2xl font-bold">{new Intl.NumberFormat("fr-CM").format(trackData.shippingCost)} XAF</p>
+                <p className="text-2xl font-bold">{priceXaf(trackData.shippingCost)}</p>
               </div>
             </div>
           )}

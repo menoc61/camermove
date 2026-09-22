@@ -1,5 +1,6 @@
 export { prisma } from "./prisma"
 export * from "./settings"
+export { getSharedRedis, closeSharedRedis } from "./redis"
 export { Prisma } from "@prisma/client"
 export type * from "@prisma/client"
 export * from "./repositories/seat.repository"

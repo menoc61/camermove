@@ -32,6 +32,11 @@ export function createNotificationHandlers(env: Env) {
       if (!data?.userId) return
       await dispatcher.dispatch(data)
     },
+    async onPaymentFailed(event: { data: unknown }) {
+      const data = event.data as NotificationEvent
+      if (!data?.userId) return
+      await dispatcher.dispatch(data)
+    },
     async onTicketIssued(event: { data: unknown }) {
       const data = event.data as NotificationEvent
       if (!data?.userId) return

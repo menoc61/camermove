@@ -1,4 +1,5 @@
 import { fetchLandingRail } from "@/lib/api/landing"
+import { priceXaf } from "@camermove/shared"
 import { ServiceRail, ServiceRailCard } from "../ServiceRail"
 
 // Fallback prices (XAF per traveler) — mirrors
@@ -10,8 +11,6 @@ const DEFAULT_COVERAGE_PRICES: Record<string, number> = {
   premium: 10000,
   family: 15000,
 }
-
-const formatXaf = (v: number) => new Intl.NumberFormat("fr-FR").format(v)
 
 const COVERAGES = [
   {
@@ -74,7 +73,7 @@ export async function InsuranceRail() {
           imageAlt={c.imageAlt}
           top="Europe · 14 jours"
           title={`${c.name} — ${c.detail}`}
-          bottom={`Prime dès ${formatXaf(pricing[c.key] ?? DEFAULT_COVERAGE_PRICES[c.key] ?? 2500)} XAF`}
+          bottom={`Prime dès ${priceXaf(pricing[c.key] ?? DEFAULT_COVERAGE_PRICES[c.key] ?? 2500)}`}
           badge={c.key === "standard" ? "La plus choisie" : undefined}
         />
       ))}

@@ -3,7 +3,7 @@
  * Token comes from the zustand auth store; cookie sync in providers.tsx
  * mirrors it for middleware.
  */
-import { apiFetch } from "./client"
+import { request } from "./resource"
 
 export interface DashboardItem {
   id: string
@@ -43,5 +43,5 @@ export interface DashboardResponse {
 }
 
 export function getDashboard(token: string): Promise<DashboardResponse> {
-  return apiFetch<DashboardResponse>("/api/v1/me/dashboard", { method: "GET", token })
+  return request<DashboardResponse>("/api/v1/me/dashboard", { method: "GET", token })
 }

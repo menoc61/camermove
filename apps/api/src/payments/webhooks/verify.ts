@@ -6,9 +6,15 @@ import crypto from "node:crypto"
  */
 export function verifyNotchSignature(rawBody: string, signature: string, hashKey: string): boolean {
   if (!rawBody || !signature || !hashKey) return false
+  const sig = signature.trim().toLowerCase()
   const expected = crypto.createHmac("sha256", hashKey).update(rawBody).digest("hex")
+  // Compare as utf8 strings so non-hex / upper-case signatures fail closed
+  // instead of throwing on Buffer.from(.., "hex").
+  const a = Buffer.from(expected, "utf8")
+  const b = Buffer.from(sig, "utf8")
+  if (a.length !== b.length) return false
   try {
-    return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(signature, "hex"))
+    return crypto.timingSafeEqual(a, b)
   } catch {
     return false
   }

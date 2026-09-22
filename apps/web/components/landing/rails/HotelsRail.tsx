@@ -1,12 +1,9 @@
 import { fetchLandingRail } from "@/lib/api/landing"
+import { priceXaf } from "@camermove/shared"
 import { ServiceRail, ServiceRailCard } from "../ServiceRail"
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=1200&q=70"
-
-function priceFr(n: number): string {
-  return `${new Intl.NumberFormat("fr-FR").format(n)} XAF`
-}
 
 /**
  * HotelsRail — 02. Top 8 active, approved hotels with rooms,
@@ -52,7 +49,7 @@ export async function HotelsRail() {
           imageAlt={`${h.name} — ${h.city}`}
           top={h.starRating ? `${h.city} · ${h.starRating}★` : h.city}
           title={h.name}
-          bottom={`dès ${priceFr(h.fromPrice as number)} / nuit`}
+          bottom={`dès ${priceXaf(h.fromPrice as number)} / nuit`}
         />
       ))}
     </ServiceRail>

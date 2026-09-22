@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiFetch } from "./client";
+import { ApiError, request } from "./resource";
 import { getDashboard } from "./dashboard";
 
-vi.mock("./client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./client")>();
+vi.mock("./resource", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./resource")>();
   return {
     ...actual,
-    apiFetch: vi.fn(),
+    request: vi.fn(),
   };
 });
 
-const mockedApiFetch = vi.mocked(apiFetch);
+const mockedRequest = vi.mocked(request);
 
 describe("getDashboard", () => {
   beforeEach(() => {
@@ -34,18 +34,18 @@ describe("getDashboard", () => {
       history: [],
       tickets: [],
     };
-    mockedApiFetch.mockResolvedValueOnce(payload);
+    mockedRequest.mockResolvedValueOnce(payload);
 
     await expect(getDashboard("tok_123")).resolves.toEqual(payload);
-    expect(mockedApiFetch).toHaveBeenCalledOnce();
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/v1/me/dashboard", {
+    expect(mockedRequest).toHaveBeenCalledOnce();
+    expect(mockedRequest).toHaveBeenCalledWith("/api/v1/me/dashboard", {
       method: "GET",
       token: "tok_123",
     });
   });
 
   it("throws ApiError on 401", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new ApiError(401, "Unauthorized"));
+    mockedRequest.mockRejectedValueOnce(new ApiError(401, "Unauthorized"));
 
     const promise = getDashboard("bad_token");
     await expect(promise).rejects.toBeInstanceOf(ApiError);

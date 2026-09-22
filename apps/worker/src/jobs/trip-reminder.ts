@@ -7,8 +7,8 @@
  * (matches apps/worker/src/index.ts expireHolds/reconcileStalePayments cadence).
  */
 import { prisma } from "@camermove/db"
-import { createLogger, loadEnv } from "@camermove/config"
-import { createKafkaClient, EVENT_TOPICS } from "@camermove/events"
+import { createLogger } from "@camermove/config"
+import { EVENT_TOPICS, makeEvent, publishEvent } from "@camermove/events"
 
 const log = createLogger()
 
@@ -65,52 +65,34 @@ export async function runTripReminder(now: Date = new Date()): Promise<number> {
   const toRemind = await findBookingsToRemind(now)
   if (toRemind.length === 0) return 0
 
-  const env = loadEnv() as never
-  const kafka = createKafkaClient(env)
-  const producer = kafka.producer({ idempotent: true })
-  await producer.connect().catch(() => {})
-
   let sent = 0
   for (const b of toRemind) {
     try {
       const verificationCode = await prisma.ticket
         .findFirst({ where: { bookingId: b.bookingId }, select: { verificationCode: true } })
         .then((t) => t?.verificationCode ?? "")
-      await producer
-        .send({
-          topic: EVENT_TOPICS.tripReminder24h,
-          messages: [
-            {
-              key: b.bookingId,
-              value: JSON.stringify({
-                id: `trip-reminder-${b.bookingId}-${now.toISOString()}`,
-                type: "trip.reminder.24h",
-                ts: now.toISOString(),
-                aggregateId: b.bookingId,
-                data: {
-                  type: "trip.reminder.24h",
-                  userId: b.userId,
-                  payload: {
-                    bookingId: b.bookingId,
-                    reference: b.reference,
-                    departureAt: b.departureAt.toISOString(),
-                    origin: b.origin,
-                    destination: b.destination,
-                    verificationCode,
-                  },
-                },
-              }),
-            },
-          ],
-        })
-        .catch(() => {})
+      // Single seam: the outbox owns producer lifecycle + envelope + best-effort policy.
+      await publishEvent(
+        EVENT_TOPICS.tripReminder24h,
+        makeEvent("trip.reminder.24h", b.bookingId, {
+          type: "trip.reminder.24h",
+          userId: b.userId,
+          payload: {
+            bookingId: b.bookingId,
+            reference: b.reference,
+            departureAt: b.departureAt.toISOString(),
+            origin: b.origin,
+            destination: b.destination,
+            verificationCode,
+          },
+        }),
+      )
       sent++
     } catch (e) {
       log.error({ err: (e as Error).message, bookingId: b.bookingId }, "trip-reminder failed for booking")
     }
   }
 
-  await producer.disconnect().catch(() => {})
   if (sent > 0) log.info({ sent }, "trip-reminder published events")
   return sent
 }

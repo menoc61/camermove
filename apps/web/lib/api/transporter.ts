@@ -1,4 +1,6 @@
-import { apiFetch } from "./client"
+import { resourceClient } from "./resource"
+
+const transporter = resourceClient<TransporterStats>("/api/v1/transporter")
 
 export interface Vehicle {
   id: string
@@ -63,88 +65,83 @@ export interface TransporterStats {
   totalRevenue: number
 }
 
-export async function getTransporterStats(token: string): Promise<TransporterStats> {
-  return apiFetch<TransporterStats>("/api/v1/transporter/stats", { method: "GET", token })
+export function getTransporterStats(token: string): Promise<TransporterStats> {
+  return transporter.get<TransporterStats>("/stats", { token })
 }
 
-export async function getTransporterProfile(token: string): Promise<Record<string, unknown>> {
-  return apiFetch("/api/v1/transporter/profile", { method: "GET", token })
+export function getTransporterProfile(token: string): Promise<Record<string, unknown>> {
+  return transporter.get("/profile", { token })
 }
 
-export async function updateTransporterProfile(token: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
-  return apiFetch("/api/v1/transporter/profile", { method: "PUT", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function updateTransporterProfile(token: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return transporter.update("/profile", data, { token })
 }
 
-export async function listVehicles(token: string): Promise<Vehicle[]> {
-  return apiFetch<Vehicle[]>("/api/v1/transporter/vehicles", { method: "GET", token })
+export function listVehicles(token: string): Promise<Vehicle[]> {
+  return transporter.get<Vehicle[]>("/vehicles", { token })
 }
 
-export async function createVehicle(token: string, data: Record<string, unknown>): Promise<Vehicle> {
-  return apiFetch<Vehicle>("/api/v1/transporter/vehicles", { method: "POST", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function createVehicle(token: string, data: Record<string, unknown>): Promise<Vehicle> {
+  return transporter.create<Vehicle>("/vehicles", data, { token })
 }
 
-export async function updateVehicle(token: string, id: string, data: Record<string, unknown>): Promise<Vehicle> {
-  return apiFetch<Vehicle>(`/api/v1/transporter/vehicles/${id}`, { method: "PUT", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function updateVehicle(token: string, id: string, data: Record<string, unknown>): Promise<Vehicle> {
+  return transporter.update<Vehicle>(`/vehicles/${id}`, data, { token })
 }
 
 export async function deleteVehicle(token: string, id: string): Promise<void> {
-  await apiFetch<void>(`/api/v1/transporter/vehicles/${id}`, { method: "DELETE", token })
+  await transporter.remove(`/vehicles/${id}`, { token })
 }
 
-export async function listRoutes(token: string): Promise<Route[]> {
-  return apiFetch<Route[]>("/api/v1/transporter/routes", { method: "GET", token })
+export function listRoutes(token: string): Promise<Route[]> {
+  return transporter.get<Route[]>("/routes", { token })
 }
 
-export async function createRoute(token: string, data: Record<string, unknown>): Promise<Route> {
-  return apiFetch<Route>("/api/v1/transporter/routes", { method: "POST", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function createRoute(token: string, data: Record<string, unknown>): Promise<Route> {
+  return transporter.create<Route>("/routes", data, { token })
 }
 
-export async function updateRoute(token: string, id: string, data: Record<string, unknown>): Promise<Route> {
-  return apiFetch<Route>(`/api/v1/transporter/routes/${id}`, { method: "PUT", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function updateRoute(token: string, id: string, data: Record<string, unknown>): Promise<Route> {
+  return transporter.update<Route>(`/routes/${id}`, data, { token })
 }
 
 export async function deleteRoute(token: string, id: string): Promise<void> {
-  await apiFetch<void>(`/api/v1/transporter/routes/${id}`, { method: "DELETE", token })
+  await transporter.remove(`/routes/${id}`, { token })
 }
 
-export async function listTrips(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<Trip>> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<PaginatedResponse<Trip>>(`/api/v1/transporter/trips${qs ? `?${qs}` : ""}`, { method: "GET", token })
+export function listTrips(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<Trip>> {
+  return transporter.list<Trip>("/trips", { token, params })
 }
 
-export async function createTrip(token: string, data: Record<string, unknown>): Promise<Trip> {
-  return apiFetch<Trip>("/api/v1/transporter/trips", { method: "POST", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function createTrip(token: string, data: Record<string, unknown>): Promise<Trip> {
+  return transporter.create<Trip>("/trips", data, { token })
 }
 
-export async function updateTrip(token: string, id: string, data: Record<string, unknown>): Promise<Trip> {
-  return apiFetch<Trip>(`/api/v1/transporter/trips/${id}`, { method: "PUT", token, body: JSON.stringify(data), headers: { "Content-Type": "application/json" } })
+export function updateTrip(token: string, id: string, data: Record<string, unknown>): Promise<Trip> {
+  return transporter.update<Trip>(`/trips/${id}`, data, { token })
 }
 
 export async function deleteTrip(token: string, id: string): Promise<void> {
-  await apiFetch<void>(`/api/v1/transporter/trips/${id}`, { method: "DELETE", token })
+  await transporter.remove(`/trips/${id}`, { token })
 }
 
-export async function listBookings(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<TransporterBooking>> {
-  const qs = new URLSearchParams(params).toString()
-  return apiFetch<PaginatedResponse<TransporterBooking>>(`/api/v1/transporter/bookings${qs ? `?${qs}` : ""}`, { method: "GET", token })
+export function setTripStatus(token: string, id: string, action: "pause" | "close" | "reopen"): Promise<Trip> {
+  return transporter.request<Trip>(`/api/v1/trips/${id}/status`, { method: "POST", token, body: { action } })
+}
+
+export function listBookings(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<TransporterBooking>> {
+  return transporter.list<TransporterBooking>("/bookings", { token, params })
 }
 
 export async function listPayments(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<{ id: string; amount: number; status: string; provider: string }>> {
-  const qs = new URLSearchParams(params).toString()
-  const r = await apiFetch<PaginatedResponse<TransporterBooking>>(`/api/v1/transporter/bookings${qs ? `?${qs}` : ""}`, { method: "GET", token })
+  const r = await transporter.list<TransporterBooking>("/bookings", { token, params })
   return {
     ...r,
     items: r.items.flatMap((b) => b.payments.map((p) => ({ ...p, bookingId: b.id }))) as unknown as { id: string; amount: number; status: string; provider: string }[],
   }
 }
 
-// NOTE: there is no transporter-scoped commissions endpoint yet — this route is
-// admin-only. Do not silently swallow the 403; surface it so the UI can tell the
-// user the section is unavailable instead of showing a fake empty list.
-export async function listCommissions(token: string): Promise<PaginatedResponse<{ id: string; commissionAmount: number; netAmount: number; payoutStatus: string }>> {
-  return apiFetch<PaginatedResponse<{ id: string; commissionAmount: number; netAmount: number; payoutStatus: string }>>(`/api/v1/admin/commissions`, { method: "GET", token })
-}
-
-export async function bulkCreateTrips(token: string, trips: Record<string, unknown>[]): Promise<{ count: number }> {
-  return apiFetch(`/api/v1/trips/bulk`, { method: "POST", token, body: JSON.stringify({ trips }), headers: { "Content-Type": "application/json" } })
+// Transporter-scoped commissions (own transporterId) — see GET /transporter/commissions.
+export function listCommissions(token: string, params: Record<string, string> = {}): Promise<PaginatedResponse<{ id: string; commissionAmount: number; netAmount: number; payoutStatus: string }>> {
+  return transporter.list("/commissions", { token, params })
 }

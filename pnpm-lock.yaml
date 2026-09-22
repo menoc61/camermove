@@ -78,6 +78,9 @@ importers:
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -91,9 +94,6 @@ importers:
       '@types/qrcode':
         specifier: ^1.5.6
         version: 1.5.6
-      tsx:
-        specifier: ^4.23.12
-        version: 4.23.12
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -284,6 +284,9 @@ importers:
       nodemailer:
         specifier: ^6.9.16
         version: 6.10.1
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
       twilio:
         specifier: ^6.1.0
         version: 6.1.0
@@ -294,9 +297,6 @@ importers:
       '@types/nodemailer':
         specifier: ^6.4.14
         version: 6.4.24
-      tsx:
-        specifier: ^4.23.12
-        version: 4.23.12
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -331,6 +331,9 @@ importers:
       '@camermove/config':
         specifier: workspace:*
         version: link:../config
+      '@camermove/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@prisma/client':
         specifier: ^6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
@@ -474,6 +477,9 @@ importers:
       ioredis:
         specifier: ^5.6.1
         version: 5.11.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

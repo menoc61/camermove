@@ -32,7 +32,7 @@ export const swaggerPlugin = fp(async (app: FastifyInstance) => {
               id: { type: "string" },
               userId: { type: "string", nullable: true },
               transporterId: { type: "string", nullable: true },
-              channel: { type: "string", enum: ["email", "sms", "whatsapp", "push"] },
+              channel: { type: "string", enum: ["email", "whatsapp", "push"] },
               type: { type: "string" },
               status: { type: "string", enum: ["queued", "sent", "failed"] },
               payload: { type: "object" },

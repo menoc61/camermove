@@ -22,6 +22,24 @@ const PROTECTED_PREFIXES = ["/dashboard", "/tickets", "/transporter", "/admin"]
 const PUBLIC_TICKETS_PATH = "/tickets/lookup"
 const PUBLIC_ADMIN_LOGIN = "/admin/login"
 
+// UX gate only: the payload is UNVERIFIED (no signature check in middleware).
+// A forged role only changes which login/area renders — every API call still
+// enforces requireAuth(role?) server-side.
+function roleFromCookie(value: string): string | null {
+  try {
+    const part = value.split(".")[1]
+    if (!part) return null
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/")
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4)
+    const bin = atob(padded)
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0))
+    const json = JSON.parse(new TextDecoder().decode(bytes)) as { role?: string }
+    return typeof json.role === "string" ? json.role : null
+  } catch {
+    return null
+  }
+}
+
 export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -49,6 +67,30 @@ export default function middleware(request: NextRequest) {
     const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/")
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = isAdminArea ? "/admin/login" : "/login"
+    loginUrl.search = `?next=${encodeURIComponent(pathname)}`
+    return NextResponse.redirect(loginUrl)
+  }
+
+  const role = roleFromCookie(cookie.value)
+  const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/")
+  const isTransporterArea = pathname === "/transporter" || pathname.startsWith("/transporter/")
+  if (isAdminArea && role !== "admin" && role !== "super_admin") {
+    // Authed but wrong role (decodable cookie): send to dashboard, not login.
+    if (role !== null) {
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = "/admin/login"
+    loginUrl.search = `?next=${encodeURIComponent(pathname)}`
+    return NextResponse.redirect(loginUrl)
+  }
+  if (isTransporterArea && role !== "transporter_staff" && role !== "admin" && role !== "super_admin") {
+    // Authed but wrong role (decodable cookie): send to dashboard, not login.
+    if (role !== null) {
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = "/login"
     loginUrl.search = `?next=${encodeURIComponent(pathname)}`
     return NextResponse.redirect(loginUrl)
   }

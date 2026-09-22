@@ -16,6 +16,17 @@ vi.mock("@camermove/events", () => ({
       disconnect: vi.fn().mockResolvedValue(undefined),
     }),
   }),
+  EVENT_TOPICS: {
+    parcelCreated: "camermove.parcel.created",
+    parcelStatusUpdated: "camermove.parcel.status.updated",
+    parcelStatusChanged: "camermove.parcel.status.changed",
+    bookingStatusChanged: "camermove.booking.status.changed",
+    paymentInitiated: "camermove.payment.initiated",
+    paymentConfirmed: "camermove.payment.confirmed",
+  },
+  publishEvent: vi.fn().mockResolvedValue(undefined),
+  makeEvent: (type: string, aggregateId: string, data: unknown) => ({ id: `${type}-${aggregateId}`, type, ts: new Date().toISOString(), aggregateId, data }),
+  makeDataEvent: (type: string, key: string, data: unknown) => ({ id: `${type}-${key}-${Date.now()}`, type, ts: new Date().toISOString(), aggregateId: key, data }),
 }))
 
 vi.mock("@camermove/config", async (importOriginal) => {
@@ -122,9 +133,10 @@ describe("parcels/service", () => {
       statusHistory: [{ status: "registered" }],
     }))
     ;(vi.spyOn as unknown as (o: unknown, m: string) => { mockImplementation: (fn: unknown) => unknown })(prisma as never, "$transaction").mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
-      const tx = { parcel: { create: txCreate } }
+      const tx = { $queryRawUnsafe: vi.fn().mockResolvedValue([]), parcel: { create: txCreate } }
       return cb(tx as never)
     })
+    vi.spyOn(prisma.parcel, "findUnique").mockResolvedValue({ id: "cmparcel12345678901234", senderCity: "Yaoundé", status: "registered", shippingCost: 5000 } as any)
     const p1 = await createParcel({
       senderName: "Alice",
       senderPhone: "690000001",
@@ -147,9 +159,9 @@ describe("parcels/service", () => {
       weightKg: 2,
       userId: "cmuser123456789012345678",
     })
-    expect((p1 as { trackingNumber: string }).trackingNumber).toMatch(/^CM-/)
-    expect((p2 as { trackingNumber: string }).trackingNumber).toMatch(/^CM-/)
-    // trackingNumbers should be strings starting with CM-
-    expect(txCreate).toHaveBeenCalledTimes(2)
+expect((p1 as { trackingNumber: string }).trackingNumber).toMatch(/^PARCEL-/)
+     expect((p2 as { trackingNumber: string }).trackingNumber).toMatch(/^PARCEL-/)
+     // trackingNumbers should be strings starting with PARCEL-
+     expect(txCreate).toHaveBeenCalledTimes(2)
   })
 })

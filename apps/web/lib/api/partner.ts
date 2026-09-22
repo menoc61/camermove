@@ -1,9 +1,6 @@
-/**
- * API helpers for partner applications (TRANS-01). Mirrors bookings.ts:
- * Bearer token via apiFetch; uploads go browser→MinIO through presigned
- * PUT URLs so no document bytes ever transit the API.
- */
-import { apiFetch } from "./client"
+import { request, resourceClient } from "./resource"
+
+const partner = resourceClient<never>("/api/v1/partner-applications")
 
 export type DocumentType = "business_registration" | "insurance" | "transport_license" | "id_document"
 
@@ -25,11 +22,7 @@ export interface ApplicationPayload {
 }
 
 export function presignDocument(token: string, body: { type: DocumentType; mimetype: string; size: number }) {
-  return apiFetch<PresignResponse>("/api/v1/partner-applications/presign", {
-    method: "POST",
-    body: JSON.stringify(body),
-    token,
-  })
+  return partner.create<PresignResponse>("/presign", body, { token })
 }
 
 export async function uploadToPresigned(uploadUrl: string, file: File): Promise<void> {
@@ -38,11 +31,7 @@ export async function uploadToPresigned(uploadUrl: string, file: File): Promise<
 }
 
 export function submitApplication(token: string, payload: ApplicationPayload) {
-  return apiFetch<{ id: string; status: string }>("/api/v1/partner-applications", {
-    method: "POST",
-    body: JSON.stringify(payload),
-    token,
-  })
+  return partner.create<{ id: string; status: string }>("", payload, { token })
 }
 
 export interface MyApplication {
@@ -54,5 +43,5 @@ export interface MyApplication {
 }
 
 export function getMyApplication(token: string) {
-  return apiFetch<MyApplication | null>("/api/v1/partner-applications/me", { method: "GET", token })
+  return partner.get<MyApplication | null>("/me", { token })
 }

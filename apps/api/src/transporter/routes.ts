@@ -198,6 +198,15 @@ export async function transporterRoutes(app: FastifyInstance) {
     return sendExport(reply, "transporter-trips", exp.dateFrom, exp.dateTo, exp.format, result.items, columns)
   })
 
+  app.get("/transporter/trips/:id", { preHandler: app.requireAuth() }, async (req) => {
+    const user = req.user!
+    const tid = await resolveTransporter(user.role, user.id)
+    if (tid === "__admin__") throw new ForbiddenError("Utilisez le panneau admin")
+    const { id } = TripParams.parse(req.params)
+    req.log.info({ ...req.meta, tripId: id, userId: user.id }, "transporter.trip.get")
+    return svc.getTransporterTrip(id, tid)
+  })
+
   app.post("/transporter/trips", { preHandler: app.requireAuth() }, async (req, reply) => {
     const user = req.user!
     const tid = await resolveTransporter(user.role, user.id)
@@ -283,6 +292,17 @@ export async function transporterRoutes(app: FastifyInstance) {
     const { id } = BookingIdParams.parse(req.params)
     req.log.info({ ...req.meta, bookingId: id, userId: user.id }, "transporter.booking.get")
     return svc.getTransporterBooking(id, tid)
+  })
+
+  // ── Commissions (scoped to own transporterId) ─────────────────────────────
+  app.get("/transporter/commissions", { preHandler: app.requireAuth() }, async (req) => {
+    const user = req.user!
+    const tid = await resolveTransporter(user.role, user.id)
+    if (tid === "__admin__") throw new ForbiddenError("Utilisez le panneau admin")
+    const q = TransporterBookingsQuery.parse(req.query)
+    const { listCommissions } = await import("../admin/service")
+    req.log.info({ ...req.meta, userId: user.id }, "transporter.commissions.list")
+    return listCommissions({ page: q.page, limit: q.limit, transporterId: tid })
   })
 
   // ── Dashboard stats ─────────────────────────────────────────────────────────

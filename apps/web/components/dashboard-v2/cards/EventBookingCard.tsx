@@ -12,8 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import type { EventBooking } from "@/lib/api/events";
-
-const fmtXaf = (n: number) => new Intl.NumberFormat("fr-CM").format(n);
+import { priceXaf } from "@camermove/shared";
 
 export function EventBookingCard({ item }: { item: EventBooking }) {
   const name = item.event?.name ?? "Événement";
@@ -45,7 +44,7 @@ export function EventBookingCard({ item }: { item: EventBooking }) {
         <Separator />
       </CardContent>
       <CardFooter className="flex items-center justify-between">
-        <p className="text-sm font-bold">{fmtXaf(item.totalAmount)} XAF</p>
+        <p className="text-sm font-bold">{priceXaf(item.totalAmount)}</p>
         <a
           href={eventId ? `/events/${eventId}` : "/events"}
           className="text-sm underline underline-offset-4"
