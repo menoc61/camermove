@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify"
 import { getRedis } from "../lib/redis"
 
 // Idempotency: clients send Idempotency-Key header for POST/PUT/PATCH.
-// We store response for 24h keyed by key+route. Replay returns same response without re-executing.
+// We store response for 24h keyed by method+route+user+key. Replay returns same response without re-executing.
 // Uses Redis if available, falls back to in-memory Map for dev without Redis.
 
 const memoryStore = new Map<string, { status: number; body: unknown; headers: Record<string, string> }>()
@@ -13,7 +13,9 @@ export const idempotencyPlugin = fp(async (app: FastifyInstance) => {
     if (!["POST", "PUT", "PATCH"].includes(req.method)) return
     const key = req.headers["idempotency-key"] as string | undefined
     if (!key) return
-    const cacheKey = `idemp:${req.url}:${key}`
+    const routePath = (req.routeOptions?.url ?? req.url.split("?")[0] ?? "") as string
+    const userId = ((req as unknown as { user?: { id?: string } }).user?.id ?? "anon") as string
+    const cacheKey = `idemp:${req.method}:${routePath}:${userId}:${key}`
 
     let cached: { status: number; body: unknown; headers: Record<string, string> } | null = null
     try {

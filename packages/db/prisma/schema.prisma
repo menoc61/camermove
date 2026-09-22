@@ -773,6 +773,7 @@ model AuditLog {
   @@index([actorId])
   @@index([createdAt])
   @@index([entityType, createdAt])
+  @@index([entityType, entityId])
 }
 
 model PartnerApplication {
@@ -876,4 +877,15 @@ model TripSeat {
   @@unique([tripId, seatNumber])
   @@index([tripId, status])
   @@index([bookingId])
+}
+
+model Outbox {
+  id        String   @id @default(cuid())
+  topic     String
+  key       String
+  payload   Json
+  createdAt DateTime @default(now())
+  sentAt    DateTime?
+
+  @@index([sentAt, createdAt])
 }

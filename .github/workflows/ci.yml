@@ -73,10 +73,18 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @camermove/db generate
+      - run: pnpm --filter @camermove/db exec prisma validate
       - run: pnpm --filter @camermove/db exec prisma migrate deploy
       - run: pnpm seed:rich
       - run: pnpm seed:verify
       - run: pnpm -r typecheck
+      - name: Dead-code guard (AGENTS.md)
+        run: |
+          echo "Dead-code guard (AGENTS.md §3): failing on TODO/FIXME markers..."
+          if rg -n "TODO|FIXME" --type ts apps packages scripts; then
+            echo "::error::TODO/FIXME markers found — remove or link an issue before merging."
+            exit 1
+          fi
       - run: pnpm -r test
       # Playwright setup (@playwright/test is a committed devDependency — do not pnpm add here)
       - name: Install Playwright browsers
