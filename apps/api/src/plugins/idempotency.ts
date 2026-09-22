@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify"
 import { getRedis } from "../lib/redis"
 
 // Idempotency: clients send Idempotency-Key header for POST/PUT/PATCH.
-// We store response for 24h keyed by key+route. Replay returns same response without re-executing.
+// We store response for 24h keyed by method+route+user+key. Replay returns same response without re-executing.
 // Uses Redis if available, falls back to in-memory Map for dev without Redis.
 
 const memoryStore = new Map<string, { status: number; body: unknown; headers: Record<string, string> }>()

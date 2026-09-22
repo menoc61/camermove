@@ -1,3 +1,7 @@
+// Single-replica constraint: the relay claims no rows (plain findMany + sentAt
+// mark), so two replicas would double-publish. Run ONE worker replica until a
+// claim column (SELECT ... FOR UPDATE SKIP LOCKED) is added. Safe today: the
+// bookingCreated consumer is a no-op.
 /**
  * Transactional-outbox relay (deploy-gated, see migration 20260922000003_outbox).
  * Polls unsent Outbox rows written in-tx by booking-kernel/reserve.ts and

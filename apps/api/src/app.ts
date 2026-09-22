@@ -49,7 +49,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     origin: env.CORS_ALLOWED_ORIGINS,
     credentials: true,
   })
-  // Helmet: HSTS + frameguard + nosniff. CSP off — the API serves JSON and the
+  // Helmet: HSTS + frameguard + nosniff. CSP off -- the API serves JSON and the
   // Swagger UI needs inline scripts, which a strict CSP would break.
   await app.register(helmet, { contentSecurityPolicy: false })
   await app.register(swaggerPlugin)
