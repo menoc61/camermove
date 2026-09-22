@@ -362,6 +362,30 @@ export async function eventRoutes(app: FastifyInstance) {
       totalPages: Math.ceil(total / perPage),
     }
   })
+
+  const PartnerEventCreate = z.object({
+    name: z.string().min(2).max(150),
+    description: z.string().max(5000).optional(),
+    eventType: z.enum(["concert", "sport", "conference", "festival", "theatre", "other"]),
+    venue: z.string().min(2).max(200),
+    city: z.string().min(2).max(100),
+    startDate: z.string().datetime(),
+    endDate: z.string().datetime().optional(),
+    posterUrl: z.string().url().max(500).optional(),
+  })
+
+  app.post("/partner/events", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req, reply) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    const body = PartnerEventCreate.parse(req.body)
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, userId: user.id, name: body.name }, "events.partner.create")
+    const created = await prisma.event.create({
+      data: { name: body.name, description: body.description, eventType: body.eventType, venue: body.venue, city: body.city, startDate: new Date(body.startDate), endDate: body.endDate ? new Date(body.endDate) : null, posterUrl: body.posterUrl, organizerId: user.id } as never,
+    })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.event.create", entityType: "Event", entityId: created.id } }).catch(() => {})
+    return reply.code(201).send(created)
+  })
 }
 
 /**
