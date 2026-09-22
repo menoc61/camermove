@@ -43,6 +43,12 @@ beforeAll(async () => {
     })
     userIds.push(user.id)
   }
+
+  // Fail fast with a clear message if setup didn't land (instead of a
+  // mysterious 0-winners race later).
+  const sa = await prisma.seatAvailability.findUniqueOrThrow({ where: { tripId } })
+  expect(sa.seatsAvailable).toBe(1)
+  expect(sa.seatsHeld).toBe(0)
 })
 
 afterAll(async () => {
@@ -82,6 +88,17 @@ describe("last-seat race (live Postgres)", () => {
 
     const won = results.filter((r) => r.status === "fulfilled")
     const lost = results.filter((r) => r.status === "rejected")
+    if (won.length !== 1) {
+      // Diagnostic: print every rejection reason so CI failures are actionable.
+      console.error(
+        "last-seat racers:",
+        results.map((r, i) =>
+          r.status === "fulfilled"
+            ? `#${i} won`
+            : `#${i} lost: ${String((r.reason as Error)?.message ?? r.reason)}`,
+        ),
+      )
+    }
     expect(won).toHaveLength(1)
     expect(lost).toHaveLength(RACERS - 1)
 
