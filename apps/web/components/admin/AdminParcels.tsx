@@ -23,6 +23,7 @@ import {
   AdminStatusSelect,
   AdminTableFrame,
   AdminTextField,
+  SortableTh,
 } from "./shared"
 
 interface ParcelAdmin {
@@ -69,8 +70,10 @@ export function AdminParcels() {
   const [recipientCity, setRecipientCity] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [sort, setSort] = useState("createdAt.desc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)); setPage(1) }
 
-  const params: Record<string, string> = { page: String(page), perPage: "20" }
+  const params: Record<string, string> = { page: String(page), perPage: "20", sort }
   if (q) params.q = q
   if (statusFilter) params.status = statusFilter
   if (recipientCity) params.recipientCity = recipientCity
@@ -179,12 +182,12 @@ export function AdminParcels() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Tracking</TableHead>
+                <SortableTh label="Tracking" field="trackingNumber" sort={sort} onSort={onSort} />
                 <TableHead>Expéditeur</TableHead>
                 <TableHead>Destinataire</TableHead>
-                <TableHead>Trajet</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Coût</TableHead>
+                <SortableTh label="Trajet" field="recipientCity" sort={sort} onSort={onSort} />
+                <SortableTh label="Statut" field="status" sort={sort} onSort={onSort} />
+                <SortableTh label="Coût" field="shippingCost" sort={sort} onSort={onSort} />
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>

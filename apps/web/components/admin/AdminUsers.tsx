@@ -39,6 +39,7 @@ import {
   AdminPagination,
   AdminSearch,
   AdminTableFrame,
+  SortableTh,
   fmtDate,
   fmtNum,
 } from "./shared"
@@ -80,11 +81,14 @@ export function AdminUsers() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null)
+  const [sort, setSort] = useState("createdAt.desc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)); setPage(1) }
   const limit = 20
 
   const params: Record<string, string> = {
     page: String(page),
     limit: String(limit),
+    sort,
   }
   if (search) params.q = search
   if (dateFrom) params.dateFrom = dateFrom
@@ -140,13 +144,13 @@ export function AdminUsers() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Email</TableHead>
+              <SortableTh label="Email" field="email" sort={sort} onSort={onSort} />
               <TableHead>Nom</TableHead>
               <TableHead>Tél.</TableHead>
-              <TableHead>Rôle</TableHead>
-              <TableHead>Statut</TableHead>
+              <SortableTh label="Rôle" field="role" sort={sort} onSort={onSort} />
+              <SortableTh label="Statut" field="status" sort={sort} onSort={onSort} />
               <TableHead>Réservations</TableHead>
-              <TableHead>Créé le</TableHead>
+              <SortableTh label="Créé le" field="createdAt" sort={sort} onSort={onSort} />
               <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>

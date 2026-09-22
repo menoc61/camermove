@@ -28,7 +28,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { CheckCircleIcon, XCircleIcon } from "lucide-react"
-import { AdminEmptyRow, AdminSearch, AdminTableFrame, fmtDate } from "./shared"
+import { AdminEmptyRow, AdminSearch, AdminTableFrame, SortableTh, fmtDate } from "./shared"
 
 const appStatusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "outline",
@@ -70,10 +70,12 @@ export function AdminTransporters() {
   const [reviewTarget, setReviewTarget] = useState<PartnerApplicationItem | null>(null)
   const [reviewStatus, setReviewStatus] = useState<"approved" | "rejected">("approved")
   const [reviewMessage, setReviewMessage] = useState("")
+  const [sort, setSort] = useState("createdAt.desc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)) }
 
   const { data: transportersData, isLoading: transportersLoading } = useQuery({
-    queryKey: ["admin-transporters", search],
-    queryFn: () => listTransporters(token!, { q: search, limit: "50" }),
+    queryKey: ["admin-transporters", search, sort],
+    queryFn: () => listTransporters(token!, { q: search, limit: "50", sort }),
     enabled: !!token,
   })
 
@@ -119,14 +121,14 @@ export function AdminTransporters() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Entreprise</TableHead>
+                  <SortableTh label="Entreprise" field="companyName" sort={sort} onSort={onSort} />
                   <TableHead>Email</TableHead>
                   <TableHead>Ville</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Statut</TableHead>
+                  <SortableTh label="Statut" field="status" sort={sort} onSort={onSort} />
                   <TableHead>Véhicules</TableHead>
                   <TableHead>Trajets</TableHead>
-                  <TableHead>Créé le</TableHead>
+                  <SortableTh label="Créé le" field="createdAt" sort={sort} onSort={onSort} />
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -20,6 +20,7 @@ import {
   AdminSearch,
   AdminStatusSelect,
   AdminTableFrame,
+  SortableTh,
 } from "./shared"
 
 interface InsurancePolicyAdmin {
@@ -71,8 +72,10 @@ export function AdminInsurance() {
   const [coverage, setCoverage] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [sort, setSort] = useState("createdAt.desc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)); setPage(1) }
 
-  const params: Record<string, string> = { page: String(page), perPage: "20" }
+  const params: Record<string, string> = { page: String(page), perPage: "20", sort }
   if (q) params.q = q
   if (coverage) params.coverageType = coverage
   if (dateFrom) params.dateFrom = dateFrom
@@ -164,12 +167,12 @@ export function AdminInsurance() {
             <TableHeader>
               <TableRow>
                 <TableHead>Police</TableHead>
-                <TableHead>Destination</TableHead>
+                <SortableTh label="Destination" field="destination" sort={sort} onSort={onSort} />
                 <TableHead>Couverture</TableHead>
                 <TableHead>Voyageurs</TableHead>
-                <TableHead>Prime</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Période</TableHead>
+                <SortableTh label="Prime" field="premium" sort={sort} onSort={onSort} />
+                <SortableTh label="Statut" field="status" sort={sort} onSort={onSort} />
+                <SortableTh label="Période" field="startDate" sort={sort} onSort={onSort} />
               </TableRow>
             </TableHeader>
             <TableBody>

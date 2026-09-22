@@ -25,6 +25,7 @@ import {
   AdminSearch,
   AdminStatusSelect,
   AdminTableFrame,
+  SortableTh,
   fmtDate,
 } from "./shared"
 
@@ -69,11 +70,14 @@ export function AdminAuditLog() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [page, setPage] = useState(1)
+  const [sort, setSort] = useState("createdAt.desc")
+  const onSort = (field: string) => { setSort((s) => (s === `${field}.asc` ? `${field}.desc` : `${field}.asc`)); setPage(1) }
   const limit = 20
 
   const params: Record<string, string> = {
     page: String(page),
     limit: String(limit),
+    sort,
   }
   if (search) params.q = search
   if (actionFilter) params.action = actionFilter
@@ -124,11 +128,11 @@ export function AdminAuditLog() {
             <TableRow>
               <TableHead>#</TableHead>
               <TableHead>Acteur</TableHead>
-              <TableHead>Action</TableHead>
+              <SortableTh label="Action" field="action" sort={sort} onSort={onSort} />
               <TableHead>Entité</TableHead>
               <TableHead>ID Entité</TableHead>
               <TableHead>Métadonnées</TableHead>
-              <TableHead>Date</TableHead>
+              <SortableTh label="Date" field="createdAt" sort={sort} onSort={onSort} />
             </TableRow>
           </TableHeader>
           <TableBody>
