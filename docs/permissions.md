@@ -75,7 +75,7 @@ No `POST /admin/rentals` by design (partner-only creation; admin moderates via `
 |---|---|---|---|---|
 | `GET /events`, `GET /events/:id` | allow (approved + on_sale/limited only) | allow | allow | allow |
 | `POST /events/bookings`, `GET /events/bookings/me`, `GET /events/bookings/export`, `GET /events/bookings/:id` | deny | own only | own only | any |
-| `POST /events/bookings/:id/cancel`, `POST /events/bookings/:id/pay` | deny | owner only | owner only | owner only (cancel: any — kernel rule) |
+| `POST /events/bookings/:id/cancel`, `POST /events/bookings/:id/pay` | deny | owner only | owner only | traveler/staff: owner only; admin: any (kernel) |
 | `POST /tickets/verify`, `GET /tickets/verify` | deny (auth required) | allow (sanitized view) | allow | allow |
 | `GET /partner/events` | deny | 403 | own `organizerId` + KPIs | all |
 | `POST /partner/events`, `PUT /partner/events/:id`, `POST /partner/events/:id/categories` | deny | 403 | owner (create: any staff; sets `organizerId`) | any |

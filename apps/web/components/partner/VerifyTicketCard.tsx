@@ -14,13 +14,14 @@ export function VerifyTicketCard({ token }: { token: string }) {
   const verify = useMutation({
     mutationFn: () => verifyTicket(token, code.trim()),
     onSuccess: (r) => setResult(r),
+    onError: () => setResult(null),
   });
   return (
     <Card>
       <CardHeader><CardTitle>Contrôle des billets</CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2">
-          <Input placeholder="Code ou numéro de billet" value={code} onChange={(e) => setCode(e.target.value)} className="w-64" />
+          <Input placeholder="Code ou numéro de billet" value={code} onChange={(e) => { setCode(e.target.value); setResult(null); }} className="w-64" />
           <Button disabled={verify.isPending || !code.trim()} onClick={() => verify.mutate()}>
             {verify.isPending ? "Vérification…" : "Vérifier"}
           </Button>

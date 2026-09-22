@@ -389,6 +389,7 @@ export async function eventRoutes(app: FastifyInstance) {
 
   app.put("/partner/events/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
     const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
     const { id } = EventIdParams.parse(req.params)
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
     const existing = await prisma.event.findUnique({ where: { id } })
@@ -403,6 +404,7 @@ export async function eventRoutes(app: FastifyInstance) {
 
   app.delete("/partner/events/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
     const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
     const { id } = EventIdParams.parse(req.params)
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
     const existing = await prisma.event.findUnique({ where: { id } })
@@ -425,6 +427,7 @@ export async function eventRoutes(app: FastifyInstance) {
 
   app.post("/partner/events/:id/categories", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req, reply) => {
     const user = (req as unknown as { user: { id: string; role: string } }).user
+    if (user.role !== "transporter_staff" && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès réservé aux partenaires")
     const { id } = EventIdParams.parse(req.params)
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
     const existing = await prisma.event.findUnique({ where: { id } })
