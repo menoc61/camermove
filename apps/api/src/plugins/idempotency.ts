@@ -13,7 +13,9 @@ export const idempotencyPlugin = fp(async (app: FastifyInstance) => {
     if (!["POST", "PUT", "PATCH"].includes(req.method)) return
     const key = req.headers["idempotency-key"] as string | undefined
     if (!key) return
-    const cacheKey = `idemp:${req.url}:${key}`
+    const routePath = (req.routeOptions?.url ?? req.url.split("?")[0] ?? "") as string
+    const userId = ((req as unknown as { user?: { id?: string } }).user?.id ?? "anon") as string
+    const cacheKey = `idemp:${req.method}:${routePath}:${userId}:${key}`
 
     let cached: { status: number; body: unknown; headers: Record<string, string> } | null = null
     try {
