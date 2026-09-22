@@ -22,6 +22,7 @@ import { cancelBooking } from "@/lib/api/bookings";
 import { cancelHotelBooking, createHotelPayment } from "@/lib/api/hotels";
 import { cancelParcel, createParcelPayment } from "@/lib/api/parcels";
 import { cancelRentalBooking, createRentalPayment } from "@/lib/api/rentals";
+import { cancelEventBooking, createEventBookingPayment } from "@/lib/api/events";
 import { PaginationControls } from "../controls/PaginationControls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "../cards/EmptyState";
@@ -279,6 +280,23 @@ export function DashboardTabs({
                 ))}
             </div>
           </div>
+        ) : tab === "events" ? (
+          <div className="flex flex-col gap-2">
+            <DataTable columns={[...columns]} data={data.items} />
+            <div className="flex flex-wrap gap-2">
+              {data.items
+                .filter((row) => String(row.status) === "pending_payment")
+                .slice(0, 3)
+                .map((row) => (
+                  <div key={String(row.id)} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {String((row.event as { name?: string })?.name ?? row.id)}
+                    </span>
+                    <EventRowActions id={String(row.id)} token={token} />
+                  </div>
+                ))}
+            </div>
+          </div>
         ) : (
           <DataTable columns={[...columns]} data={data.items} />
         )}
@@ -432,6 +450,42 @@ function RentalRowActions({ id, token }: { id: string; token: string }) {
       </button>
       {payError ? <span role="alert" className="text-xs text-destructive">{payError}</span> : null}
       <CancelButton visible onCancel={() => cancelRentalBooking(token, id)} invalidateKeys={[["dashboard-rentals"], ["dashboard-v2"]]} />
+    </div>
+  );
+}
+
+function EventRowActions({ id, token }: { id: string; token: string }) {
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+  async function pay() {
+    setPaying(true);
+    setPayError(null);
+    try {
+      const res = await createEventBookingPayment(id, token);
+      const url = res.paymentUrl ?? res.authorizationUrl;
+      if (!url) {
+        setPayError("Paiement impossible");
+        setPaying(false);
+        return;
+      }
+      window.location.href = url;
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : "Paiement impossible");
+      setPaying(false);
+    }
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        disabled={paying}
+        onClick={pay}
+        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+      >
+        {paying ? "Paiement…" : "Payer"}
+      </button>
+      {payError ? <span role="alert" className="text-xs text-destructive">{payError}</span> : null}
+      <CancelButton visible onCancel={() => cancelEventBooking(token, id)} invalidateKeys={[["dashboard-events"], ["dashboard-v2"]]} />
     </div>
   );
 }

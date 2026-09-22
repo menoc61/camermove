@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { EventsPartnerClient } from "@/components/partner/EventsPartnerClient"
+import { VerifyTicketCard } from "@/components/partner/VerifyTicketCard"
 
 export default async function PartnerEventsPage() {
   const h = await headers()
@@ -17,6 +18,7 @@ export default async function PartnerEventsPage() {
         </p>
         <Link href="/partner" className="text-sm underline underline-offset-4">← Espace partenaire</Link>
       </div>
+      <VerifyTicketCard token={token} />
       <EventsPartnerClient token={token} />
     </main>
   )
