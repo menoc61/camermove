@@ -411,5 +411,20 @@ export async function adminRoutes(app: FastifyInstance) {
     await p.auditLog.create({ data: { actorId: actor.id, action: "admin.rental.update", entityType: "RentalVehicle", entityId: id, metadata: body as never } }).catch(() => {})
     return updated
   })
+
+  app.delete("/admin/rentals/:id", async (req) => {
+    const { id } = RentalParams.parse(req.params)
+    const actor = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta
+    const { prisma: p } = await import("@camermove/db")
+    req.log.info({ ...meta, actorId: actor.id, entityId: id }, "admin.rental.delete")
+    const existing = await p.rentalVehicle.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundError("Véhicule introuvable")
+    const active = await p.rentalBooking.count({ where: { rentalVehicleId: id, status: { in: ["pending_payment", "confirmed"] } } as never })
+    if (active > 0) throw new AppError(409, "CONFLICT", "Véhicule avec réservations actives — suppression impossible")
+    await p.rentalVehicle.delete({ where: { id } })
+    await p.auditLog.create({ data: { actorId: actor.id, action: "admin.rental.delete", entityType: "RentalVehicle", entityId: id } }).catch(() => {})
+    return { id, deleted: true }
+  })
 }
 
