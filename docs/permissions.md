@@ -88,9 +88,11 @@ No booking PUT/DELETE by design (cancel + pay cover the lifecycle; tickets immut
 
 | Endpoint | public | traveler | transporter_staff | admin / super_admin |
 |---|---|---|---|---|
-| `GET /insurance/policies`, `GET /insurance/policies/:id`, `GET /insurance/policies/export` | deny | own only | own only | any (export multiplex) |
-| `POST /insurance/policies` | deny | allow (own booking) | allow (own booking) | allow |
-| `POST /insurance/policies/:id/pay`, `POST /insurance/policies/:id/cancel` | deny | owner only | owner only | owner only |
+| `GET /insurance/policies`, `GET /insurance/policies/:id` | deny | own only | own only | own only (admins use `/admin/*` below) |
+| `GET /insurance/policies/export` | deny | own only | own only | any (export multiplex) |
+| `POST /insurance/policies` | deny | allow (own policy) | allow (own policy) | allow |
+| `POST /insurance/policies/:id/pay` | deny | owner only | owner only | owner only (no admin bypass — service checks strict userId) |
+| `POST /insurance/policies/:id/cancel` | deny | owner only | owner only | owner or admin (kernel `assertOwnedOrAdmin` lets admin cancel any) |
 | `GET /admin/insurance/policies`, `GET /admin/insurance/policies/export`, `GET /admin/insurance/policies/:id` | deny | deny | deny | allow |
 
 No PUT/DELETE by design (pay + cancel cover the lifecycle; policies immutable once issued). No partner CRUD (traveler product, no operator side).
