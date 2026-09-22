@@ -90,15 +90,8 @@ export async function meNotificationRoutes(app: FastifyInstance) {
     const user = (req as unknown as { user: { id: string } }).user
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
     req.log.info({ ...meta, userId: user.id }, "me.notifications.readAll")
-    const rows = await prisma.notification.findMany({ where: { userId: user.id }, select: { id: true, payload: true } })
-    let marked = 0
-    for (const n of rows) {
-      const payload = (n.payload ?? {}) as Record<string, unknown>
-      if (payload.read === true) continue
-      await prisma.notification.update({ where: { id: n.id }, data: { payload: { ...payload, read: true } as never } })
-      marked += 1
-    }
-    return { marked }
+    const count = await prisma.$executeRaw`UPDATE "Notification" SET payload = payload || '{"read":true}'::jsonb WHERE "userId" = ${user.id} AND (payload->>'read') IS DISTINCT FROM 'true'`
+    return { marked: Number(count) }
   })
 
   app.delete("/me/notifications/:id", { preHandler: app.requireAuth() }, async (req) => {
