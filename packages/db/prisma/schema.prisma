@@ -773,6 +773,7 @@ model AuditLog {
   @@index([actorId])
   @@index([createdAt])
   @@index([entityType, createdAt])
+  @@index([entityType, entityId])
 }
 
 model PartnerApplication {
