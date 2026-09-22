@@ -97,6 +97,19 @@ No booking PUT/DELETE by design (cancel + pay cover the lifecycle; tickets immut
 
 No PUT/DELETE by design (pay + cancel cover the lifecycle; policies immutable once issued). No partner CRUD (traveler product, no operator side).
 
+## Slice 7 — cross-cutting
+
+| Endpoint | public | traveler | transporter_staff | admin / super_admin |
+|---|---|---|---|---|
+| `POST /contact`, `POST /newsletter`, `DELETE /newsletter` | allow (no auth; rate-limited) | allow | allow | allow |
+| `GET /admin/contact`, `GET /admin/contact/export`, `GET /admin/newsletter`, `GET /admin/newsletter/export` | deny | deny | deny | allow |
+| `GET /favorites`, `POST /favorites`, `DELETE /favorites/:id` | deny | own only | own only | owner or admin |
+| `GET /me/notifications`, `GET /me/notifications/export`, `PATCH /me/notifications/read-all`, `PATCH /me/notifications/:id/read`, `DELETE /me/notifications/:id` | deny | own only | own only | own only |
+| `GET /agencies`, `GET /agencies/:slug`, `GET /places/autocomplete`, `GET /intraurban/*`, `GET /landing/*` | allow (read-only by design, no writes exist) | allow | allow | allow |
+| `GET /me/profile`, `PATCH /me/profile` | deny | own only | own only | own only |
+
+No `DELETE /me` (account closure) by design — destructive, needs product/policy decision first. No agency/place/intraurban writes (curated catalog data).
+
 ## Later slices (rows by those slices)
 
-- Slice 7 cross-cutting (favorites, agencies, places, contact/newsletter admin, notifications bulk) · Slice 8 consoles polish · Slice 9 arch upgrades.
+- Slice 8 consoles polish · Slice 9 arch upgrades.

@@ -86,6 +86,32 @@ export async function meNotificationRoutes(app: FastifyInstance) {
     return sendExport(reply, "notifications", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
 
+  app.patch("/me/notifications/read-all", { preHandler: app.requireAuth() }, async (req) => {
+    const user = (req as unknown as { user: { id: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    req.log.info({ ...meta, userId: user.id }, "me.notifications.readAll")
+    const rows = await prisma.notification.findMany({ where: { userId: user.id }, select: { id: true, payload: true } })
+    let marked = 0
+    for (const n of rows) {
+      const payload = (n.payload ?? {}) as Record<string, unknown>
+      if (payload.read === true) continue
+      await prisma.notification.update({ where: { id: n.id }, data: { payload: { ...payload, read: true } as never } })
+      marked += 1
+    }
+    return { marked }
+  })
+
+  app.delete("/me/notifications/:id", { preHandler: app.requireAuth() }, async (req) => {
+    const { id } = IdParams.parse(req.params)
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    req.log.info({ ...meta, userId: user.id, notificationId: id }, "me.notifications.delete")
+    const existing = await prisma.notification.findFirst({ where: { id, userId: user.id } })
+    if (!existing) throw new NotFoundError("Notification introuvable")
+    await prisma.notification.delete({ where: { id } })
+    return { id, deleted: true }
+  })
+
   app.patch("/me/notifications/:id/read", { preHandler: app.requireAuth() }, async (req) => {
     const { id } = IdParams.parse(req.params)
     const user = (req as unknown as { user: { id: string; role: string } }).user

@@ -182,6 +182,41 @@ async function smokeVerticals() {
   console.log(`  ${insAdmin.status === 403 ? "✓" : "✗"} admin.insurance-traveler-403 → ${insAdmin.status}`);
   if (insAdmin.status !== 403) throw new Error(`admin.insurance guard failed: ${insAdmin.status}`);
 
+  const ctRes = await fetch(`${BASE}/api/v1/contact`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Smoke", email: "s@s.cm", message: "hello smoke cross-cutting slice" }),
+  });
+  console.log(`  ${ctRes.status === 201 ? "✓" : "✗"} contact.submit → ${ctRes.status}`);
+  if (ctRes.status !== 201) throw new Error(`contact.submit failed: ${ctRes.status}`);
+
+  const nlEmail = `smoke${Date.now()}@camermove.cm`;
+  const nl1 = await fetch(`${BASE}/api/v1/newsletter`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: nlEmail }) });
+  console.log(`  ${nl1.status === 201 ? "✓" : "✗"} newsletter.subscribe → ${nl1.status}`);
+  if (nl1.status !== 201) throw new Error(`newsletter.subscribe failed: ${nl1.status}`);
+  const nl2 = await fetch(`${BASE}/api/v1/newsletter`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: nlEmail }) });
+  console.log(`  ${nl2.status === 200 ? "✓" : "✗"} newsletter.replay-200 → ${nl2.status}`);
+  if (nl2.status !== 200) throw new Error(`newsletter replay failed: ${nl2.status}`);
+  const nlDel = await fetch(`${BASE}/api/v1/newsletter`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: nlEmail }) });
+  console.log(`  ${nlDel.status === 200 ? "✓" : "✗"} newsletter.unsubscribe → ${nlDel.status}`);
+  if (nlDel.status !== 200) throw new Error(`newsletter.unsubscribe failed: ${nlDel.status}`);
+
+  const favAdd = await fetch(`${BASE}/api/v1/favorites`, {
+    method: "POST",
+    headers: { ...h, "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "hotel", entityId: "c000000000000000000000001" }),
+  });
+  console.log(`  ${[200, 201].includes(favAdd.status) ? "✓" : "✗"} favorites.add → ${favAdd.status}`);
+  if (![200, 201].includes(favAdd.status)) throw new Error(`favorites.add failed: ${favAdd.status}`);
+  const fav = (await favAdd.json()) as { id: string };
+  const favDel = await fetch(`${BASE}/api/v1/favorites/${fav.id}`, { method: "DELETE", headers: h });
+  console.log(`  ${favDel.status === 204 ? "✓" : "✗"} favorites.delete → ${favDel.status}`);
+  if (favDel.status !== 204) throw new Error(`favorites.delete failed: ${favDel.status}`);
+
+  const readAll = await fetch(`${BASE}/api/v1/me/notifications/read-all`, { method: "PATCH", headers: h });
+  console.log(`  ${readAll.status === 200 ? "✓" : "✗"} notifications.read-all → ${readAll.status}`);
+  if (readAll.status !== 200) throw new Error(`notifications.read-all failed: ${readAll.status}`);
+
   // Idempotency replay: same key twice → same status+body
   const key = `smoke-${Date.now()}`;
   const payload = { name: "Smoke", email: "s@s.cm", message: "hello smoke replay" };
