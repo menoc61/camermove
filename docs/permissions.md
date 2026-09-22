@@ -84,6 +84,17 @@ No `POST /admin/rentals` by design (partner-only creation; admin moderates via `
 
 No booking PUT/DELETE by design (cancel + pay cover the lifecycle; tickets immutable once issued).
 
+## Slice 6 — insurance
+
+| Endpoint | public | traveler | transporter_staff | admin / super_admin |
+|---|---|---|---|---|
+| `GET /insurance/policies`, `GET /insurance/policies/:id`, `GET /insurance/policies/export` | deny | own only | own only | any (export multiplex) |
+| `POST /insurance/policies` | deny | allow (own booking) | allow (own booking) | allow |
+| `POST /insurance/policies/:id/pay`, `POST /insurance/policies/:id/cancel` | deny | owner only | owner only | owner only |
+| `GET /admin/insurance/policies`, `GET /admin/insurance/policies/export`, `GET /admin/insurance/policies/:id` | deny | deny | deny | allow |
+
+No PUT/DELETE by design (pay + cancel cover the lifecycle; policies immutable once issued). No partner CRUD (traveler product, no operator side).
+
 ## Later slices (rows by those slices)
 
-- Slice 6 insurance · Slice 7 cross-cutting (favorites, agencies, places, contact/newsletter admin, notifications bulk) · Slice 8 consoles polish · Slice 9 arch upgrades.
+- Slice 7 cross-cutting (favorites, agencies, places, contact/newsletter admin, notifications bulk) · Slice 8 consoles polish · Slice 9 arch upgrades.
