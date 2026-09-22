@@ -20,6 +20,15 @@ const INTERVAL_MS = 5000
 let missingTableWarned = false
 
 async function relayOnce(log: RelayLog) {
+  // Stale generated client (pre-migration build) has no `outbox` model at
+  // all: idle the same way as a missing table instead of crashing the loop.
+  if (!(prisma as unknown as { outbox?: unknown }).outbox) {
+    if (!missingTableWarned) {
+      log.warn("outbox model missing on prisma client — relay idle until prisma generate + migration applied")
+      missingTableWarned = true
+    }
+    return
+  }
   let rows: Array<{ id: string; topic: string; key: string; payload: unknown }>
   try {
     rows = (await (
