@@ -129,3 +129,24 @@ export async function closeOutbox(): Promise<void> {
     producerPromise = null
   }
 }
+
+/**
+ * Transactional outbox write — call INSIDE the Prisma $transaction that owns
+ * the business write. Table created by migration 20260922000003_outbox; applied
+ * at deploy with user confirm. Until then callers must catch missing-table and
+ * fall back to direct publishEvent (see booking-kernel/reserve.ts).
+ */
+export async function writeOutbox(
+  tx: { outbox: { create: (args: { data: { topic: string; key: string; payload: unknown } }) => Promise<unknown> } },
+  topic: string,
+  key: string,
+  payload: unknown,
+) {
+  await tx.outbox.create({ data: { topic, key, payload: payload as never } })
+}
+
+export function isMissingTableError(err: unknown): boolean {
+  const code = (err as { code?: string })?.code
+  const msg = String((err as Error)?.message ?? err)
+  return code === "P2021" || /does not exist|relation .* does not exist/i.test(msg)
+}

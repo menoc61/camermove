@@ -100,15 +100,34 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
       }
     }
 
-    // Publish booking.created event
+    // Transactional outbox write (migration 20260922000003_outbox, deploy-gated).
+    // Until the table exists this throws a missing-table error (P2021) and we
+    // fall through to the best-effort direct publish below. Any other error is
+    // rethrown so real failures are never masked. Direct publish runs ONLY when
+    // the outbox write signaled missing-table — never both (no double-publish).
+    const topic = EVENT_TOPICS.bookingCreated
+    const event = makeEvent(`${input.kind}.booking.created`, record.id as string, {
+      type: `${input.kind}.booking.created`,
+      userId: input.userId,
+      reference,
+      totalAmount,
+    })
+    let outboxed = false
     try {
-      await publishEvent(EVENT_TOPICS.bookingCreated, makeEvent(`${input.kind}.booking.created`, record.id as string, {
-        type: `${input.kind}.booking.created`,
-        userId: input.userId,
-        reference,
-        totalAmount,
-      }))
-    } catch {}
+      const outbox = await import("@camermove/events/outbox")
+      await outbox.writeOutbox(tx as never, topic, record.id as string, event)
+      outboxed = true
+    } catch (e) {
+      const { isMissingTableError } = await import("@camermove/events/outbox")
+      if (!isMissingTableError(e)) throw e
+      // Table not yet migrated: fall through to existing best-effort direct publish below.
+    }
+    if (!outboxed) {
+      // Publish booking.created event
+      try {
+        await publishEvent(topic, event)
+      } catch {}
+    }
 
     // Single source for the creation metric across all kinds (routes don't
     // observe created — otherwise trip would double-count).

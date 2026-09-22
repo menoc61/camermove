@@ -878,3 +878,14 @@ model TripSeat {
   @@index([tripId, status])
   @@index([bookingId])
 }
+
+model Outbox {
+  id        String   @id @default(cuid())
+  topic     String
+  key       String
+  payload   Json
+  createdAt DateTime @default(now())
+  sentAt    DateTime?
+
+  @@index([sentAt, createdAt])
+}
