@@ -1,13 +1,65 @@
 "use client"
 import { useEffect, useState } from "react"
 import { listBookings, listPayments, listCommissions } from "@/lib/api/transporter"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DataTable, type Column } from "@/components/dashboard-v2/panels/DataTable"
+
+type BookingRow = { id: string; reference: string; seatCount: number; totalAmount: number; status: string }
+type PaymentRow = { id: string; amount: number; status: string; provider: string }
+type CommissionRow = { id: string; commissionAmount: number; netAmount: number; payoutStatus: string }
+
+const TABS = [
+  { value: "bookings", label: "Réservations" },
+  { value: "payments", label: "Paiements" },
+  { value: "commissions", label: "Commissions" },
+] as const
+
+type Tab = typeof TABS[number]["value"]
+
+const BOOKING_COLUMNS: Column[] = [
+  { key: "reference", label: "Référence", render: (v) => <span className="font-mono text-xs">{String(v ?? "")}</span> },
+  { key: "seatCount", label: "Places", sortValue: (row) => Number(row.seatCount ?? 0) },
+  {
+    key: "totalAmount",
+    label: "Montant",
+    render: (v) => `${Number(v ?? 0).toLocaleString("fr-FR")} XAF`,
+    sortValue: (row) => Number(row.totalAmount ?? 0),
+  },
+  { key: "status", label: "Statut" },
+]
+
+const PAYMENT_COLUMNS: Column[] = [
+  {
+    key: "amount",
+    label: "Montant",
+    render: (v) => `${Number(v ?? 0).toLocaleString("fr-FR")} XAF`,
+    sortValue: (row) => Number(row.amount ?? 0),
+  },
+  { key: "provider", label: "Opérateur" },
+  { key: "status", label: "Statut" },
+  { key: "id", label: "ID", render: (v) => <span className="font-mono text-xs">{String(v ?? "")}</span>, sortable: false },
+]
+
+const COMMISSION_COLUMNS: Column[] = [
+  {
+    key: "commissionAmount",
+    label: "Commission",
+    render: (v) => `${Number(v ?? 0).toLocaleString("fr-FR")} XAF`,
+    sortValue: (row) => Number(row.commissionAmount ?? 0),
+  },
+  {
+    key: "netAmount",
+    label: "Net",
+    render: (v) => `${Number(v ?? 0).toLocaleString("fr-FR")} XAF`,
+    sortValue: (row) => Number(row.netAmount ?? 0),
+  },
+  { key: "payoutStatus", label: "Versement" },
+]
 
 export function BookingsClient({ token }: { token: string }) {
-  const [bookings,setBookings]=useState<{ id:string; reference:string; seatCount:number; totalAmount:number; status:string }[]>([])
-  const [payments,setPayments]=useState<{ id:string; amount:number; status:string; provider:string }[]>([])
-  const [commissions,setCommissions]=useState<{ id:string; commissionAmount:number; netAmount:number; payoutStatus:string }[]>([])
-  const [tab,setTab]=useState<"bookings"|"payments"|"commissions">("bookings")
+  const [bookings,setBookings]=useState<BookingRow[]>([])
+  const [payments,setPayments]=useState<PaymentRow[]>([])
+  const [commissions,setCommissions]=useState<CommissionRow[]>([])
+  const [tab,setTab]=useState<Tab>("bookings")
   const [error,setError]=useState<string|null>(null)
   const [loading,setLoading]=useState({ bookings: true, payments: true, commissions: true })
   useEffect(()=>{
@@ -19,46 +71,34 @@ export function BookingsClient({ token }: { token: string }) {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Réservations &amp; paiements</h1>
       <div className="flex gap-2">
-        {(["bookings","payments","commissions"] as const).map((t)=>(
-          <button key={t} onClick={()=>setTab(t)} className={`rounded-full px-4 py-1.5 text-sm font-medium border ${tab===t?"bg-primary text-primary-foreground":"bg-card"}`}>{t}</button>
+        {TABS.map((t)=>(
+          <button key={t.value} onClick={()=>setTab(t.value)} className={`rounded-full px-4 py-1.5 text-sm font-medium border ${tab===t.value?"bg-primary text-primary-foreground":"bg-card"}`}>{t.label}</button>
         ))}
       </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {tab==="bookings" && (
-        <ul className="divide-y rounded-2xl border">
-          {loading.bookings && Array.from({ length: 4 }).map((_, i) => (
-            <li key={`sk-${i}`} className="p-4 space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-48" />
-            </li>
-          ))}
-          {!loading.bookings && bookings.map((b)=><li key={b.id} className="p-4"><div className="font-mono text-sm">{b.reference}</div><div className="text-xs text-muted-foreground">{b.seatCount} place(s) · {b.totalAmount.toLocaleString()} XAF · {b.status}</div></li>)}
-          {!loading.bookings && bookings.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune réservation.</li>}
-        </ul>
+        <DataTable
+          columns={BOOKING_COLUMNS}
+          data={bookings as unknown as Record<string, unknown>[]}
+          isLoading={loading.bookings}
+          emptyMessage="Aucune réservation."
+        />
       )}
       {tab==="payments" && (
-        <ul className="divide-y rounded-2xl border">
-          {loading.payments && Array.from({ length: 4 }).map((_, i) => (
-            <li key={`sk-${i}`} className="p-4 space-y-2">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-3 w-56" />
-            </li>
-          ))}
-          {!loading.payments && payments.map((p)=><li key={p.id} className="p-4"><div className="font-medium">{p.amount.toLocaleString()} XAF — {p.provider}</div><div className="text-xs text-muted-foreground">{p.status} · {p.id}</div></li>)}
-          {!loading.payments && payments.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucun paiement.</li>}
-        </ul>
+        <DataTable
+          columns={PAYMENT_COLUMNS}
+          data={payments as unknown as Record<string, unknown>[]}
+          isLoading={loading.payments}
+          emptyMessage="Aucun paiement."
+        />
       )}
       {tab==="commissions" && (
-        <ul className="divide-y rounded-2xl border">
-          {loading.commissions && Array.from({ length: 3 }).map((_, i) => (
-            <li key={`sk-${i}`} className="p-4 space-y-2">
-              <Skeleton className="h-4 w-56" />
-              <Skeleton className="h-3 w-24" />
-            </li>
-          ))}
-          {!loading.commissions && commissions.map((c)=><li key={c.id} className="p-4"><div className="font-medium">Commission {c.commissionAmount.toLocaleString()} XAF · net {c.netAmount.toLocaleString()}</div><div className="text-xs text-muted-foreground">{c.payoutStatus}</div></li>)}
-          {!loading.commissions && commissions.length===0 && <li className="p-6 text-sm text-muted-foreground">Aucune commission.</li>}
-        </ul>
+        <DataTable
+          columns={COMMISSION_COLUMNS}
+          data={commissions as unknown as Record<string, unknown>[]}
+          isLoading={loading.commissions}
+          emptyMessage="Aucune commission."
+        />
       )}
     </div>
   )
