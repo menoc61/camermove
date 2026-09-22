@@ -386,6 +386,56 @@ export async function eventRoutes(app: FastifyInstance) {
     await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.event.create", entityType: "Event", entityId: created.id } }).catch(() => {})
     return reply.code(201).send(created)
   })
+
+  app.put("/partner/events/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const { id } = EventIdParams.parse(req.params)
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    const existing = await prisma.event.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundError("Événement introuvable")
+    if ((existing as unknown as { organizerId: string | null }).organizerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")
+    const body = PartnerEventCreate.partial().parse(req.body)
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "events.partner.update")
+    const updated = await prisma.event.update({ where: { id }, data: { ...body, startDate: body.startDate ? new Date(body.startDate) : undefined, endDate: body.endDate ? new Date(body.endDate) : undefined } as never })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.event.update", entityType: "Event", entityId: id } }).catch(() => {})
+    return updated
+  })
+
+  app.delete("/partner/events/:id", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const { id } = EventIdParams.parse(req.params)
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    const existing = await prisma.event.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundError("Événement introuvable")
+    if ((existing as unknown as { organizerId: string | null }).organizerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")
+    const active = await prisma.eventBooking.count({ where: { eventId: id, status: { in: ["pending_payment", "confirmed"] } } as never })
+    if (active > 0) throw new AppError(409, "CONFLICT", "Événement avec réservations actives — suppression impossible")
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "events.partner.delete")
+    await prisma.event.delete({ where: { id } })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.event.delete", entityType: "Event", entityId: id } }).catch(() => {})
+    return { id, deleted: true }
+  })
+
+  const PartnerCategoryCreate = z.object({
+    name: z.string().min(1).max(100),
+    description: z.string().max(1000).optional(),
+    price: z.number().int().positive(),
+    quantity: z.number().int().min(1).max(100000),
+  })
+
+  app.post("/partner/events/:id/categories", { preHandler: (app as unknown as { requireAuth: () => unknown }).requireAuth() as never }, async (req, reply) => {
+    const user = (req as unknown as { user: { id: string; role: string } }).user
+    const { id } = EventIdParams.parse(req.params)
+    const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
+    const existing = await prisma.event.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundError("Événement introuvable")
+    if ((existing as unknown as { organizerId: string | null }).organizerId !== user.id && user.role !== "admin" && user.role !== "super_admin") throw new ForbiddenError("Accès refusé")
+    const body = PartnerCategoryCreate.parse(req.body)
+    ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, entityId: id, userId: user.id }, "events.partner.category.create")
+    const created = await prisma.ticketCategory.create({ data: { eventId: id, name: body.name, description: body.description, price: body.price, quantity: body.quantity } as never })
+    await prisma.auditLog.create({ data: { actorId: user.id, action: "partner.event.category.create", entityType: "TicketCategory", entityId: created.id } }).catch(() => {})
+    return reply.code(201).send(created)
+  })
 }
 
 /**
