@@ -300,7 +300,7 @@ export async function adminRoutes(app: FastifyInstance) {
     req.log.info({ ...meta, actorId: actor.id, ...q }, "admin.hotels.list")
     const skip = (q.page - 1) * q.limit
     const [items, total] = await Promise.all([
-      p.hotel.findMany({ where: where as never, skip, take: q.limit, orderBy: { createdAt: "desc" }, include: { rooms: true, owner: { select: { id: true, email: true } } } }),
+      p.hotel.findMany({ where: where as never, skip, take: q.limit, orderBy: svc.parseAdminSort(q.sort, ["name", "city", "starRating", "status", "createdAt"], { createdAt: "desc" }), include: { rooms: true, owner: { select: { id: true, email: true } } } }),
       p.hotel.count({ where: where as never }),
     ])
     return { items, total, page: q.page, totalPages: Math.ceil(total / q.limit) }
@@ -321,7 +321,7 @@ export async function adminRoutes(app: FastifyInstance) {
       if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59Z")
       where.createdAt = createdAt
     }
-    const rows = await p.hotel.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } })
+    const rows = await p.hotel.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } /* stable export order */ })
     const columns = ["id", "name", "city", "starRating", "status", "partnerStatus", "ownerId", "createdAt"]
     return sendExport(reply, "admin-hotels", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
@@ -374,7 +374,7 @@ export async function adminRoutes(app: FastifyInstance) {
     req.log.info({ ...meta, actorId: actor.id, ...q }, "admin.rentals.list")
     const skip = (q.page - 1) * q.limit
     const [items, total] = await Promise.all([
-      p.rentalVehicle.findMany({ where: where as never, skip, take: q.limit, orderBy: { createdAt: "desc" }, include: { owner: { select: { id: true, email: true } } } }),
+      p.rentalVehicle.findMany({ where: where as never, skip, take: q.limit, orderBy: svc.parseAdminSort(q.sort, ["make", "model", "pickupCity", "pricePerUnit", "status", "createdAt"], { createdAt: "desc" }), include: { owner: { select: { id: true, email: true } } } }),
       p.rentalVehicle.count({ where: where as never }),
     ])
     return { items, total, page: q.page, totalPages: Math.ceil(total / q.limit) }
@@ -395,7 +395,7 @@ export async function adminRoutes(app: FastifyInstance) {
       if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59Z")
       where.createdAt = createdAt
     }
-    const rows = await p.rentalVehicle.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } })
+    const rows = await p.rentalVehicle.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } /* stable export order */ })
     const columns = ["id", "make", "model", "category", "pickupCity", "pricePerUnit", "durationUnit", "status", "partnerStatus", "ownerId", "createdAt"]
     return sendExport(reply, "admin-rentals", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })

@@ -10,6 +10,7 @@ import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
 import { observeParcel } from "@camermove/observability"
+import { parseAdminSort } from "../admin/service.js"
 
 const ParcelPayBody = z.object({
   provider: z.enum(["notchpay", "cinetpay"]).default("notchpay"),
@@ -112,7 +113,7 @@ export async function parcelRoutes(app: FastifyInstance) {
     const meta = (req as unknown as { meta: Record<string, unknown> }).meta ?? {}
     ;(req as unknown as { log: { info: (a: unknown, b: string) => void } }).log?.info?.({ ...meta, userId: user.id, dateFrom, dateTo, format }, "parcels.admin.export")
     const where = buildParcelWhere({ recipientCity, status, q, dateFrom, dateTo })
-    const rows = await prisma.parcel.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" }, include: { statusHistory: true } })
+    const rows = await prisma.parcel.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } /* stable export order */, include: { statusHistory: true } })
     const columns = ["id", "trackingNumber", "userId", "senderName", "senderCity", "recipientName", "recipientCity", "parcelType", "weightKg", "shippingCost", "status", "currentLocation", "createdAt"]
     return sendExport(reply, "parcels", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], columns)
   })
@@ -128,7 +129,8 @@ export async function parcelRoutes(app: FastifyInstance) {
       "parcels.admin.list",
     )
     const where = buildParcelWhere({ recipientCity: q.recipientCity, status: q.status, q: q.q, dateFrom: q.dateFrom, dateTo: q.dateTo })
-    const [items, total] = await Promise.all([findParcels(where, pagination.skip, pagination.take, undefined as never), countParcels(where)])
+    const orderBy = parseAdminSort(q.sort, ["createdAt", "status", "recipientCity", "shippingCost", "trackingNumber"], { createdAt: "desc" })
+    const [items, total] = await Promise.all([findParcels(where, pagination.skip, pagination.take, orderBy as never), countParcels(where)])
     const page = pagination.page ?? q.page
     const perPage = pagination.take
     return { items, total, page, perPage, totalPages: Math.ceil(total / perPage) }

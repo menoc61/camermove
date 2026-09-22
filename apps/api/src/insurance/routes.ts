@@ -8,6 +8,7 @@ import { getCached, setCached, cacheKey } from "../lib/cache.js"
 import { parseExportQuery, sendExport } from "../lib/export.js"
 import { buildPagination } from "../lib/query.js"
 import { observeInsurance } from "@camermove/observability"
+import { parseAdminSort } from "../admin/service.js"
 
 const EXPORT_COLUMNS = ["id", "policyNumber", "userId", "destination", "coverageType", "travelers", "premium", "currency", "status", "startDate", "endDate", "createdAt"]
 const ORDERABLE_FIELDS = ["createdAt", "premium", "destination", "startDate", "endDate"]
@@ -74,7 +75,7 @@ export async function insuranceRoutes(app: FastifyInstance) {
       dateFrom,
       dateTo,
     })
-    const rows = await prisma.insurancePolicy.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } })
+    const rows = await prisma.insurancePolicy.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } /* stable export order */ })
     return sendExport(reply, "insurance-policies", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], EXPORT_COLUMNS)
   })
 
@@ -142,7 +143,10 @@ export async function insuranceRoutes(app: FastifyInstance) {
     const where = buildInsuranceWhere({ coverageType: q.coverageType, q: q.q, dateFrom: q.dateFrom, dateTo: q.dateTo })
     const skip = pagination.skip
     const take = pagination.take
-    const [items, total] = await Promise.all([findPolicies(where, skip, take, parseOrderBy(q.orderBy) as never), countPolicies(where)])
+    const orderBy = q.sort
+      ? parseAdminSort(q.sort, ["createdAt", "premium", "destination", "startDate", "endDate", "status"], { createdAt: "desc" })
+      : parseOrderBy(q.orderBy)
+    const [items, total] = await Promise.all([findPolicies(where, skip, take, orderBy as never), countPolicies(where)])
     const page = pagination.page ?? q.page
     const perPage = pagination.take
     return { items, total, page, perPage, totalPages: Math.ceil(total / perPage) }
@@ -161,7 +165,7 @@ export async function insuranceRoutes(app: FastifyInstance) {
       dateFrom,
       dateTo,
     })
-    const rows = await prisma.insurancePolicy.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } })
+    const rows = await prisma.insurancePolicy.findMany({ where: where as never, take: env.SEARCH_MAX_LIMIT, orderBy: { createdAt: "desc" } /* stable export order */ })
     return sendExport(reply, "insurance-policies", dateFrom, dateTo, format, rows as unknown as Record<string, unknown>[], EXPORT_COLUMNS)
   })
 
