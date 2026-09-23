@@ -38,7 +38,11 @@ export default function Onboarding() {
   const last = index === SLIDES.length - 1;
 
   async function finish() {
-    await AsyncStorage.setItem(ONBOARDED_KEY, "1");
+    try {
+      await AsyncStorage.setItem(ONBOARDED_KEY, "1");
+    } catch {
+      // Fail open: re-showing onboarding next launch beats stranding the user.
+    }
     router.replace("/(tabs)");
   }
 

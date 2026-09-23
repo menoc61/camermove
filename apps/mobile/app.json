@@ -14,7 +14,7 @@
     "android": {
       "package": "com.camermove.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F5F4F1",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -33,7 +33,7 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#F5F4F1"
         }
       ],
       "expo-secure-store"
@@ -45,7 +45,6 @@
       "eas": {
         "projectId": "b14510d6-0b45-4794-8ed3-52a4b5d14f9c"
       }
-    },
-    "owner": "menoc61s-team"
+    }
   }
 }
