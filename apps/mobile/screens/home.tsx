@@ -17,7 +17,7 @@ import { EmptyState, ErrorState } from "@/components/ui/screen-state";
 import { Field } from "@/components/ui/text-input";
 import { colors } from "@/constants/theme";
 import { formatDate, formatRelative, formatTime, formatXAF } from "@/lib/format";
-import { fetchLandingRails, fetchLandingStats, type TransportRailItem } from "@/lib/api/landing";
+import { fetchLandingRails, fetchLandingStats, type RentalRailItem, type TransportRailItem } from "@/lib/api/landing";
 import { fetchAgenciesList } from "@/lib/api/agencies";
 import { useSearchStore } from "@/lib/stores/search";
 
@@ -54,6 +54,10 @@ export function HomeScreen() {
 
   const statsQuery = useQuery({ queryKey: ["landing", "stats"], queryFn: fetchLandingStats });
   const railsQuery = useQuery({ queryKey: ["landing", "rails"], queryFn: () => fetchLandingRails() });
+  const rentalsRailQuery = useQuery({
+    queryKey: ["landing", "rails", "rentals"],
+    queryFn: () => fetchLandingRails("rentals"),
+  });
   const agenciesQuery = useQuery({
     queryKey: ["agencies", "preview"],
     queryFn: () => fetchAgenciesList(),
@@ -62,6 +66,14 @@ export function HomeScreen() {
   function openRail(item: TransportRailItem) {
     setSearch({ origin: item.origin, destination: item.destination });
     router.push("/(tabs)/search");
+  }
+
+  function openRentalsList() {
+    router.push("/rentals" as never);
+  }
+
+  function openRental(item: RentalRailItem) {
+    router.push(`/rentals/${encodeURIComponent(item.id)}` as never);
   }
 
   function openAgencies() {
@@ -235,6 +247,61 @@ export function HomeScreen() {
                     : `${item.seatsAvailable} places libres`}
               </Text>
               <Text style={styles.cardCta}>Rechercher ce trajet</Text>
+            </Pressable>
+          )}
+        />
+      )}
+
+      <View style={styles.agencyHeaderRow}>
+        <View style={styles.agencyHeaderLeft}>
+          <Text style={styles.sectionEyebrow}>Mobilité</Text>
+          <Text style={styles.sectionTitle}>Location véhicules</Text>
+        </View>
+        <Pressable
+          onPress={openRentalsList}
+          accessibilityRole="link"
+          accessibilityLabel="Voir toutes les locations"
+          hitSlop={8}
+        >
+          <Text style={styles.seeAllLink}>Tout voir →</Text>
+        </Pressable>
+      </View>
+      {rentalsRailQuery.isPending ? (
+        <ActivityIndicator color={colors.ink} style={styles.loader} />
+      ) : rentalsRailQuery.isError ? (
+        <ErrorState
+          message="Impossible de charger les véhicules."
+          onRetry={() => void rentalsRailQuery.refetch()}
+        />
+      ) : (
+        <FlatList
+          data={rentalsRailQuery.data && rentalsRailQuery.data.type === "rentals" ? rentalsRailQuery.data.items : []}
+          keyExtractor={(item) => item.id}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.railList}
+          ListEmptyComponent={
+            <EmptyState
+              message="Aucun véhicule en avant."
+              actionLabel="Voir les locations"
+              onAction={openRentalsList}
+            />
+          }
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() => openRental(item)}
+              style={styles.card}
+              accessibilityRole="button"
+              accessibilityLabel={`Voir ${item.title}`}
+            >
+              <Text style={styles.cardEyebrow}>{item.top}</Text>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {item.title}
+              </Text>
+              <Text style={styles.cardMeta} numberOfLines={2}>
+                {item.bottom}
+              </Text>
+              <Text style={styles.cardCta}>Réserver →</Text>
             </Pressable>
           )}
         />
