@@ -51,7 +51,7 @@ function RootLayoutNav() {
   useEffect(() => {
     AsyncStorage.getItem(ONBOARDED_KEY).then((seen) => {
       if (!seen) router.replace("/onboarding");
-    });
+    }).catch(() => { router.replace("/(tabs)"); });
   }, [router]);
 
   return (
