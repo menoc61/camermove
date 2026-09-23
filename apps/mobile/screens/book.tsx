@@ -1,10 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { PaymentStep } from "@/components/booking/payment-step";
-import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { ActionButton } from "@/components/ui/action-button";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonHero, SkeletonText } from "@/components/ui/skeleton-presets";
 import { Field } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { colors } from "@/constants/theme";
@@ -87,7 +90,16 @@ export function BookScreen() {
   }
 
   if (tripQuery.isPending) {
-    return <LoadingState label="Chargement du récapitulatif…" />;
+    return (
+      <View style={styles.root}>
+        <View style={styles.content}>
+          <SkeletonHero />
+          <View style={{ marginTop: 16 }}>
+            <SkeletonText lines={3} />
+          </View>
+        </View>
+      </View>
+    );
   }
 
   if (tripQuery.isError || !tripQuery.data) {
@@ -116,7 +128,7 @@ export function BookScreen() {
   );
   const hasErrors = errors.some((e) => Object.keys(e).length > 0);
 
-  function submit() {
+  async function submit() {
     setSubmitted(true);
     if (hasErrors) {
       toast("Vérifiez les informations des passagers.");
@@ -140,87 +152,100 @@ export function BookScreen() {
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
     >
-      <Text style={styles.eyebrow}>Réservation</Text>
-      <Text style={styles.title}>
-        {trip.route?.originCity ?? "—"} → {trip.route?.destinationCity ?? "—"}
-      </Text>
-
-      <Text style={styles.sectionTitle}>Nombre de places</Text>
-      <View style={styles.stepper}>
-        <Pressable
-          onPress={() => setSeatCount(seatCount - 1)}
-          disabled={seatCount <= 1}
-          style={[styles.step, seatCount <= 1 && styles.stepDisabled]}
-          accessibilityRole="button"
-          accessibilityLabel="Réduire le nombre de places"
-        >
-          <Text style={styles.stepText}>−</Text>
-        </Pressable>
-        <Text style={styles.count}>
-          {seatCount} place{seatCount > 1 ? "s" : ""}
+      <Reveal>
+        <Text style={styles.eyebrow}>Réservation</Text>
+        <Text style={styles.title}>
+          {trip.route?.originCity ?? "—"} → {trip.route?.destinationCity ?? "—"}
         </Text>
-        <Pressable
-          onPress={() => setSeatCount(seatCount + 1)}
-          disabled={seatCount >= 10}
-          style={[styles.step, seatCount >= 10 && styles.stepDisabled]}
-          accessibilityRole="button"
-          accessibilityLabel="Augmenter le nombre de places"
-        >
-          <Text style={styles.stepText}>+</Text>
-        </Pressable>
-      </View>
+      </Reveal>
 
-      <Text style={styles.sectionTitle}>Passagers</Text>
-      {passengers.map((p, i) => (
-        <View key={i} style={styles.passenger}>
-          <Text style={styles.passengerHead}>Passager {i + 1}</Text>
-          <Field
-            label="Nom complet"
-            value={p.fullName}
-            onChangeText={(t) => setPassenger(i, { fullName: t })}
-            placeholder="ex : Amina Mbarga"
-            autoCapitalize="words"
-            error={submitted ? errors[i]?.fullName : undefined}
-          />
-          <Field
-            label="Téléphone (optionnel)"
-            value={p.phone ?? ""}
-            onChangeText={(t) => setPassenger(i, { phone: t })}
-            placeholder="+2376XXXXXXXX"
-            keyboardType="phone-pad"
-            error={submitted ? errors[i]?.phone : undefined}
-          />
+      <Reveal delay={60}>
+        <Text style={styles.sectionTitle}>Nombre de places</Text>
+        <View style={styles.stepper}>
+          <AnimatedPressFeedback
+            onPress={() => setSeatCount(seatCount - 1)}
+            disabled={seatCount <= 1}
+            style={[styles.step, seatCount <= 1 && styles.stepDisabled]}
+            accessibilityRole="button"
+            accessibilityLabel="Réduire le nombre de places"
+          >
+            <Text style={styles.stepText}>−</Text>
+          </AnimatedPressFeedback>
+          <Text style={styles.count}>
+            {seatCount} place{seatCount > 1 ? "s" : ""}
+          </Text>
+          <AnimatedPressFeedback
+            onPress={() => setSeatCount(seatCount + 1)}
+            disabled={seatCount >= 10}
+            style={[styles.step, seatCount >= 10 && styles.stepDisabled]}
+            accessibilityRole="button"
+            accessibilityLabel="Augmenter le nombre de places"
+          >
+            <Text style={styles.stepText}>+</Text>
+          </AnimatedPressFeedback>
         </View>
-      ))}
+      </Reveal>
 
-      <View style={styles.recap}>
-        <Text style={styles.recapLabel}>
-          {seatCount} place{seatCount > 1 ? "s" : ""} × {formatXAF(trip.price)}
-        </Text>
-        <Text style={styles.total}>{formatXAF(total)}</Text>
-      </View>
+      <Reveal delay={120}>
+        <Text style={styles.sectionTitle}>Passagers</Text>
+        {passengers.map((p, i) => (
+          <View key={i} style={styles.passenger}>
+            <Text style={styles.passengerHead}>Passager {i + 1}</Text>
+            <Field
+              label="Nom complet"
+              value={p.fullName}
+              onChangeText={(t) => setPassenger(i, { fullName: t })}
+              placeholder="ex : Amina Mbarga"
+              autoCapitalize="words"
+              error={submitted ? errors[i]?.fullName : undefined}
+            />
+            <Field
+              label="Téléphone (optionnel)"
+              value={p.phone ?? ""}
+              onChangeText={(t) => setPassenger(i, { phone: t })}
+              placeholder="+2376XXXXXXXX"
+              keyboardType="phone-pad"
+              error={submitted ? errors[i]?.phone : undefined}
+            />
+          </View>
+        ))}
+      </Reveal>
 
-      {bookingMutation.isError ? (
-        <Text style={styles.error}>{bookingErrorMessage(bookingMutation.error)}</Text>
-      ) : null}
+      <Reveal delay={180}>
+        <View style={styles.recap}>
+          <Text style={styles.recapLabel}>
+            {seatCount} place{seatCount > 1 ? "s" : ""} × {formatXAF(trip.price)}
+          </Text>
+          <Text style={styles.total}>{formatXAF(total)}</Text>
+        </View>
+
+        {bookingMutation.isError ? (
+          <Text style={styles.error}>{bookingErrorMessage(bookingMutation.error)}</Text>
+        ) : null}
+      </Reveal>
 
       {created ? (
-        <View style={styles.created}>
-          <Text style={styles.createdLabel}>Réservation {created.reference} créée.</Text>
-          <PaymentStep
-            bookingId={created.id}
-            amount={total}
-            onPaid={() => router.push(`/book/confirmation?ref=${encodeURIComponent(created.reference)}` as never)}
-          />
-        </View>
+        <Reveal delay={60}>
+          <View style={styles.created}>
+            <Text style={styles.createdLabel}>Réservation {created.reference} créée.</Text>
+            <PaymentStep
+              bookingId={created.id}
+              amount={total}
+              onPaid={() => router.push(`/book/confirmation?ref=${encodeURIComponent(created.reference)}` as never)}
+            />
+          </View>
+        </Reveal>
       ) : (
-        <View style={styles.cta}>
-          <Button
-            label={bookingMutation.isPending ? "Réservation…" : "Confirmer la réservation"}
-            onPress={submit}
-            disabled={bookingMutation.isPending}
-          />
-        </View>
+        <Reveal delay={240}>
+          <View style={styles.cta}>
+            <ActionButton
+              label="Confirmer la réservation"
+              onPress={submit}
+              disabled={bookingMutation.isPending}
+              successLabel="Réservation créée"
+            />
+          </View>
+        </Reveal>
       )}
     </ScrollView>
   );
@@ -277,5 +302,5 @@ const styles = StyleSheet.create({
   error: { fontSize: 13, color: "#B3261E", marginTop: 12 },
   cta: { marginTop: 24 },
   created: { marginTop: 8 },
-  createdLabel: { fontSize: 14, fontWeight: "500", color: colors.ink1 },
+  createdLabel: { fontSize: 14, fontWeight: "500", color: colors.ink1, marginBottom: 8 },
 });

@@ -1,10 +1,9 @@
 import DateTimePicker from "@expo/ui/community/datetime-picker";
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
   Platform,
   Pressable,
   ScrollView,
@@ -12,13 +11,30 @@ import {
   Text,
   View,
 } from "react-native";
-import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState } from "@/components/ui/screen-state";
+import { ActionButton } from "@/components/ui/action-button";
 import { Field } from "@/components/ui/text-input";
+import {
+  EmptyState,
+  ErrorState,
+} from "@/components/ui/screen-state";
+import {
+  SkeletonCard,
+  SkeletonRail,
+  SkeletonStats,
+} from "@/components/ui/skeleton-presets";
+import { StatIndicator } from "@/components/ui/stat-indicator";
+import { Reveal } from "@/components/ui/reveal";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
 import { colors } from "@/constants/theme";
 import { formatDate, formatRelative, formatTime, formatXAF } from "@/lib/format";
-import { fetchLandingRails, fetchLandingStats, type RentalRailItem, type TransportRailItem } from "@/lib/api/landing";
-import { fetchAgenciesList } from "@/lib/api/agencies";
+import {
+  fetchLandingRails,
+  fetchLandingStats,
+  type HotelRailItem,
+  type RentalRailItem,
+  type TransportRailItem,
+} from "@/lib/api/landing";
+import { fetchAgenciesList, type AgencyListItem } from "@/lib/api/agencies";
 import { useSearchStore } from "@/lib/stores/search";
 
 function toISODate(d: Date): string {
@@ -35,7 +51,7 @@ function parseISODate(iso: string): Date {
 function startOfToday(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
-  return d;
+  return new Date(d);
 }
 
 function formatDay(iso: string): string {
@@ -46,22 +62,63 @@ function formatDay(iso: string): string {
   });
 }
 
+const RAIL_CARD_HEIGHT = 188;
+const RAIL_CARD_WIDTH = 248;
+
 export function HomeScreen() {
   const router = useRouter();
   const { origin, destination, date, pax, setSearch } = useSearchStore();
   const [showPicker, setShowPicker] = useState(false);
   const isWeb = Platform.OS === "web";
 
-  const statsQuery = useQuery({ queryKey: ["landing", "stats"], queryFn: fetchLandingStats });
-  const railsQuery = useQuery({ queryKey: ["landing", "rails"], queryFn: () => fetchLandingRails() });
+  const statsQuery = useQuery({
+    queryKey: ["landing", "stats"],
+    queryFn: fetchLandingStats,
+  });
+  const railsQuery = useQuery({
+    queryKey: ["landing", "rails"],
+    queryFn: () => fetchLandingRails(),
+  });
   const rentalsRailQuery = useQuery({
     queryKey: ["landing", "rails", "rentals"],
     queryFn: () => fetchLandingRails("rentals"),
+  });
+  const hotelsRailQuery = useQuery({
+    queryKey: ["landing", "rails", "hotels"],
+    queryFn: () => fetchLandingRails("hotels"),
   });
   const agenciesQuery = useQuery({
     queryKey: ["agencies", "preview"],
     queryFn: () => fetchAgenciesList(),
   });
+
+  const railRef = useRef<FlashListRef<TransportRailItem>>(null);
+  const rentalsRef = useRef<FlashListRef<RentalRailItem>>(null);
+  const hotelsRef = useRef<FlashListRef<HotelRailItem>>(null);
+  const agenciesRef = useRef<FlashListRef<AgencyListItem>>(null);
+
+  const tripItems = useMemo(
+    () => railsQuery.data?.items ?? [],
+    [railsQuery.data],
+  );
+  const rentalItems = useMemo(
+    () =>
+      rentalsRailQuery.data && rentalsRailQuery.data.type === "rentals"
+        ? rentalsRailQuery.data.items
+        : [],
+    [rentalsRailQuery.data],
+  );
+  const hotelItems = useMemo(
+    () =>
+      hotelsRailQuery.data && hotelsRailQuery.data.type === "hotels"
+        ? hotelsRailQuery.data.items
+        : [],
+    [hotelsRailQuery.data],
+  );
+  const agencyItems = useMemo(
+    () => agenciesQuery.data?.items.slice(0, 6) ?? [],
+    [agenciesQuery.data],
+  );
 
   function openRail(item: TransportRailItem) {
     setSearch({ origin: item.origin, destination: item.destination });
@@ -71,17 +128,24 @@ export function HomeScreen() {
   function openRentalsList() {
     router.push("/rentals" as never);
   }
-
   function openRental(item: RentalRailItem) {
     router.push(`/rentals/${encodeURIComponent(item.id)}` as never);
   }
-
+  function openHotelsList() {
+    router.push("/hotels" as never);
+  }
+  function openHotel(item: HotelRailItem) {
+    router.push(`/hotels/${encodeURIComponent(item.id)}` as never);
+  }
   function openAgencies() {
     router.push("/agencies" as never);
   }
-
   function openAgencyDetail(id: string) {
     router.push(`/agencies/${encodeURIComponent(id)}` as never);
+  }
+
+  async function submitSearch() {
+    router.push("/(tabs)/search");
   }
 
   return (
@@ -89,88 +153,99 @@ export function HomeScreen() {
       style={styles.root}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      contentInsetAdjustmentBehavior="automatic"
     >
-      <Text style={styles.eyebrow}>CamerMove</Text>
-      <Text style={styles.title}>Réservez votre voyage</Text>
+      <Reveal>
+        <Text style={styles.eyebrow}>CamerMove</Text>
+        <Text style={styles.title}>Réservez votre voyage</Text>
+      </Reveal>
 
-      <View style={styles.widget}>
-        <Field
-          label="Départ"
-          value={origin}
-          onChangeText={(v) => setSearch({ origin: v })}
-          placeholder="Yaoundé"
-          autoCapitalize="words"
-        />
-        <Field
-          label="Destination"
-          value={destination}
-          onChangeText={(v) => setSearch({ destination: v })}
-          placeholder="Douala"
-          autoCapitalize="words"
-        />
-        <Text style={styles.fieldLabel}>Date de départ</Text>
-        {isWeb ? (
+      <Reveal delay={60}>
+        <View style={styles.widget}>
           <Field
-            label=""
-            value={date}
-            onChangeText={(v) => setSearch({ date: v })}
-            placeholder="AAAA-MM-JJ"
+            label="Départ"
+            value={origin}
+            onChangeText={(v) => setSearch({ origin: v })}
+            placeholder="Yaoundé"
+            autoCapitalize="words"
           />
-        ) : (
-          <Pressable
-            onPress={() => setShowPicker(true)}
-            style={styles.dateButton}
-            accessibilityRole="button"
-            accessibilityLabel="Choisir la date de départ"
-          >
-            <Text style={styles.dateText}>{formatDay(date)}</Text>
-            <Text style={styles.dateCta}>Modifier</Text>
-          </Pressable>
-        )}
-        {showPicker && !isWeb ? (
-          <DateTimePicker
-            value={parseISODate(date)}
-            mode="date"
-            minimumDate={startOfToday()}
-            locale="fr_FR"
-            presentation="dialog"
-            onValueChange={(_event, selected) => {
-              setShowPicker(false);
-              setSearch({ date: toISODate(selected) });
-            }}
-            onDismiss={() => setShowPicker(false)}
+          <Field
+            label="Destination"
+            value={destination}
+            onChangeText={(v) => setSearch({ destination: v })}
+            placeholder="Douala"
+            autoCapitalize="words"
           />
-        ) : null}
-        <Text style={styles.fieldLabel}>Passagers</Text>
-        <View style={styles.stepper}>
-          <Pressable
-            onPress={() => setSearch({ pax: Math.max(1, pax - 1) })}
-            disabled={pax <= 1}
-            style={[styles.stepButton, pax <= 1 && styles.stepDisabled]}
-            accessibilityRole="button"
-            accessibilityLabel="Réduire le nombre de passagers"
-          >
-            <Text style={styles.stepText}>−</Text>
-          </Pressable>
-          <Text style={styles.stepValue}>{pax}</Text>
-          <Pressable
-            onPress={() => setSearch({ pax: Math.min(10, pax + 1) })}
-            disabled={pax >= 10}
-            style={[styles.stepButton, pax >= 10 && styles.stepDisabled]}
-            accessibilityRole="button"
-            accessibilityLabel="Augmenter le nombre de passagers"
-          >
-            <Text style={styles.stepText}>+</Text>
-          </Pressable>
+          <Text style={styles.fieldLabel}>Date de départ</Text>
+          {isWeb ? (
+            <Field
+              label=""
+              value={date}
+              onChangeText={(v) => setSearch({ date: v })}
+              placeholder="AAAA-MM-JJ"
+            />
+          ) : (
+            <AnimatedPressFeedback
+              onPress={() => setShowPicker(true)}
+              style={styles.dateButton}
+              accessibilityRole="button"
+              accessibilityLabel="Choisir la date de départ"
+            >
+              <Text style={styles.dateText}>{formatDay(date)}</Text>
+              <Text style={styles.dateCta}>Modifier</Text>
+            </AnimatedPressFeedback>
+          )}
+          {showPicker && !isWeb ? (
+            <DateTimePicker
+              value={parseISODate(date)}
+              mode="date"
+              minimumDate={startOfToday()}
+              locale="fr_FR"
+              presentation="dialog"
+              onValueChange={(_event, selected) => {
+                setShowPicker(false);
+                setSearch({ date: toISODate(selected) });
+              }}
+              onDismiss={() => setShowPicker(false)}
+            />
+          ) : null}
+          <Text style={styles.fieldLabel}>Passagers</Text>
+          <View style={styles.stepper}>
+            <AnimatedPressFeedback
+              onPress={() => setSearch({ pax: Math.max(1, pax - 1) })}
+              disabled={pax <= 1}
+              style={[styles.stepButton, pax <= 1 && styles.stepDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel="Réduire le nombre de passagers"
+            >
+              <Text style={styles.stepText}>−</Text>
+            </AnimatedPressFeedback>
+            <Text style={styles.stepValue}>{pax}</Text>
+            <AnimatedPressFeedback
+              onPress={() => setSearch({ pax: Math.min(10, pax + 1) })}
+              disabled={pax >= 10}
+              style={[styles.stepButton, pax >= 10 && styles.stepDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel="Augmenter le nombre de passagers"
+            >
+              <Text style={styles.stepText}>+</Text>
+            </AnimatedPressFeedback>
+          </View>
+          <View style={styles.searchButton}>
+            <ActionButton
+              label="Rechercher"
+              onPress={submitSearch}
+              successLabel="C'est parti"
+            />
+          </View>
         </View>
-        <View style={styles.searchButton}>
-          <Button label="Rechercher" onPress={() => router.push("/(tabs)/search")} />
-        </View>
-      </View>
+      </Reveal>
 
-      <Text style={styles.sectionEyebrow}>En bref</Text>
+      <Reveal delay={120}>
+        <Text style={styles.sectionEyebrow}>En bref</Text>
+      </Reveal>
       {statsQuery.isPending ? (
-        <ActivityIndicator color={colors.ink} style={styles.loader} />
+        <SkeletonStats />
       ) : statsQuery.isError ? (
         <ErrorState
           message="Impossible de charger les statistiques."
@@ -180,193 +255,337 @@ export function HomeScreen() {
         <EmptyState message="Statistiques indisponibles pour le moment." />
       ) : (
         <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>
-              {statsQuery.data.minPrice != null ? formatXAF(statsQuery.data.minPrice) : "—"}
-            </Text>
-            <Text style={styles.statLabel}>Prix min</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>
-              {statsQuery.data.nextDepartureAt
+          <StatIndicator
+            label="Prix min"
+            value={
+              statsQuery.data.minPrice != null
+                ? formatXAF(statsQuery.data.minPrice)
+                : "—"
+            }
+            tooltip="Le tarif le plus bas trouvé sur les 7 prochains jours, tous transporteurs confondus."
+            loading={statsQuery.isFetching && !statsQuery.data}
+          />
+          <StatIndicator
+            label="Prochain départ"
+            value={
+              statsQuery.data.nextDepartureAt
                 ? formatRelative(statsQuery.data.nextDepartureAt)
-                : "—"}
-            </Text>
-            <Text style={styles.statLabel}>Prochain départ</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{statsQuery.data.hotelsCount}</Text>
-            <Text style={styles.statLabel}>Hôtels</Text>
-          </View>
-          <View style={[styles.stat, styles.statLast]}>
-            <Text style={styles.statValue}>{statsQuery.data.rentalsCount}</Text>
-            <Text style={styles.statLabel}>Locations</Text>
-          </View>
+                : "—"
+            }
+            tooltip="Le prochain départ confirmé sur n'importe quel trajet interurbain."
+            loading={statsQuery.isFetching && !statsQuery.data}
+          />
+          <StatIndicator
+            label="Hôtels"
+            value={`${statsQuery.data.hotelsCount}`}
+            tooltip="Nombre d'hôtels et appart-hôtels référencés par CamerMove."
+          />
+          <StatIndicator
+            label="Locations"
+            value={`${statsQuery.data.rentalsCount}`}
+            tooltip="Véhicules de location disponibles via nos agences partenaires."
+          />
         </View>
       )}
 
-      <Text style={styles.sectionEyebrow}>Populaire</Text>
-      <Text style={styles.sectionTitle}>Départs à venir</Text>
+      <SectionHeader
+        eyebrow="Populaire"
+        title="Départs à venir"
+        onSeeAll={() => router.push("/(tabs)/search")}
+        ctaLabel="Rechercher"
+      />
       {railsQuery.isPending ? (
-        <ActivityIndicator color={colors.ink} style={styles.loader} />
+        <SkeletonRail count={4} />
       ) : railsQuery.isError ? (
         <ErrorState
           message="Impossible de charger les départs."
           onRetry={() => void railsQuery.refetch()}
         />
       ) : (
-        <FlatList
-          data={railsQuery.data.items}
+        <FlashList
+          ref={railRef}
+          data={tripItems}
           keyExtractor={(item) => item.id}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.railList}
+          renderItem={({ item }) => <TripCard trip={item} onPress={() => openRail(item)} />}
           ListEmptyComponent={
-            <EmptyState message="Aucun départ à venir pour le moment." />
+            <View style={styles.emptyWrap}>
+              <EmptyState message="Aucun départ à venir pour le moment." />
+            </View>
           }
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => openRail(item)}
-              style={styles.card}
-              accessibilityRole="button"
-              accessibilityLabel={`Rechercher ${item.origin} vers ${item.destination}`}
-            >
-              <Text style={styles.cardEyebrow}>{item.companyName}</Text>
-              <Text style={styles.cardTitle}>
-                {item.origin} → {item.destination}
-              </Text>
-              <Text style={styles.cardMeta}>
-                {formatDate(item.departureAt)} · {formatTime(item.departureAt)}
-              </Text>
-              <Text style={styles.cardPrice}>{formatXAF(item.price)}</Text>
-              <Text style={styles.cardSeats}>
-                {item.seatsAvailable === 0
-                  ? "Complet"
-                  : item.seatsAvailable < 5
-                    ? `Plus que ${item.seatsAvailable} places`
-                    : `${item.seatsAvailable} places libres`}
-              </Text>
-              <Text style={styles.cardCta}>Rechercher ce trajet</Text>
-            </Pressable>
-          )}
         />
       )}
 
-      <View style={styles.agencyHeaderRow}>
-        <View style={styles.agencyHeaderLeft}>
-          <Text style={styles.sectionEyebrow}>Mobilité</Text>
-          <Text style={styles.sectionTitle}>Location véhicules</Text>
-        </View>
-        <Pressable
-          onPress={openRentalsList}
-          accessibilityRole="link"
-          accessibilityLabel="Voir toutes les locations"
-          hitSlop={8}
-        >
-          <Text style={styles.seeAllLink}>Tout voir →</Text>
-        </Pressable>
-      </View>
+      <SectionHeader
+        eyebrow="Mobilité"
+        title="Location véhicules"
+        onSeeAll={openRentalsList}
+        ctaLabel="Tout voir"
+      />
       {rentalsRailQuery.isPending ? (
-        <ActivityIndicator color={colors.ink} style={styles.loader} />
+        <SkeletonRail count={4} />
       ) : rentalsRailQuery.isError ? (
         <ErrorState
           message="Impossible de charger les véhicules."
           onRetry={() => void rentalsRailQuery.refetch()}
         />
       ) : (
-        <FlatList
-          data={rentalsRailQuery.data && rentalsRailQuery.data.type === "rentals" ? rentalsRailQuery.data.items : []}
+        <FlashList
+          ref={rentalsRef}
+          data={rentalItems}
           keyExtractor={(item) => item.id}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.railList}
-          ListEmptyComponent={
-            <EmptyState
-              message="Aucun véhicule en avant."
-              actionLabel="Voir les locations"
-              onAction={openRentalsList}
-            />
-          }
           renderItem={({ item }) => (
-            <Pressable
-              onPress={() => openRental(item)}
-              style={styles.card}
-              accessibilityRole="button"
-              accessibilityLabel={`Voir ${item.title}`}
-            >
-              <Text style={styles.cardEyebrow}>{item.top}</Text>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {item.title}
-              </Text>
-              <Text style={styles.cardMeta} numberOfLines={2}>
-                {item.bottom}
-              </Text>
-              <Text style={styles.cardCta}>Réserver →</Text>
-            </Pressable>
+            <RentalCard rental={item} onPress={() => openRental(item)} />
           )}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <EmptyState
+                message="Aucun véhicule en avant."
+                actionLabel="Voir les locations"
+                onAction={openRentalsList}
+              />
+            </View>
+          }
         />
       )}
 
-      <View style={styles.agencyHeaderRow}>
-        <View style={styles.agencyHeaderLeft}>
-          <Text style={styles.sectionEyebrow}>Annuaire</Text>
-          <Text style={styles.sectionTitle}>Nos agences partenaires</Text>
-        </View>
-        <Pressable
-          onPress={openAgencies}
-          accessibilityRole="link"
-          accessibilityLabel="Voir tout l'annuaire"
-          hitSlop={8}
-        >
-          <Text style={styles.seeAllLink}>Tout voir →</Text>
-        </Pressable>
-      </View>
+      <SectionHeader
+        eyebrow="Hébergement"
+        title="Hôtels & apparts"
+        onSeeAll={openHotelsList}
+        ctaLabel="Tout voir"
+      />
+      {hotelsRailQuery.isPending ? (
+        <SkeletonRail count={4} />
+      ) : hotelsRailQuery.isError ? (
+        <ErrorState
+          message="Impossible de charger les hôtels."
+          onRetry={() => void hotelsRailQuery.refetch()}
+        />
+      ) : (
+        <FlashList
+          ref={hotelsRef}
+          data={hotelItems}
+          keyExtractor={(item) => item.id}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.railList}
+          renderItem={({ item }) => (
+            <HotelCard hotel={item} onPress={() => openHotel(item)} />
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <EmptyState
+                message="Aucun hôtel en avant."
+                actionLabel="Voir les hôtels"
+                onAction={openHotelsList}
+              />
+            </View>
+          }
+        />
+      )}
+
+      <SectionHeader
+        eyebrow="Annuaire"
+        title="Nos agences partenaires"
+        onSeeAll={openAgencies}
+        ctaLabel="Tout voir"
+      />
       {agenciesQuery.isPending ? (
-        <ActivityIndicator color={colors.ink} style={styles.loader} />
+        <SkeletonRail count={4} />
       ) : agenciesQuery.isError ? (
         <ErrorState
           message="Impossible de charger les agences."
           onRetry={() => void agenciesQuery.refetch()}
         />
       ) : (
-        <FlatList
-          data={agenciesQuery.data?.items.slice(0, 6) ?? []}
+        <FlashList
+          ref={agenciesRef}
+          data={agencyItems}
           keyExtractor={(item) => item.id}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.railList}
-          ListEmptyComponent={
-            <EmptyState message="Aucune agence référencée pour le moment." />
-          }
           renderItem={({ item }) => (
-            <Pressable
+            <AgencyCardLite
+              id={item.id}
+              city={item.city ?? "Cameroun"}
+              name={item.companyName}
+              tagline={item.tagline}
+              rating={item.ratingAvg}
+              routeCount={item.routes.length}
+              fleetCount={item.fleetCount}
               onPress={() => openAgencyDetail(item.id)}
-              style={styles.card}
-              accessibilityRole="button"
-              accessibilityLabel={`Voir ${item.companyName}`}
-            >
-              <Text style={styles.cardEyebrow}>{item.city ?? "Cameroun"}</Text>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {item.companyName}
-              </Text>
-              <Text style={styles.cardMeta} numberOfLines={2}>
-                {item.tagline}
-              </Text>
-              <Text style={styles.cardPrice}>
-                {item.ratingAvg != null ? `${item.ratingAvg.toFixed(1)} ★` : "Nouveau"}
-              </Text>
-              <Text style={styles.cardSeats}>
-                {item.routes.length} ligne{item.routes.length > 1 ? "s" : ""} ·{" "}
-                {item.fleetCount} bus
-              </Text>
-              <Text style={styles.cardCta}>Voir l'agence</Text>
-            </Pressable>
+            />
           )}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <EmptyState message="Aucune agence référencée pour le moment." />
+            </View>
+          }
         />
       )}
     </ScrollView>
   );
 }
+
+interface SectionHeaderProps {
+  eyebrow: string;
+  title: string;
+  ctaLabel: string;
+  onSeeAll: () => void;
+}
+function SectionHeader({ eyebrow, title, ctaLabel, onSeeAll }: SectionHeaderProps) {
+  return (
+    <Reveal delay={40}>
+      <View style={styles.sectionHead}>
+        <View style={styles.sectionHeadLeft}>
+          <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+        <AnimatedPressFeedback
+          onPress={onSeeAll}
+          accessibilityRole="link"
+          accessibilityLabel={ctaLabel}
+          hitSlop={8}
+          style={styles.seeAllPressable}
+        >
+          <Text style={styles.seeAllLink}>{ctaLabel} →</Text>
+        </AnimatedPressFeedback>
+      </View>
+    </Reveal>
+  );
+}
+
+interface CardProps {
+  onPress: () => void;
+}
+function TripCard({ trip, onPress }: CardProps & { trip: TransportRailItem }) {
+  return (
+    <AnimatedPressFeedback
+      onPress={onPress}
+      style={styles.card}
+      accessibilityRole="button"
+      accessibilityLabel={`Rechercher ${trip.origin} vers ${trip.destination}`}
+    >
+      <Text style={styles.cardEyebrow}>{trip.companyName}</Text>
+      <Text style={styles.cardTitle}>
+        {trip.origin} → {trip.destination}
+      </Text>
+      <Text style={styles.cardMeta}>
+        {formatDate(trip.departureAt)} · {formatTime(trip.departureAt)}
+      </Text>
+      <Text style={styles.cardPrice}>{formatXAF(trip.price)}</Text>
+      <Text style={styles.cardSeats}>
+        {trip.seatsAvailable === 0
+          ? "Complet"
+          : trip.seatsAvailable < 5
+            ? `Plus que ${trip.seatsAvailable} places`
+            : `${trip.seatsAvailable} places libres`}
+      </Text>
+      <Text style={styles.cardCta}>Rechercher ce trajet</Text>
+    </AnimatedPressFeedback>
+  );
+}
+function RentalCard({ rental, onPress }: CardProps & { rental: RentalRailItem }) {
+  return (
+    <AnimatedPressFeedback
+      onPress={onPress}
+      style={styles.card}
+      accessibilityRole="button"
+      accessibilityLabel={`Voir ${rental.title}`}
+    >
+      <Text style={styles.cardEyebrow}>{rental.top}</Text>
+      <Text style={styles.cardTitle} numberOfLines={1}>
+        {rental.title}
+      </Text>
+      <Text style={styles.cardMeta} numberOfLines={2}>
+        {rental.bottom}
+      </Text>
+      <Text style={styles.cardCta}>Réserver →</Text>
+    </AnimatedPressFeedback>
+  );
+}
+function HotelCard({ hotel, onPress }: CardProps & { hotel: HotelRailItem }) {
+  return (
+    <AnimatedPressFeedback
+      onPress={onPress}
+      style={styles.card}
+      accessibilityRole="button"
+      accessibilityLabel={`Voir ${hotel.name} à ${hotel.city}`}
+    >
+      <Text style={styles.cardEyebrow}>
+        {hotel.city}
+        {hotel.starRating ? ` · ${"★".repeat(hotel.starRating)}` : ""}
+      </Text>
+      <Text style={styles.cardTitle} numberOfLines={1}>
+        {hotel.name}
+      </Text>
+      <Text style={styles.cardPrice}>
+        {hotel.fromPrice != null
+          ? `${formatXAF(hotel.fromPrice)} / nuit`
+          : "Voir disponibilités"}
+      </Text>
+      <Text style={styles.cardCta}>Réserver →</Text>
+    </AnimatedPressFeedback>
+  );
+}
+function AgencyCardLite({
+  id,
+  city,
+  name,
+  tagline,
+  rating,
+  routeCount,
+  fleetCount,
+  onPress,
+}: {
+  id: string;
+  city: string;
+  name: string;
+  tagline: string;
+  rating: number | null;
+  routeCount: number;
+  fleetCount: number;
+  onPress: () => void;
+}) {
+  void id;
+  return (
+    <AnimatedPressFeedback
+      onPress={onPress}
+      style={styles.card}
+      accessibilityRole="button"
+      accessibilityLabel={`Voir ${name}`}
+    >
+      <Text style={styles.cardEyebrow}>{city}</Text>
+      <Text style={styles.cardTitle} numberOfLines={1}>
+        {name}
+      </Text>
+      <Text style={styles.cardMeta} numberOfLines={2}>
+        {tagline}
+      </Text>
+      <Text style={styles.cardPrice}>
+        {rating != null ? `${rating.toFixed(1)} ★` : "Nouveau"}
+      </Text>
+      <Text style={styles.cardSeats}>
+        {routeCount} ligne{routeCount > 1 ? "s" : ""} · {fleetCount} bus
+      </Text>
+      <Text style={styles.cardCta}>Voir l'agence</Text>
+    </AnimatedPressFeedback>
+  );
+}
+
+// `SkeletonCard` is exported by the skeleton-presets module; import is kept
+// explicit so future rails (e.g. events / parcels) can drop it in without
+// re-importing.
+void SkeletonCard;
+void RAIL_CARD_HEIGHT;
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.paper },
   content: { padding: 24, paddingBottom: 48 },
@@ -406,6 +625,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderRadius: 0,
+    minHeight: 44,
   },
   dateText: { fontSize: 16, color: colors.ink },
   dateCta: { fontSize: 14, color: colors.woodDark },
@@ -433,8 +653,33 @@ const styles = StyleSheet.create({
     color: colors.ink2,
     marginBottom: 8,
   },
-  sectionTitle: { fontSize: 22, fontWeight: "500", color: colors.ink, marginBottom: 16 },
-  loader: { marginVertical: 24 },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "500",
+    color: colors.ink,
+    marginBottom: 16,
+  },
+  sectionHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  sectionHeadLeft: { flex: 1, marginRight: 12 },
+  seeAllPressable: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    minHeight: 32,
+    justifyContent: "center",
+  },
+  seeAllLink: {
+    fontSize: 12,
+    fontWeight: "500",
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+    color: colors.woodDark,
+  },
   statsRow: {
     flexDirection: "row",
     backgroundColor: colors.surface1,
@@ -443,20 +688,11 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     marginBottom: 32,
   },
-  stat: {
-    flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    alignItems: "center",
-    borderRightWidth: 1,
-    borderRightColor: colors.line,
-  },
-  statLast: { borderRightWidth: 0 },
-  statValue: { fontSize: 15, fontWeight: "500", color: colors.ink, fontVariant: ["tabular-nums"] },
-  statLabel: { fontSize: 11, color: colors.ink2, marginTop: 4, textAlign: "center" },
-  railList: { gap: 12, paddingRight: 24 },
+  railList: { gap: 12, paddingRight: 24, paddingVertical: 4 },
+  emptyWrap: { paddingVertical: 12 },
   card: {
-    width: 240,
+    width: RAIL_CARD_WIDTH,
+    minHeight: RAIL_CARD_HEIGHT,
     backgroundColor: colors.surface1,
     borderWidth: 1,
     borderColor: colors.line,
@@ -482,19 +718,4 @@ const styles = StyleSheet.create({
   },
   cardSeats: { fontSize: 13, color: colors.ink2, marginBottom: 12 },
   cardCta: { fontSize: 12, fontWeight: "500", letterSpacing: 2, textTransform: "uppercase", color: colors.ink },
-  agencyHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  agencyHeaderLeft: { flex: 1, marginRight: 12 },
-  seeAllLink: {
-    fontSize: 12,
-    fontWeight: "500",
-    letterSpacing: 1.6,
-    textTransform: "uppercase",
-    color: colors.woodDark,
-  },
 });

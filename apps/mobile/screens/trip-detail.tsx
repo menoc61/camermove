@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActionButton } from "@/components/ui/action-button";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonHero, SkeletonList, SkeletonText } from "@/components/ui/skeleton-presets";
 import { Field } from "@/components/ui/text-input";
 import { colors } from "@/constants/theme";
 import { getTrip } from "@/lib/api/trips";
@@ -37,15 +40,38 @@ export function TripDetailScreen() {
   const live = useLiveSeats(tripId);
 
   if (!tripId) {
-    return <EmptyState message="Trajet introuvable." actionLabel="Rechercher" onAction={() => router.push("/(tabs)/search")} />;
+    return (
+      <EmptyState
+        message="Trajet introuvable."
+        actionLabel="Rechercher"
+        onAction={() => router.push("/(tabs)/search")}
+      />
+    );
   }
 
   if (tripQuery.isPending) {
-    return <LoadingState label="Chargement du trajet…" />;
+    return (
+      <View style={styles.root}>
+        <View style={styles.content}>
+          <SkeletonHero />
+          <View style={{ marginTop: 16 }}>
+            <SkeletonText lines={2} />
+          </View>
+          <View style={{ marginTop: 24 }}>
+            <SkeletonList count={4} />
+          </View>
+        </View>
+      </View>
+    );
   }
 
   if (tripQuery.isError || !tripQuery.data) {
-    return <ErrorState message="Trajet introuvable." onRetry={() => void tripQuery.refetch()} />;
+    return (
+      <ErrorState
+        message="Trajet introuvable."
+        onRetry={() => void tripQuery.refetch()}
+      />
+    );
   }
 
   const trip = tripQuery.data;
@@ -78,90 +104,102 @@ export function TripDetailScreen() {
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
     >
-      <Text style={styles.eyebrow}>{trip.transport?.companyName ?? "Transporteur"}</Text>
-      <Text style={styles.title}>
-        {trip.route?.originCity ?? "—"} → {trip.route?.destinationCity ?? "—"}
-      </Text>
-      <Text style={styles.meta}>
-        {formatDate(trip.departureAt)} · {formatTime(trip.departureAt)} · {formatRelative(trip.departureAt)}
-      </Text>
-      {trip.vehicleTypeInfo ? <Text style={styles.vehicle}>{trip.vehicleTypeInfo}</Text> : null}
-
-      <View style={styles.priceRow}>
-        <Text style={styles.price}>{formatXAF(trip.price)}</Text>
-        <Text style={styles.perPlace}>par place</Text>
-      </View>
-
-      <View style={styles.availability}>
-        <Text style={[styles.seatsLeft, soldOut && styles.soldOut]}>
-          {seatsAvailable === null
-            ? `${trip.totalSeats} places`
-            : soldOut
-              ? "Complet"
-              : seatsAvailable < 5
-                ? `Plus que ${seatsAvailable}`
-                : `${seatsAvailable} places libres`}
+      <Reveal>
+        <Text style={styles.eyebrow}>{trip.transport?.companyName ?? "Transporteur"}</Text>
+        <Text style={styles.title}>
+          {trip.route?.originCity ?? "—"} → {trip.route?.destinationCity ?? "—"}
         </Text>
-        <Text style={styles.occupancy}>{occupancy(trip.totalSeats, seatsAvailable ?? trip.totalSeats)}% occupé</Text>
-      </View>
+        <Text style={styles.meta}>
+          {formatDate(trip.departureAt)} · {formatTime(trip.departureAt)} · {formatRelative(trip.departureAt)}
+        </Text>
+        {trip.vehicleTypeInfo ? <Text style={styles.vehicle}>{trip.vehicleTypeInfo}</Text> : null}
 
-      <Text style={styles.sectionTitle}>Choisissez votre siège</Text>
-      <View style={styles.grid}>
-        {rows.map((row, ri) => (
-          <View key={ri} style={styles.row}>
-            {row.map(({ state, n }) => {
-              const taken = state === "taken";
-              const held = state === "held";
-              return (
-                <Pressable
-                  key={n}
-                  disabled={taken}
-                  onPress={() => setPicked((p) => (p === n ? null : n))}
-                  style={[styles.seat, taken && styles.seatTaken, held && styles.seatHeld]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Siège ${n}${taken ? ", occupé" : held ? ", sélectionné" : ", libre"}`}
-                  accessibilityState={{ disabled: taken, selected: held }}
-                >
-                  <Text style={[styles.seatText, taken && styles.seatTextTaken, held && styles.seatTextHeld]}>
-                    {n}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
-      </View>
-      <View style={styles.legend}>
-        <Text style={styles.legendItem}>■ Libre</Text>
-        <Text style={styles.legendItem}>■ Occupé</Text>
-        <Text style={styles.legendItem}>■ Sélectionné</Text>
-      </View>
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>{formatXAF(trip.price)}</Text>
+          <Text style={styles.perPlace}>par place</Text>
+        </View>
 
-      <Text style={styles.sectionTitle}>Passager</Text>
-      <Field
-        label="Nom complet"
-        value={name}
-        onChangeText={setName}
-        placeholder="ex : Amina Mbarga"
-        autoCapitalize="words"
-        error={showErrors ? errors.fullName : undefined}
-      />
-      <Field
-        label="Téléphone (optionnel)"
-        value={phone}
-        onChangeText={setPhone}
-        placeholder="+2376XXXXXXXX"
-        keyboardType="phone-pad"
-        error={showErrors ? errors.phone : undefined}
-      />
+        <View style={styles.availability}>
+          <Text style={[styles.seatsLeft, soldOut && styles.soldOut]}>
+            {seatsAvailable === null
+              ? `${trip.totalSeats} places`
+              : soldOut
+                ? "Complet"
+                : seatsAvailable < 5
+                  ? `Plus que ${seatsAvailable}`
+                  : `${seatsAvailable} places libres`}
+          </Text>
+          <Text style={styles.occupancy}>{occupancy(trip.totalSeats, seatsAvailable ?? trip.totalSeats)}% occupé</Text>
+        </View>
+      </Reveal>
 
-      <View style={styles.cta}>
-        <Button
-          label={soldOut ? "Complet" : picked === null ? "Sélectionnez un siège" : "Continuer"}
-          onPress={onContinue}
-          disabled={!canContinue}
+      <Reveal delay={80}>
+        <Text style={styles.sectionTitle}>Choisissez votre siège</Text>
+        <View style={styles.grid}>
+          {rows.map((row, ri) => (
+            <View key={ri} style={styles.row}>
+              {row.map(({ state, n }) => {
+                const taken = state === "taken";
+                const held = state === "held";
+                return (
+                  <AnimatedPressFeedback
+                    key={n}
+                    disabled={taken}
+                    onPress={() => setPicked((p) => (p === n ? null : n))}
+                    style={[styles.seat, taken && styles.seatTaken, held && styles.seatHeld]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Siège ${n}${taken ? ", occupé" : held ? ", sélectionné" : ", libre"}`}
+                    accessibilityState={{ disabled: taken, selected: held }}
+                    pressedScale={0.94}
+                  >
+                    <Text style={[styles.seatText, taken && styles.seatTextTaken, held && styles.seatTextHeld]}>
+                      {n}
+                    </Text>
+                  </AnimatedPressFeedback>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+        <View style={styles.legend}>
+          <Text style={styles.legendItem}>■ Libre</Text>
+          <Text style={styles.legendItem}>■ Occupé</Text>
+          <Text style={styles.legendItem}>■ Sélectionné</Text>
+        </View>
+      </Reveal>
+
+      <Reveal delay={140}>
+        <Text style={styles.sectionTitle}>Passager</Text>
+        <Field
+          label="Nom complet"
+          value={name}
+          onChangeText={setName}
+          placeholder="ex : Amina Mbarga"
+          autoCapitalize="words"
+          error={showErrors ? errors.fullName : undefined}
         />
-      </View>
+        <Field
+          label="Téléphone (optionnel)"
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="+2376XXXXXXXX"
+          keyboardType="phone-pad"
+          error={showErrors ? errors.phone : undefined}
+        />
+      </Reveal>
+
+      <Reveal delay={200}>
+        <View style={styles.cta}>
+          <ActionButton
+            label={
+              soldOut ? "Complet" : picked === null ? "Sélectionnez un siège" : "Continuer"
+            }
+            onPress={onContinue}
+            disabled={!canContinue}
+            successLabel="C'est parti"
+          />
+        </View>
+      </Reveal>
     </ScrollView>
   );
 }

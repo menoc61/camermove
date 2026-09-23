@@ -1,12 +1,16 @@
 import { BottomSheet, RNHostView } from "@expo/ui";
 import SegmentedControl from "@expo/ui/community/segmented-control";
+import { FlashList } from "@shopify/flash-list";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { TripCard } from "@/components/search/trip-card";
 import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonList } from "@/components/ui/skeleton-presets";
 import { Field } from "@/components/ui/text-input";
 import { colors } from "@/constants/theme";
 import { fetchSearch, type SearchParams } from "@/lib/api/search";
@@ -68,72 +72,82 @@ export function SearchResultsScreen() {
     setVehicle("Tous");
   }
 
-  if (query.isPending) {
-    return <LoadingState label="Recherche des trajets…" />;
-  }
-
-  if (query.isError) {
-    return (
-      <ErrorState message="Impossible de charger les résultats." onRetry={() => void query.refetch()} />
-    );
-  }
-
-  const items = query.data.items;
+  const items = query.data?.items ?? [];
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Recherche</Text>
-        <Text style={styles.title}>
-          {origin} → {destination}
-        </Text>
-        <Text style={styles.meta}>
-          {date} · {pax} passager{pax > 1 ? "s" : ""}
-        </Text>
-      </View>
-
-      <View style={styles.controls}>
-        <SegmentedControl
-          values={[...SORT_LABELS]}
-          selectedIndex={sortIndex(sortBy)}
-          onValueChange={(value) => {
-            const i = SORT_LABELS.indexOf(value);
-            if (i >= 0) setSortBy(SORTS[i]);
-          }}
-          onChange={(event) => {
-            const i = event.nativeEvent.selectedSegmentIndex;
-            if (i >= 0 && i < SORTS.length) setSortBy(SORTS[i]);
-          }}
-        />
-        <Pressable
-          onPress={() => setFiltersOpen(true)}
-          style={styles.filterButton}
-          accessibilityRole="button"
-          accessibilityLabel="Ouvrir les filtres"
-        >
-          <Text style={styles.filterLabel}>
-            Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+      <Reveal>
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>Recherche</Text>
+          <Text style={styles.title}>
+            {origin} → {destination}
           </Text>
-        </Pressable>
-      </View>
+          <Text style={styles.meta}>
+            {date} · {pax} passager{pax > 1 ? "s" : ""}
+            {query.data ? ` · ${items.length} résultat${items.length > 1 ? "s" : ""}` : ""}
+          </Text>
+        </View>
+      </Reveal>
 
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        contentInsetAdjustmentBehavior="automatic"
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <EmptyState
-            message="Aucun résultat pour cette recherche."
-            actionLabel="Modifier la recherche"
-            onAction={() => router.push("/(tabs)")}
+      <Reveal delay={60}>
+        <View style={styles.controls}>
+          <SegmentedControl
+            values={[...SORT_LABELS]}
+            selectedIndex={sortIndex(sortBy)}
+            onValueChange={(value) => {
+              const i = SORT_LABELS.indexOf(value);
+              if (i >= 0) setSortBy(SORTS[i]);
+            }}
+            onChange={(event) => {
+              const i = event.nativeEvent.selectedSegmentIndex;
+              if (i >= 0 && i < SORTS.length) setSortBy(SORTS[i]);
+            }}
           />
-        }
-        renderItem={({ item, index }) => (
-          <TripCard trip={item} highlight={index === 0 && sortBy === "price_asc" ? "best_price" : null} />
-        )}
-      />
+          <AnimatedPressFeedback
+            onPress={() => setFiltersOpen(true)}
+            style={styles.filterButton}
+            accessibilityRole="button"
+            accessibilityLabel={`Ouvrir les filtres${activeFilterCount > 0 ? ` (${activeFilterCount} actif${activeFilterCount > 1 ? "s" : ""})` : ""}`}
+          >
+            <Text style={styles.filterLabel}>
+              Filtres{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+            </Text>
+          </AnimatedPressFeedback>
+        </View>
+      </Reveal>
+
+      {query.isPending ? (
+        <View style={styles.list}>
+          <SkeletonList count={4} />
+        </View>
+      ) : query.isError ? (
+        <View style={styles.list}>
+          <ErrorState message="Impossible de charger les résultats." onRetry={() => void query.refetch()} />
+        </View>
+      ) : (
+        <FlashList
+          data={items}
+          keyExtractor={(item) => item.id}
+          contentInsetAdjustmentBehavior="automatic"
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            <EmptyState
+              message="Aucun résultat pour cette recherche."
+              actionLabel="Modifier la recherche"
+              onAction={() => router.push("/(tabs)")}
+            />
+          }
+          renderItem={({ item, index }) => (
+            <Reveal delay={Math.min(index, 8) * 40}>
+              <TripCard
+                trip={item}
+                highlight={index === 0 && sortBy === "price_asc" ? "best_price" : null}
+              />
+            </Reveal>
+          )}
+        />
+      )}
 
       <BottomSheet
         isPresented={filtersOpen}
@@ -160,17 +174,18 @@ export function SearchResultsScreen() {
             <Text style={styles.sheetLabel}>Type de véhicule</Text>
             <View style={styles.vehicleRow}>
               {VEHICLE_OPTIONS.map((option) => (
-                <Pressable
+                <AnimatedPressFeedback
                   key={option}
                   onPress={() => setVehicle(option)}
                   style={[styles.vehicleChip, vehicle === option && styles.vehicleChipActive]}
                   accessibilityRole="button"
+                  accessibilityState={{ selected: vehicle === option }}
                   accessibilityLabel={`Filtrer : ${option}`}
                 >
                   <Text style={[styles.vehicleText, vehicle === option && styles.vehicleTextActive]}>
                     {option}
                   </Text>
-                </Pressable>
+                </AnimatedPressFeedback>
               ))}
             </View>
             <View style={styles.sheetActions}>
@@ -207,6 +222,8 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     paddingVertical: 12,
     alignItems: "center",
+    minHeight: 44,
+    justifyContent: "center",
   },
   filterLabel: { fontSize: 12, fontWeight: "500", letterSpacing: 2, textTransform: "uppercase", color: colors.ink },
   list: { paddingHorizontal: 24, paddingBottom: 48, paddingTop: 4 },

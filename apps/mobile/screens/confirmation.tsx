@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActionButton } from "@/components/ui/action-button";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonHero, SkeletonText } from "@/components/ui/skeleton-presets";
 import { colors } from "@/constants/theme";
 import { getBooking } from "@/lib/api/bookings";
 import { useAuthStore } from "@/lib/auth/session";
@@ -96,7 +99,16 @@ export function ConfirmationScreen() {
   }
 
   if (bookingQuery.isPending) {
-    return <LoadingState label="Chargement de la confirmation…" />;
+    return (
+      <View style={styles.root}>
+        <View style={styles.content}>
+          <SkeletonHero />
+          <View style={{ marginTop: 16 }}>
+            <SkeletonText lines={3} />
+          </View>
+        </View>
+      </View>
+    );
   }
 
   if (bookingQuery.isError || !normalizeBooking(bookingQuery.data)) {
@@ -116,40 +128,48 @@ export function ConfirmationScreen() {
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
     >
-      <Text style={styles.eyebrow}>Réservation confirmée</Text>
-      <Text style={styles.title}>Merci !</Text>
+      <Reveal>
+        <Text style={styles.eyebrow}>Réservation confirmée</Text>
+        <Text style={styles.title}>Merci !</Text>
+      </Reveal>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Référence</Text>
-        <Text selectable style={styles.reference}>
-          {booking.reference}
-        </Text>
-        <Text style={styles.row}>
-          Statut : <Text style={styles.strong}>{booking.status}</Text>
-        </Text>
-        <Text style={styles.row}>
-          Places : <Text style={styles.strong}>{booking.seatCount ?? "—"}</Text>
-        </Text>
-        <Text style={styles.row}>
-          Total :{" "}
-          <Text style={styles.strong}>{booking.totalAmount !== null ? formatXAF(booking.totalAmount) : "—"}</Text>
-        </Text>
-        <Text style={styles.countdown}>Temps restant : {formatCountdown(remaining)}</Text>
-      </View>
+      <Reveal delay={80} direction="up" distance={20}>
+        <View style={styles.card}>
+          <Text style={styles.label}>Référence</Text>
+          <Text selectable style={styles.reference}>
+            {booking.reference}
+          </Text>
+          <Text style={styles.row}>
+            Statut : <Text style={styles.strong}>{booking.status}</Text>
+          </Text>
+          <Text style={styles.row}>
+            Places : <Text style={styles.strong}>{booking.seatCount ?? "—"}</Text>
+          </Text>
+          <Text style={styles.row}>
+            Total :{" "}
+            <Text style={styles.strong}>{booking.totalAmount !== null ? formatXAF(booking.totalAmount) : "—"}</Text>
+          </Text>
+          <Text style={styles.countdown}>Temps restant : {formatCountdown(remaining)}</Text>
+        </View>
+      </Reveal>
 
-      <View style={styles.ctas}>
-        <Button
-          label="Voir le billet"
-          onPress={() => router.push(`/tickets/lookup?ref=${encodeURIComponent(booking.reference)}` as never)}
-        />
-        <Pressable
-          onPress={() => router.push("/(tabs)/account" as never)}
-          accessibilityRole="button"
-          accessibilityLabel="Aller à mes réservations"
-        >
-          <Text style={styles.secondary}>Mes réservations</Text>
-        </Pressable>
-      </View>
+      <Reveal delay={160}>
+        <View style={styles.ctas}>
+          <ActionButton
+            label="Voir le billet"
+            onPress={() => router.push(`/tickets/lookup?ref=${encodeURIComponent(booking.reference)}` as never)}
+            successLabel="Ouverture…"
+          />
+          <AnimatedPressFeedback
+            onPress={() => router.push("/(tabs)/account" as never)}
+            accessibilityRole="link"
+            accessibilityLabel="Aller à mes réservations"
+            style={styles.secondaryPressable}
+          >
+            <Text style={styles.secondary}>Mes réservations</Text>
+          </AnimatedPressFeedback>
+        </View>
+      </Reveal>
     </ScrollView>
   );
 }
@@ -187,5 +207,6 @@ const styles = StyleSheet.create({
   strong: { fontWeight: "500", color: colors.ink },
   countdown: { fontSize: 14, fontWeight: "500", color: colors.woodDark, fontVariant: ["tabular-nums"], marginTop: 8 },
   ctas: { gap: 12, marginTop: 24 },
-  secondary: { fontSize: 14, color: colors.woodDark, textAlign: "center", paddingVertical: 12 },
+  secondaryPressable: { paddingVertical: 12, minHeight: 44, alignItems: "center" },
+  secondary: { fontSize: 14, color: colors.woodDark, textAlign: "center" },
 });
