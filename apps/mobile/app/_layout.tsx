@@ -75,6 +75,8 @@ function RootLayoutNav() {
             <Stack.Screen name="register" options={{ headerShown: false }} />
             <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
             <Stack.Screen name="trips/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="book/[tripId]" options={{ headerShown: false }} />
+            <Stack.Screen name="book/confirmation" options={{ headerShown: false }} />
             <Stack.Screen name="tickets/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="tickets/lookup" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
