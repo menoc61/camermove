@@ -1,5 +1,5 @@
-import { EmptyState } from "@/components/ui/screen-state";
+import { TicketsScreen } from "@/screens/tickets";
 
 export default function TicketsRoute() {
-  return <EmptyState message="L'écran Billets arrive…" />;
+  return <TicketsScreen />;
 }
