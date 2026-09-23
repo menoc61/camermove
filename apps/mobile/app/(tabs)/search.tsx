@@ -1,5 +1,5 @@
-import { EmptyState } from "@/components/ui/screen-state";
+import { SearchResultsScreen } from "@/screens/search-results";
 
 export default function SearchRoute() {
-  return <EmptyState message="L'écran Recherche arrive…" />;
+  return <SearchResultsScreen />;
 }
