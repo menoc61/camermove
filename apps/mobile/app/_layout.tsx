@@ -79,6 +79,8 @@ function RootLayoutNav() {
             <Stack.Screen name="book/confirmation" options={{ headerShown: false }} />
             <Stack.Screen name="tickets/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="tickets/lookup" options={{ headerShown: false }} />
+            <Stack.Screen name="agencies" options={{ headerShown: false }} />
+            <Stack.Screen name="agencies/[slug]" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>
         </ThemeProvider>

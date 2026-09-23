@@ -18,6 +18,7 @@ import { Field } from "@/components/ui/text-input";
 import { colors } from "@/constants/theme";
 import { formatDate, formatRelative, formatTime, formatXAF } from "@/lib/format";
 import { fetchLandingRails, fetchLandingStats, type TransportRailItem } from "@/lib/api/landing";
+import { fetchAgenciesList } from "@/lib/api/agencies";
 import { useSearchStore } from "@/lib/stores/search";
 
 function toISODate(d: Date): string {
@@ -53,10 +54,22 @@ export function HomeScreen() {
 
   const statsQuery = useQuery({ queryKey: ["landing", "stats"], queryFn: fetchLandingStats });
   const railsQuery = useQuery({ queryKey: ["landing", "rails"], queryFn: () => fetchLandingRails() });
+  const agenciesQuery = useQuery({
+    queryKey: ["agencies", "preview"],
+    queryFn: () => fetchAgenciesList(),
+  });
 
   function openRail(item: TransportRailItem) {
     setSearch({ origin: item.origin, destination: item.destination });
     router.push("/(tabs)/search");
+  }
+
+  function openAgencies() {
+    router.push("/agencies" as never);
+  }
+
+  function openAgencyDetail(id: string) {
+    router.push(`/agencies/${encodeURIComponent(id)}` as never);
   }
 
   return (
@@ -226,6 +239,64 @@ export function HomeScreen() {
           )}
         />
       )}
+
+      <View style={styles.agencyHeaderRow}>
+        <View style={styles.agencyHeaderLeft}>
+          <Text style={styles.sectionEyebrow}>Annuaire</Text>
+          <Text style={styles.sectionTitle}>Nos agences partenaires</Text>
+        </View>
+        <Pressable
+          onPress={openAgencies}
+          accessibilityRole="link"
+          accessibilityLabel="Voir tout l'annuaire"
+          hitSlop={8}
+        >
+          <Text style={styles.seeAllLink}>Tout voir →</Text>
+        </Pressable>
+      </View>
+      {agenciesQuery.isPending ? (
+        <ActivityIndicator color={colors.ink} style={styles.loader} />
+      ) : agenciesQuery.isError ? (
+        <ErrorState
+          message="Impossible de charger les agences."
+          onRetry={() => void agenciesQuery.refetch()}
+        />
+      ) : (
+        <FlatList
+          data={agenciesQuery.data?.items.slice(0, 6) ?? []}
+          keyExtractor={(item) => item.id}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.railList}
+          ListEmptyComponent={
+            <EmptyState message="Aucune agence référencée pour le moment." />
+          }
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() => openAgencyDetail(item.id)}
+              style={styles.card}
+              accessibilityRole="button"
+              accessibilityLabel={`Voir ${item.companyName}`}
+            >
+              <Text style={styles.cardEyebrow}>{item.city ?? "Cameroun"}</Text>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {item.companyName}
+              </Text>
+              <Text style={styles.cardMeta} numberOfLines={2}>
+                {item.tagline}
+              </Text>
+              <Text style={styles.cardPrice}>
+                {item.ratingAvg != null ? `${item.ratingAvg.toFixed(1)} ★` : "Nouveau"}
+              </Text>
+              <Text style={styles.cardSeats}>
+                {item.routes.length} ligne{item.routes.length > 1 ? "s" : ""} ·{" "}
+                {item.fleetCount} bus
+              </Text>
+              <Text style={styles.cardCta}>Voir l'agence</Text>
+            </Pressable>
+          )}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -344,4 +415,19 @@ const styles = StyleSheet.create({
   },
   cardSeats: { fontSize: 13, color: colors.ink2, marginBottom: 12 },
   cardCta: { fontSize: 12, fontWeight: "500", letterSpacing: 2, textTransform: "uppercase", color: colors.ink },
+  agencyHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  agencyHeaderLeft: { flex: 1, marginRight: 12 },
+  seeAllLink: {
+    fontSize: 12,
+    fontWeight: "500",
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+    color: colors.woodDark,
+  },
 });
