@@ -2,8 +2,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/query/client";
+import { hydrateAuth } from "@/lib/auth/session";
+import { ToastProvider } from "@/components/ui/toast";
 import { ONBOARDED_KEY } from "./onboarding";
 
 import { useColorScheme } from '@/components/useColorScheme';
@@ -37,7 +41,13 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  if (!loaded) {
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    hydrateAuth().finally(() => setHydrated(true));
+  }, []);
+
+  if (!loaded || !hydrated) {
     return null;
   }
 
@@ -55,12 +65,16 @@ function RootLayoutNav() {
   }, [router]);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          </Stack>
+        </ThemeProvider>
+      </ToastProvider>
+    </QueryClientProvider>
   );
 }
