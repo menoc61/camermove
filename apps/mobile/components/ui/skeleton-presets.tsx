@@ -45,6 +45,21 @@ export function SkeletonCard({ delay = 0 }: { delay?: number }) {
 }
 
 /**
+ * Single hero/header skeleton block (eyebrow + title + meta) without
+ * side-by-side foot columns. Used by screens that show a header block
+ * before a list (e.g. account, search pending state).
+ */
+export function SkeletonTile() {
+  return (
+    <View style={styles.tile}>
+      <Skeleton width="40%" height={10} />
+      <Skeleton width="70%" height={24} style={styles.tileTitle} />
+      <Skeleton width="55%" height={12} style={styles.tileMeta} />
+    </View>
+  );
+}
+
+/**
  * Compact stat-block skeleton for the Home stats row.
  */
 export function SkeletonStats() {
@@ -159,4 +174,7 @@ const styles = StyleSheet.create({
   },
   heroFoot: { marginTop: 24 },
   textCol: { gap: 4 },
+  tile: { gap: 8 },
+  tileTitle: { marginTop: 4 },
+  tileMeta: { marginTop: 4 },
 });

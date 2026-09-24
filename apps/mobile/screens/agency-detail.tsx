@@ -2,18 +2,21 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import {
   Linking as RNLinking,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonHero, SkeletonText } from "@/components/ui/skeleton-presets";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
 import { fetchAgency } from "@/lib/api/agencies";
 import { useSearchStore } from "@/lib/stores/search";
 import { AMENITY_LABEL, CATEGORY_LABEL } from "@/lib/data/agency-meta";
 import { colors } from "@/constants/theme";
 import { formatXAF } from "@/lib/format";
+import { motion } from "@/lib/motion";
 
 export function AgencyDetailScreen() {
   const router = useRouter();
@@ -32,7 +35,16 @@ export function AgencyDetailScreen() {
   }
 
   if (query.isPending) {
-    return <LoadingState label="Chargement de l'agence…" />;
+    return (
+      <View style={styles.root}>
+        <View style={styles.content}>
+          <SkeletonHero />
+          <View style={{ marginTop: 16 }}>
+            <SkeletonText lines={5} />
+          </View>
+        </View>
+      </View>
+    );
   }
 
   if (query.isError) {
@@ -75,215 +87,212 @@ export function AgencyDetailScreen() {
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
     >
-      <Pressable
+      <AnimatedPressFeedback
         onPress={() => router.back()}
         accessibilityRole="button"
         accessibilityLabel="Retour à l'annuaire"
         style={styles.back}
       >
         <Text style={styles.backLabel}>← Annuaire</Text>
-      </Pressable>
+      </AnimatedPressFeedback>
 
       {/* Brand hero — solid band, no gradient (design system §1) */}
-      <View style={[styles.hero, { backgroundColor: brand }]}>
-        <Text style={styles.heroEyebrow}>
-          {CATEGORY_LABEL[agency.category as keyof typeof CATEGORY_LABEL] ?? agency.category} · Depuis {agency.yearFounded}
-        </Text>
-        <Text style={styles.heroTitle}>{agency.companyName}</Text>
-        <Text style={styles.heroTagline}>{agency.tagline}</Text>
-        <View style={styles.heroMetaRow}>
-          <View style={styles.heroMeta}>
-            <Text style={styles.heroMetaValue}>
-              {agency.ratingAvg != null ? agency.ratingAvg.toFixed(1) : "—"}
-            </Text>
-            <Text style={styles.heroMetaLabel}>
-              {agency.ratingCount} avis
-            </Text>
-          </View>
-          {agency.phone ? (
+      <Reveal>
+        <View style={[styles.hero, { backgroundColor: brand }]}>
+          <Text style={styles.heroEyebrow}>
+            {CATEGORY_LABEL[agency.category as keyof typeof CATEGORY_LABEL] ?? agency.category} · Depuis {agency.yearFounded}
+          </Text>
+          <Text style={styles.heroTitle}>{agency.companyName}</Text>
+          <Text style={styles.heroTagline}>{agency.tagline}</Text>
+          <View style={styles.heroMetaRow}>
             <View style={styles.heroMeta}>
-              <Text style={styles.heroMetaValue} numberOfLines={1}>
-                {agency.phone}
+              <Text style={styles.heroMetaValue}>
+                {agency.ratingAvg != null ? agency.ratingAvg.toFixed(1) : "—"}
               </Text>
-              <Text style={styles.heroMetaLabel}>Réservations</Text>
+              <Text style={styles.heroMetaLabel}>
+                {agency.ratingCount} avis
+              </Text>
             </View>
-          ) : null}
+            {agency.phone ? (
+              <View style={styles.heroMeta}>
+                <Text style={styles.heroMetaValue} numberOfLines={1}>
+                  {agency.phone}
+                </Text>
+                <Text style={styles.heroMetaLabel}>Réservations</Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.heroActionRow}>
+            <AnimatedPressFeedback
+              onPress={callAgency}
+              accessibilityRole="button"
+              accessibilityLabel="Appeler l'agence"
+              style={styles.heroActionGhost}
+            >
+              <Text style={styles.heroActionGhostLabel}>Appeler</Text>
+            </AnimatedPressFeedback>
+            <AnimatedPressFeedback
+              onPress={emailAgency}
+              accessibilityRole="button"
+              accessibilityLabel="Envoyer un email"
+              style={styles.heroActionGhost}
+            >
+              <Text style={styles.heroActionGhostLabel}>Email</Text>
+            </AnimatedPressFeedback>
+          </View>
         </View>
-        <View style={styles.heroActionRow}>
-          <Pressable
-            onPress={callAgency}
-            accessibilityRole="button"
-            accessibilityLabel="Appeler l'agence"
-            style={({ pressed }) => [
-              styles.heroAction,
-              styles.heroActionGhost,
-              pressed && styles.heroActionPressed,
-            ]}
-          >
-            <Text style={styles.heroActionGhostLabel}>Appeler</Text>
-          </Pressable>
-          <Pressable
-            onPress={emailAgency}
-            accessibilityRole="button"
-            accessibilityLabel="Envoyer un email"
-            style={({ pressed }) => [
-              styles.heroAction,
-              styles.heroActionGhost,
-              pressed && styles.heroActionPressed,
-            ]}
-          >
-            <Text style={styles.heroActionGhostLabel}>Email</Text>
-          </Pressable>
-        </View>
-      </View>
+      </Reveal>
 
       {/* About */}
-      <View style={styles.section}>
-        <Text style={styles.sectionEyebrow}>01 — À propos</Text>
-        <Text style={styles.sectionBody}>{agency.description}</Text>
+      <Reveal delay={motion.stagger(1)}>
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>01 — À propos</Text>
+          <Text style={styles.sectionBody}>{agency.description}</Text>
 
-        <View style={styles.statGrid}>
-          <Stat label="Flotte" value={`${agency.fleetCount} bus`} />
-          <Stat label="Passagers / jour" value={`${agency.activeDeparturesToday}`} />
-          <Stat
-            label="Agences"
-            value={`${agency.branchCities.length + 1}`}
-          />
-          <Stat label="Siège" value={agency.city ?? "Cameroun"} />
+          <View style={styles.statGrid}>
+            <Stat label="Flotte" value={`${agency.fleetCount} bus`} />
+            <Stat label="Passagers / jour" value={`${agency.activeDeparturesToday}`} />
+            <Stat label="Agences" value={`${agency.branchCities.length + 1}`} />
+            <Stat label="Siège" value={agency.city ?? "Cameroun"} />
+          </View>
         </View>
-      </View>
+      </Reveal>
 
       {/* Amenities + service classes */}
-      <View style={styles.section}>
-        <Text style={styles.sectionEyebrow}>02 — Équipements</Text>
-        <View style={styles.chipsRow}>
-          {agency.amenities.map((am) => (
-            <View key={am} style={styles.chip}>
-              <Text style={styles.chipLabel}>{AMENITY_LABEL[am] ?? am}</Text>
-            </View>
-          ))}
-        </View>
-
-        <Text style={[styles.sectionEyebrow, styles.subEyebrow]}>Classes servies</Text>
-        <View style={styles.chipsRow}>
-          {agency.serviceClasses.map((sc) => (
-            <View key={sc} style={[styles.chip, styles.chipDark]}>
-              <Text style={styles.chipLabelDark}>{sc}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Routes operated */}
-      <View style={styles.section}>
-        <View style={styles.sectionHead}>
-          <View>
-            <Text style={styles.sectionEyebrow}>03 — Trajets opérés</Text>
-            <Text style={styles.sectionTitle}>
-              {agency.routesDetailed.length} ligne{agency.routesDetailed.length > 1 ? "s" : ""}
-            </Text>
-          </View>
-          {lowestPrice !== null ? (
-            <Text style={styles.sinceLabel}>
-              dès {formatXAF(lowestPrice)}
-            </Text>
-          ) : null}
-        </View>
-
-        {agency.routesDetailed.length === 0 ? (
-          <EmptyState message="Aucun trajet opéré publié pour le moment." />
-        ) : (
-          <View style={styles.routeGrid}>
-            {agency.routesDetailed.map((r, i) => {
-              const hours = Math.floor(r.durationMinutes / 60);
-              const minutes = r.durationMinutes % 60;
-              const duration = `${hours}h${String(minutes).padStart(2, "0")}`;
-              return (
-                <Pressable
-                  key={`${r.origin}-${r.destination}-${i}`}
-                  onPress={() => searchRoute(r.origin, r.destination)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Rechercher ${r.origin} vers ${r.destination}`}
-                  style={({ pressed }) => [
-                    styles.routeCard,
-                    pressed && styles.routeCardPressed,
-                    { borderLeftColor: brand },
-                  ]}
-                >
-                  <View style={styles.routeRow}>
-                    <View style={styles.routeLeft}>
-                      <Text style={styles.routeTitle}>
-                        {r.origin} → {r.destination}
-                      </Text>
-                      <Text style={styles.routeMeta}>
-                        {r.classType} · {duration} · {r.dailyDepartures} dép./j
-                      </Text>
-                    </View>
-                    <Text style={[styles.routePrice, { color: brand }]}>
-                      {formatXAF(r.basePriceXaf)}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </View>
-
-      {/* Reviews */}
-      <View style={styles.section}>
-        <Text style={styles.sectionEyebrow}>
-          04 — Avis voyageurs ({agency.reviews.ratingCount})
-        </Text>
-        {agency.reviews.items.length === 0 ? (
-          <View style={styles.emptyReviews}>
-            <Text style={styles.emptyReviewsText}>
-              Aucun avis publié pour le moment.
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.reviewGrid}>
-            {agency.reviews.items.map((r) => (
-              <View key={r.id} style={styles.reviewCard}>
-                <View style={styles.reviewHead}>
-                  <Text style={styles.reviewAuthor}>
-                    {r.author.firstName ?? "?"} {r.author.lastName?.[0] ?? ""}.
-                  </Text>
-                  <Text style={styles.reviewStars}>
-                    {renderStars(r.rating)}
-                  </Text>
-                </View>
-                {r.comment ? (
-                  <Text style={styles.reviewComment}>{r.comment}</Text>
-                ) : null}
-                {r.punctuality != null ? (
-                  <View style={styles.subScoreRow}>
-                    <SubScore label="Ponctualité" value={r.punctuality} />
-                    {r.comfort != null ? (
-                      <SubScore label="Confort" value={r.comfort} />
-                    ) : null}
-                    {r.cleanliness != null ? (
-                      <SubScore label="Propreté" value={r.cleanliness} />
-                    ) : null}
-                    {r.service != null ? (
-                      <SubScore label="Service" value={r.service} />
-                    ) : null}
-                  </View>
-                ) : null}
+      <Reveal delay={motion.stagger(2)}>
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>02 — Équipements</Text>
+          <View style={styles.chipsRow}>
+            {agency.amenities.map((am) => (
+              <View key={am} style={styles.chip}>
+                <Text style={styles.chipLabel}>{AMENITY_LABEL[am] ?? am}</Text>
               </View>
             ))}
           </View>
-        )}
-      </View>
+
+          <Text style={[styles.sectionEyebrow, styles.subEyebrow]}>Classes servies</Text>
+          <View style={styles.chipsRow}>
+            {agency.serviceClasses.map((sc) => (
+              <View key={sc} style={[styles.chip, styles.chipDark]}>
+                <Text style={styles.chipLabelDark}>{sc}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </Reveal>
+
+      {/* Routes operated */}
+      <Reveal delay={motion.stagger(3)}>
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <View>
+              <Text style={styles.sectionEyebrow}>03 — Trajets opérés</Text>
+              <Text style={styles.sectionTitle}>
+                {agency.routesDetailed.length} ligne{agency.routesDetailed.length > 1 ? "s" : ""}
+              </Text>
+            </View>
+            {lowestPrice !== null ? (
+              <Text style={styles.sinceLabel}>
+                dès {formatXAF(lowestPrice)}
+              </Text>
+            ) : null}
+          </View>
+
+          {agency.routesDetailed.length === 0 ? (
+            <EmptyState message="Aucun trajet opéré publié pour le moment." />
+          ) : (
+            <View style={styles.routeGrid}>
+              {agency.routesDetailed.map((r, i) => {
+                const hours = Math.floor(r.durationMinutes / 60);
+                const minutes = r.durationMinutes % 60;
+                const duration = `${hours}h${String(minutes).padStart(2, "0")}`;
+                return (
+                  <AnimatedPressFeedback
+                    key={`${r.origin}-${r.destination}-${i}`}
+                    onPress={() => searchRoute(r.origin, r.destination)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Rechercher ${r.origin} vers ${r.destination}`}
+                    style={[styles.routeCard, { borderLeftColor: brand }]}
+                  >
+                    <View style={styles.routeRow}>
+                      <View style={styles.routeLeft}>
+                        <Text style={styles.routeTitle}>
+                          {r.origin} → {r.destination}
+                        </Text>
+                        <Text style={styles.routeMeta}>
+                          {r.classType} · {duration} · {r.dailyDepartures} dép./j
+                        </Text>
+                      </View>
+                      <Text style={[styles.routePrice, { color: brand }]}>
+                        {formatXAF(r.basePriceXaf)}
+                      </Text>
+                    </View>
+                  </AnimatedPressFeedback>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </Reveal>
+
+      {/* Reviews */}
+      <Reveal delay={motion.stagger(4)}>
+        <View style={styles.section}>
+          <Text style={styles.sectionEyebrow}>
+            04 — Avis voyageurs ({agency.reviews.ratingCount})
+          </Text>
+          {agency.reviews.items.length === 0 ? (
+            <View style={styles.emptyReviews}>
+              <Text style={styles.emptyReviewsText}>
+                Aucun avis publié pour le moment.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.reviewGrid}>
+              {agency.reviews.items.map((r) => (
+                <View key={r.id} style={styles.reviewCard}>
+                  <View style={styles.reviewHead}>
+                    <Text style={styles.reviewAuthor}>
+                      {r.author.firstName ?? "?"} {r.author.lastName?.[0] ?? ""}.
+                    </Text>
+                    <Text style={styles.reviewStars}>
+                      {renderStars(r.rating)}
+                    </Text>
+                  </View>
+                  {r.comment ? (
+                    <Text style={styles.reviewComment}>{r.comment}</Text>
+                  ) : null}
+                  {r.punctuality != null ? (
+                    <View style={styles.subScoreRow}>
+                      <SubScore label="Ponctualité" value={r.punctuality} />
+                      {r.comfort != null ? (
+                        <SubScore label="Confort" value={r.comfort} />
+                      ) : null}
+                      {r.cleanliness != null ? (
+                        <SubScore label="Propreté" value={r.cleanliness} />
+                      ) : null}
+                      {r.service != null ? (
+                        <SubScore label="Service" value={r.service} />
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </Reveal>
 
       {/* CTA back */}
-      <View style={styles.footer}>
-        <Link href="/agencies" asChild>
-          <Pressable accessibilityRole="link" style={styles.backLink}>
-            <Text style={styles.backLinkLabel}>← Retour à l'annuaire</Text>
-          </Pressable>
-        </Link>
-      </View>
+      <Reveal delay={motion.stagger(5)}>
+        <View style={styles.footer}>
+          <Link href="/agencies" asChild>
+            <AnimatedPressFeedback accessibilityRole="link" style={styles.backLink}>
+              <Text style={styles.backLinkLabel}>← Retour à l'annuaire</Text>
+            </AnimatedPressFeedback>
+          </Link>
+        </View>
+      </Reveal>
     </ScrollView>
   );
 }
@@ -313,10 +322,6 @@ function renderStars(rating: number): string {
     .map((n) => (n <= rating ? "★" : "☆"))
     .join("");
 }
-
-// Re-export unused symbols to keep the file import graph explicit.
-// (ActivityIndicator was previously used inline but is no longer required.)
-void 0;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.paper },
@@ -368,6 +373,7 @@ const styles = StyleSheet.create({
   heroActionRow: { flexDirection: "row", gap: 8 },
   heroAction: { flex: 1 },
   heroActionGhost: {
+    flex: 1,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.5)",
     backgroundColor: "rgba(255,255,255,0.08)",
@@ -376,7 +382,6 @@ const styles = StyleSheet.create({
     minHeight: 44,
     justifyContent: "center",
   },
-  heroActionPressed: { opacity: 0.75 },
   heroActionGhostLabel: {
     fontSize: 12,
     fontWeight: "500",
@@ -467,7 +472,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
-  routeCardPressed: { opacity: 0.85 },
   routeRow: {
     flexDirection: "row",
     justifyContent: "space-between",

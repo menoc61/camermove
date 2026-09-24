@@ -2,9 +2,12 @@ import { Image } from "expo-image";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { ActionButton } from "@/components/ui/action-button";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonHero, SkeletonText } from "@/components/ui/skeleton-presets";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
 import { Field } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { colors } from "@/constants/theme";
@@ -12,6 +15,7 @@ import { createReview } from "@/lib/api/reviews";
 import { getTicketDetail } from "@/lib/api/tickets";
 import { useAuthStore } from "@/lib/auth/session";
 import { formatDate, formatTime } from "@/lib/format";
+import { motion } from "@/lib/motion";
 
 function addMinutes(iso: string, offsetMinutes: number): string {
   return new Date(new Date(iso).getTime() + offsetMinutes * 60000).toISOString();
@@ -54,7 +58,7 @@ function RatingForm({
       <Text style={styles.sectionTitle}>Noter ce voyage</Text>
       <View style={styles.stars}>
         {[1, 2, 3, 4, 5].map((n) => (
-          <Pressable
+          <AnimatedPressFeedback
             key={n}
             onPress={() => setRating(n)}
             style={styles.star}
@@ -64,7 +68,7 @@ function RatingForm({
             <Text style={[styles.starText, n <= rating && styles.starActive]}>
               {n <= rating ? "★" : "☆"}
             </Text>
-          </Pressable>
+          </AnimatedPressFeedback>
         ))}
       </View>
       <Field
@@ -76,11 +80,14 @@ function RatingForm({
         maxLength={2000}
         placeholder="Racontez votre voyage…"
       />
-      <Button
-        label={mutation.isPending ? "Envoi…" : "Envoyer mon avis"}
-        onPress={submit}
-        disabled={mutation.isPending}
-      />
+      <View style={styles.cta}>
+        <ActionButton
+          label={mutation.isPending ? "Envoi…" : "Envoyer mon avis"}
+          onPress={submit}
+          disabled={mutation.isPending}
+          successLabel="Merci pour votre avis"
+        />
+      </View>
     </View>
   );
 }
@@ -106,7 +113,17 @@ export function TicketDetailScreen() {
       </View>
     );
   }
-  if (ticketQuery.isPending) return <LoadingState label="Chargement du billet…" />;
+  if (ticketQuery.isPending)
+    return (
+      <View style={styles.root}>
+        <View style={styles.content}>
+          <SkeletonHero />
+          <View style={{ marginTop: 16 }}>
+            <SkeletonText lines={5} />
+          </View>
+        </View>
+      </View>
+    );
   if (ticketQuery.isError || !ticketQuery.data) {
     return (
       <ErrorState
@@ -194,6 +211,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.paper },
   guard: { flex: 1, backgroundColor: colors.paper },
   content: { padding: 24, paddingBottom: 48 },
+  cta: { marginTop: 16 },
   brandBand: { padding: 16, marginBottom: 12, borderRadius: 0 },
   brandName: { fontSize: 20, fontWeight: "500", color: "#FFFFFF" },
   brandTag: { fontSize: 13, color: "#FFFFFF", marginTop: 4, opacity: 0.9 },

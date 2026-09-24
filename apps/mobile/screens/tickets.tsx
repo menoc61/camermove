@@ -1,12 +1,17 @@
+import { FlashList } from "@shopify/flash-list";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { StyleSheet, Text, View } from "react-native";
+import { ActionButton } from "@/components/ui/action-button";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonCard, SkeletonList } from "@/components/ui/skeleton-presets";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
 import { colors } from "@/constants/theme";
 import { fetchMyTickets, type MyTicketItem } from "@/lib/api/bookings";
 import { useAuthStore } from "@/lib/auth/session";
 import { formatDate, formatTime } from "@/lib/format";
+import { motion } from "@/lib/motion";
 
 export function ticketStatusLabel(status: string): string {
   if (status === "valid") return "Valide";
@@ -14,6 +19,12 @@ export function ticketStatusLabel(status: string): string {
   if (status === "void") return "Annulé";
   return status;
 }
+
+const STATUS_TINT: Record<string, string> = {
+  valid: colors.woodDark,
+  used: colors.ink2,
+  void: "#B3261E",
+};
 
 export function TicketsScreen() {
   const router = useRouter();
@@ -36,53 +47,83 @@ export function TicketsScreen() {
     );
   }
 
-  if (ticketsQuery.isPending) return <LoadingState label="Chargement de vos billets…" />;
-  if (ticketsQuery.isError) {
-    return (
-      <ErrorState
-        message="Impossible de charger vos billets."
-        onRetry={() => void ticketsQuery.refetch()}
-      />
-    );
-  }
-
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>CamerMove</Text>
-          <Text style={styles.title}>Mes billets</Text>
+      <Reveal>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.eyebrow}>CamerMove</Text>
+            <Text style={styles.title}>Mes billets</Text>
+            <Text style={styles.subtitle}>
+              Présentez votre code à l'embarquement. Les billets annulés restent
+              consultables.
+            </Text>
+          </View>
         </View>
-      </View>
-      <View style={styles.lookupButton}>
-        <Button label="Vérifier un billet" onPress={() => router.push("/tickets/lookup")} />
-      </View>
-      <FlatList
-        data={ticketsQuery.data.items}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={<EmptyState message="Aucun billet pour le moment." />}
-        renderItem={({ item }: { item: MyTicketItem }) => (
-          <Pressable
-            onPress={() => router.push(`/tickets/${item.id}`)}
-            style={styles.card}
-            accessibilityRole="button"
-            accessibilityLabel={`Billet ${item.verificationCode} ${item.origin} vers ${item.destination}`}
-          >
-            <Text style={styles.code} selectable>
-              {item.verificationCode}
-            </Text>
-            <Text style={styles.route}>
-              {item.origin} → {item.destination}
-            </Text>
-            <Text style={styles.meta}>
-              {formatDate(item.departureAt)} · {formatTime(item.departureAt)}
-            </Text>
-            <Text style={styles.status}>{ticketStatusLabel(item.status)}</Text>
-          </Pressable>
+      </Reveal>
+
+      <Reveal delay={motion.stagger(1)}>
+        <View style={styles.lookupButton}>
+          <ActionButton
+            label="Vérifier un billet"
+            onPress={() => router.push("/lookup")}
+            variant="ghost"
+          />
+        </View>
+      </Reveal>
+
+      <View style={styles.listWrap}>
+        {ticketsQuery.isPending ? (
+          <SkeletonList count={5} />
+        ) : ticketsQuery.isError ? (
+          <ErrorState
+            message="Impossible de charger vos billets."
+            onRetry={() => void ticketsQuery.refetch()}
+          />
+        ) : (ticketsQuery.data?.items ?? []).length === 0 ? (
+          <EmptyState
+            message="Aucun billet pour le moment."
+            actionLabel="Rechercher un trajet"
+            onAction={() => router.push("/(tabs)/search")}
+          />
+        ) : (
+          <FlashList
+            data={ticketsQuery.data!.items as MyTicketItem[]}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
+              <AnimatedPressFeedback
+                onPress={() => router.push(`/tickets/${item.id}`)}
+                style={styles.card}
+                accessibilityRole="button"
+                accessibilityLabel={`Billet ${item.verificationCode} ${item.origin} vers ${item.destination}`}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={styles.code} selectable>
+                    {item.verificationCode}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.status,
+                      { color: STATUS_TINT[item.status] ?? colors.woodDark },
+                    ]}
+                  >
+                    {ticketStatusLabel(item.status)}
+                  </Text>
+                </View>
+                <Text style={styles.route}>
+                  {item.origin} → {item.destination}
+                </Text>
+                <Text style={styles.meta}>
+                  {formatDate(item.departureAt)} · {formatTime(item.departureAt)}
+                </Text>
+              </AnimatedPressFeedback>
+            )}
+            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          />
         )}
-      />
+      </View>
     </View>
   );
 }
@@ -94,14 +135,16 @@ const styles = StyleSheet.create({
   eyebrow: {
     fontSize: 11,
     fontWeight: "500",
-    letterSpacing: 2.4,
+    letterSpacing: 2.6,
     textTransform: "uppercase",
     color: colors.ink2,
     marginBottom: 8,
   },
-  title: { fontSize: 32, fontWeight: "500", color: colors.ink, marginBottom: 16 },
+  title: { fontSize: 32, fontWeight: "500", color: colors.ink, marginBottom: 8, letterSpacing: -1 },
+  subtitle: { fontSize: 14, color: colors.ink1, lineHeight: 20, marginBottom: 16 },
   lookupButton: { paddingHorizontal: 24, marginBottom: 16 },
-  list: { paddingHorizontal: 24, paddingBottom: 48, gap: 12 },
+  listWrap: { flex: 1, paddingHorizontal: 24 },
+  list: { paddingBottom: 48 },
   card: {
     backgroundColor: colors.surface1,
     borderWidth: 1,
@@ -109,14 +152,14 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     padding: 16,
   },
-  code: { fontSize: 14, fontWeight: "500", letterSpacing: 1.2, color: colors.ink, marginBottom: 4 },
-  route: { fontSize: 18, fontWeight: "500", color: colors.ink, marginBottom: 4 },
-  meta: { fontSize: 13, color: colors.ink2, marginBottom: 8 },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  code: { fontSize: 14, fontWeight: "500", letterSpacing: 1.2, color: colors.ink },
   status: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
     letterSpacing: 2,
     textTransform: "uppercase",
-    color: colors.woodDark,
   },
+  route: { fontSize: 18, fontWeight: "500", color: colors.ink, marginBottom: 4 },
+  meta: { fontSize: 13, color: colors.ink2, fontVariant: ["tabular-nums"] },
 });

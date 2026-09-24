@@ -1,16 +1,18 @@
+import { FlashList } from "@shopify/flash-list";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  FlatList,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonList } from "@/components/ui/skeleton-presets";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
 import {
   fetchAgenciesList,
   type AgenciesQuery,
@@ -24,6 +26,7 @@ import {
 } from "@/lib/data/agency-meta";
 import { colors } from "@/constants/theme";
 import { formatXAF } from "@/lib/format";
+import { motion } from "@/lib/motion";
 
 type FilterChip = "all" | AgencyCategory;
 
@@ -77,11 +80,7 @@ export function AgenciesDirectoryScreen() {
 
   return (
     <View style={styles.root}>
-      <ScrollView
-        style={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        contentInsetAdjustmentBehavior="automatic"
-      >
+      <Reveal>
         <View style={styles.header}>
           <Text style={styles.eyebrow}>Annuaire · Transporteurs partenaires</Text>
           <Text style={styles.title}>Nos agences de transport</Text>
@@ -90,7 +89,9 @@ export function AgenciesDirectoryScreen() {
             Notes vérifiées, équipements à bord, fréquence des départs.
           </Text>
         </View>
+      </Reveal>
 
+      <Reveal delay={motion.stagger(1)}>
         <View style={styles.filterBlock}>
           <TextInput
             value={query}
@@ -146,43 +147,48 @@ export function AgenciesDirectoryScreen() {
             ))}
           </ScrollView>
         </View>
+      </Reveal>
 
-        <View style={styles.summaryRow}>
-          <Text style={styles.summary}>
-            <Text style={styles.summaryBold}>{total}</Text> agence{total > 1 ? "s" : ""}
-            {city ? ` à ${city}` : ""}
-            {query.trim() ? ` · "${query.trim()}"` : ""}
-          </Text>
-          {hasFilters ? (
-            <Pressable onPress={reset} accessibilityRole="button" hitSlop={8}>
-              <Text style={styles.resetLink}>Réinitialiser</Text>
-            </Pressable>
-          ) : null}
+      <View style={styles.summaryRow}>
+        <Text style={styles.summary}>
+          <Text style={styles.summaryBold}>{total}</Text> agence{total > 1 ? "s" : ""}
+          {city ? ` à ${city}` : ""}
+          {query.trim() ? ` · "${query.trim()}"` : ""}
+        </Text>
+        {hasFilters ? (
+          <AnimatedPressFeedback onPress={reset} accessibilityRole="button">
+            <Text style={styles.resetLink}>Réinitialiser</Text>
+          </AnimatedPressFeedback>
+        ) : null}
+      </View>
+
+      {list.isPending ? (
+        <View style={styles.listPending}>
+          <SkeletonList count={4} />
         </View>
-
-        {list.isPending ? (
-          <LoadingState label="Chargement des agences…" />
-        ) : list.isError ? (
-          <ErrorState
-            message="Impossible de charger les agences."
-            onRetry={() => void list.refetch()}
-          />
-        ) : (
-          <FlatList
-            data={items}
+      ) : list.isError ? (
+        <ErrorState
+          message="Impossible de charger les agences."
+          onRetry={() => void list.refetch()}
+        />
+      ) : items.length === 0 ? (
+        <EmptyState message="Aucune agence ne correspond à ces critères." />
+      ) : (
+        <View style={styles.listWrap}>
+          <FlashList
+            data={items as AgencyListItem[]}
             keyExtractor={(item) => item.id}
-            scrollEnabled={false}
             contentContainerStyle={styles.list}
-            ItemSeparatorComponent={() => <View style={styles.sep} />}
-            ListEmptyComponent={
-              <EmptyState message="Aucune agence ne correspond à ces critères." />
-            }
-            renderItem={({ item }) => (
-              <AgencyCard agency={item} onPress={() => openAgency(item)} />
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item, index }) => (
+              <Reveal delay={motion.stagger(Math.min(index, 4))}>
+                <AgencyCard agency={item} onPress={() => openAgency(item)} />
+              </Reveal>
             )}
+            ItemSeparatorComponent={() => <View style={styles.sep} />}
           />
-        )}
-      </ScrollView>
+        </View>
+      )}
     </View>
   );
 }
@@ -197,14 +203,14 @@ function Chip({
   onPress: () => void;
 }) {
   return (
-    <Pressable
+    <AnimatedPressFeedback
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       style={[styles.chip, active && styles.chipActive]}
     >
       <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{label}</Text>
-    </Pressable>
+    </AnimatedPressFeedback>
   );
 }
 
@@ -222,11 +228,11 @@ function AgencyCard({
   const previewRoutes = agency.routes.slice(0, 4);
 
   return (
-    <Pressable
+    <AnimatedPressFeedback
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`Voir ${agency.companyName}`}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={styles.card}
     >
       <View style={[styles.brandBand, { backgroundColor: brand }]}>
         <View style={styles.brandLeft}>
@@ -239,9 +245,7 @@ function AgencyCard({
           <Text style={styles.rating}>
             {agency.ratingAvg != null ? agency.ratingAvg.toFixed(1) : "—"}
           </Text>
-          <Text style={styles.ratingCount}>
-            {agency.ratingCount} avis
-          </Text>
+          <Text style={styles.ratingCount}>{agency.ratingCount} avis</Text>
         </View>
       </View>
 
@@ -288,7 +292,7 @@ function AgencyCard({
           ) : null}
         </View>
       </View>
-    </Pressable>
+    </AnimatedPressFeedback>
   );
 }
 
@@ -302,11 +306,8 @@ function MetaTag({ label, highlight }: { label: string; highlight?: boolean }) {
   );
 }
 
-// Helper constant — category list reused in chips.
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.paper },
-  scroll: { flex: 1 },
   header: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16 },
   eyebrow: {
     fontSize: 11,
@@ -373,6 +374,8 @@ const styles = StyleSheet.create({
   summary: { fontSize: 13, color: colors.ink2, flex: 1, marginRight: 12 },
   summaryBold: { color: colors.ink, fontWeight: "500" },
   resetLink: { fontSize: 13, color: colors.woodDark, fontWeight: "500" },
+  listWrap: { flex: 1 },
+  listPending: { paddingHorizontal: 24, paddingTop: 16 },
   list: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 48 },
   sep: { height: 12 },
   card: {
@@ -380,7 +383,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
   },
-  cardPressed: { opacity: 0.85 },
   brandBand: {
     flexDirection: "row",
     alignItems: "center",
@@ -430,11 +432,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   routeTagLabel: { fontSize: 11, color: colors.ink1, fontVariant: ["tabular-nums"] },
-  routeMore: {
-    fontSize: 11,
-    color: colors.ink2,
-    alignSelf: "center",
-  },
+  routeMore: { fontSize: 11, color: colors.ink2, alignSelf: "center" },
   amenitiesRow: {
     flexDirection: "row",
     flexWrap: "wrap",

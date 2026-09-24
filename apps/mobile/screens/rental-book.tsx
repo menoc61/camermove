@@ -2,16 +2,20 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { ActionButton } from "@/components/ui/action-button";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonHero, SkeletonText } from "@/components/ui/skeleton-presets";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
+import { Spinner } from "@/components/ui/spinner";
 import { Field } from "@/components/ui/text-input";
 import { useToast } from "@/components/ui/toast";
 import { colors } from "@/constants/theme";
-import { createRentalBooking } from "@/lib/api/rentals";
-import { fetchRental } from "@/lib/api/rentals";
+import { createRentalBooking, fetchRental } from "@/lib/api/rentals";
 import { ApiError } from "@/lib/api/resource";
 import { useAuthStore } from "@/lib/auth/session";
 import { formatXAF } from "@/lib/format";
+import { motion } from "@/lib/motion";
 
 function calcDuration(start: string, end: string, unit: string): number {
   if (!start || !end) return 0;
@@ -79,11 +83,10 @@ export function RentalBookScreen() {
     enabled: !!vehicleId,
   });
 
-  const duration = useMemo(() => calcDuration(startDate, endDate, query.data?.durationUnit ?? "day"), [
-    startDate,
-    endDate,
-    query.data,
-  ]);
+  const duration = useMemo(
+    () => calcDuration(startDate, endDate, query.data?.durationUnit ?? "day"),
+    [startDate, endDate, query.data],
+  );
   const total = query.data && duration > 0 ? query.data.pricePerUnit * duration : 0;
 
   const mutation = useMutation({
@@ -133,7 +136,16 @@ export function RentalBookScreen() {
   }
 
   if (query.isPending) {
-    return <LoadingState label="Chargement du véhicule…" />;
+    return (
+      <View style={styles.root}>
+        <View style={styles.content}>
+          <SkeletonHero />
+          <View style={{ marginTop: 16 }}>
+            <SkeletonText lines={5} />
+          </View>
+        </View>
+      </View>
+    );
   }
 
   if (query.isError || !query.data) {
@@ -172,72 +184,78 @@ export function RentalBookScreen() {
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
     >
-      <Text style={styles.eyebrow}>Réservation</Text>
-      <Text style={styles.title}>
-        {vehicle.make} {vehicle.model}
-      </Text>
-      <Text style={styles.meta}>
-        {vehicle.pickupCity} · {vehicle.capacity} places
-        {vehicle.hasDriver ? " · avec chauffeur" : ""}
-      </Text>
+      <Reveal>
+        <Text style={styles.eyebrow}>Réservation</Text>
+        <Text style={styles.title}>
+          {vehicle.make} {vehicle.model}
+        </Text>
+        <Text style={styles.meta}>
+          {vehicle.pickupCity} · {vehicle.capacity} places
+          {vehicle.hasDriver ? " · avec chauffeur" : ""}
+        </Text>
+      </Reveal>
 
-      <Text style={styles.sectionTitle}>Dates</Text>
-      <View style={styles.dateRow}>
-        <View style={styles.dateCol}>
-          <Field
-            label="Début"
-            value={startDate}
-            onChangeText={setStartDate}
-            placeholder="AAAA-MM-JJ"
-            keyboardType="numeric"
-            error={submitted && startDate === "" ? "Date requise" : undefined}
-          />
+      <Reveal delay={motion.stagger(1)}>
+        <Text style={styles.sectionTitle}>Dates</Text>
+        <View style={styles.dateRow}>
+          <View style={styles.dateCol}>
+            <Field
+              label="Début"
+              value={startDate}
+              onChangeText={setStartDate}
+              placeholder="AAAA-MM-JJ"
+              keyboardType="numeric"
+              error={submitted && startDate === "" ? "Date requise" : undefined}
+            />
+          </View>
+          <View style={styles.dateCol}>
+            <Field
+              label="Fin"
+              value={endDate}
+              onChangeText={setEndDate}
+              placeholder="AAAA-MM-JJ"
+              keyboardType="numeric"
+              error={submitted && (endDate === "" || duration < 1) ? "Date invalide" : undefined}
+            />
+          </View>
         </View>
-        <View style={styles.dateCol}>
-          <Field
-            label="Fin"
-            value={endDate}
-            onChangeText={setEndDate}
-            placeholder="AAAA-MM-JJ"
-            keyboardType="numeric"
-            error={submitted && (endDate === "" || duration < 1) ? "Date invalide" : undefined}
-          />
-        </View>
-      </View>
+      </Reveal>
 
-      <Text style={styles.sectionTitle}>Retrait & restitution</Text>
-      <Field
-        label="Ville retrait"
-        value={pickupCity}
-        onChangeText={setPickupCity}
-        placeholder={vehicle.pickupCity}
-        autoCapitalize="words"
-        error={submitted && !pickupValid ? "Ville requise" : undefined}
-      />
-      <Field
-        label="Adresse retrait (optionnel)"
-        value={pickupAddress}
-        onChangeText={setPickupAddress}
-        placeholder="ex : Akwa, boulevard de la liberté"
-        autoCapitalize="words"
-      />
-      <Field
-        label="Ville restitution"
-        value={dropoffCity}
-        onChangeText={setDropoffCity}
-        placeholder={pickupCity.trim() || vehicle.pickupCity}
-        autoCapitalize="words"
-      />
-      <Field
-        label="Adresse restitution (optionnel)"
-        value={dropoffAddress}
-        onChangeText={setDropoffAddress}
-        placeholder="ex : Bonapriso, rue…"
-        autoCapitalize="words"
-      />
+      <Reveal delay={motion.stagger(2)}>
+        <Text style={styles.sectionTitle}>Retrait & restitution</Text>
+        <Field
+          label="Ville retrait"
+          value={pickupCity}
+          onChangeText={setPickupCity}
+          placeholder={vehicle.pickupCity}
+          autoCapitalize="words"
+          error={submitted && !pickupValid ? "Ville requise" : undefined}
+        />
+        <Field
+          label="Adresse retrait (optionnel)"
+          value={pickupAddress}
+          onChangeText={setPickupAddress}
+          placeholder="ex : Akwa, boulevard de la liberté"
+          autoCapitalize="words"
+        />
+        <Field
+          label="Ville restitution"
+          value={dropoffCity}
+          onChangeText={setDropoffCity}
+          placeholder={pickupCity.trim() || vehicle.pickupCity}
+          autoCapitalize="words"
+        />
+        <Field
+          label="Adresse restitution (optionnel)"
+          value={dropoffAddress}
+          onChangeText={setDropoffAddress}
+          placeholder="ex : Bonapriso, rue…"
+          autoCapitalize="words"
+        />
+      </Reveal>
 
       {vehicle.hasDriver ? (
-        <>
+        <Reveal delay={motion.stagger(3)}>
           <Text style={styles.sectionTitle}>Chauffeur</Text>
           <Field
             label="Nom chauffeur"
@@ -253,50 +271,64 @@ export function RentalBookScreen() {
             placeholder="+2376XXXXXXXX"
             keyboardType="phone-pad"
           />
-        </>
+        </Reveal>
       ) : null}
 
-      <Text style={styles.sectionTitle}>Récapitulatif</Text>
-      <View style={styles.recap}>
-        <Text style={styles.recapRow}>
-          {vehicle.make} {vehicle.model}
-        </Text>
-        <Text style={styles.recapRow}>
-          {startDate || "—"} → {endDate || "—"} ({duration > 0 ? duration : 0} {vehicle.durationUnit}(s))
-        </Text>
-        <Text style={styles.recapRow}>Retrait : {pickupCity.trim() || "—"}</Text>
-        <View style={styles.recapDivider} />
-        <View style={styles.recapTotalRow}>
-          <Text style={styles.recapTotalLabel}>Total</Text>
-          <Text style={styles.recapTotal}>{total > 0 ? formatXAF(total) : "—"}</Text>
-        </View>
-      </View>
-
-      {mutation.isError ? <Text style={styles.error}>{bookingErrorMessage(mutation.error)}</Text> : null}
-
-      {createdId ? (
-        <View style={styles.created}>
-          <Text style={styles.createdLabel}>Réservation #{createdId.slice(0, 8)} créée.</Text>
-          <View style={styles.cta}>
-            <Button label="Voir la confirmation" onPress={gotoConfirmation} />
+      <Reveal delay={motion.stagger(4)}>
+        <Text style={styles.sectionTitle}>Récapitulatif</Text>
+        <View style={styles.recap}>
+          <Text style={styles.recapRow}>
+            {vehicle.make} {vehicle.model}
+          </Text>
+          <Text style={styles.recapRow}>
+            {startDate || "—"} → {endDate || "—"} ({duration > 0 ? duration : 0} {vehicle.durationUnit}(s))
+          </Text>
+          <Text style={styles.recapRow}>Retrait : {pickupCity.trim() || "—"}</Text>
+          <View style={styles.recapDivider} />
+          <View style={styles.recapTotalRow}>
+            <Text style={styles.recapTotalLabel}>Total</Text>
+            <Text style={styles.recapTotal}>{total > 0 ? formatXAF(total) : "—"}</Text>
           </View>
         </View>
-      ) : (
-        <View style={styles.cta}>
-          <Button
-            label={mutation.isPending ? "Réservation…" : "Confirmer la réservation"}
-            onPress={submit}
-            disabled={mutation.isPending}
-          />
-        </View>
-      )}
+      </Reveal>
+
+      {mutation.isError ? (
+        <Text style={styles.error}>{bookingErrorMessage(mutation.error)}</Text>
+      ) : null}
+
+      <Reveal delay={motion.stagger(5)}>
+        {createdId ? (
+          <View style={styles.created}>
+            <Text style={styles.createdLabel}>
+              Réservation #{createdId.slice(0, 8)} créée.
+            </Text>
+            <View style={styles.cta}>
+              <AnimatedPressFeedback onPress={gotoConfirmation} style={styles.createdCta}>
+                <Text style={styles.createdCtaLabel}>Voir la confirmation →</Text>
+              </AnimatedPressFeedback>
+            </View>
+          </View>
+        ) : mutation.isPending ? (
+          <View style={styles.cta}>
+            <Spinner label="Réservation…" />
+          </View>
+        ) : (
+          <View style={styles.cta}>
+            <ActionButton
+              label="Confirmer la réservation"
+              onPress={submit}
+              disabled={mutation.isPending}
+            />
+          </View>
+        )}
+      </Reveal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.paper },
-  content: { padding: 24, paddingBottom: 48 },
+  content: { padding: 24, paddingBottom: 48, gap: 8 },
   guard: { flex: 1, backgroundColor: colors.paper },
   eyebrow: {
     fontSize: 11,
@@ -306,7 +338,7 @@ const styles = StyleSheet.create({
     color: colors.ink2,
     marginBottom: 8,
   },
-  title: { fontSize: 24, fontWeight: "500", color: colors.ink },
+  title: { fontSize: 24, fontWeight: "500", color: colors.ink, letterSpacing: -0.5 },
   meta: { fontSize: 14, color: colors.ink1, marginTop: 6 },
   sectionTitle: { fontSize: 18, fontWeight: "500", color: colors.ink, marginTop: 24, marginBottom: 12 },
   dateRow: { flexDirection: "row", gap: 12 },
@@ -321,10 +353,31 @@ const styles = StyleSheet.create({
   recapRow: { fontSize: 14, color: colors.ink1, fontVariant: ["tabular-nums"] },
   recapDivider: { height: 1, backgroundColor: colors.line, marginVertical: 4 },
   recapTotalRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
-  recapTotalLabel: { fontSize: 11, fontWeight: "500", letterSpacing: 2.4, textTransform: "uppercase", color: colors.ink2 },
+  recapTotalLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+    letterSpacing: 2.4,
+    textTransform: "uppercase",
+    color: colors.ink2,
+  },
   recapTotal: { fontSize: 24, fontWeight: "500", color: colors.woodDark, fontVariant: ["tabular-nums"] },
   error: { fontSize: 13, color: "#B3261E", marginTop: 12 },
   cta: { marginTop: 24 },
   created: { marginTop: 8, gap: 12 },
   createdLabel: { fontSize: 14, fontWeight: "500", color: colors.ink1 },
+  createdCta: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    minHeight: 44,
+    justifyContent: "center",
+    backgroundColor: colors.ink,
+  },
+  createdCtaLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    letterSpacing: 2.6,
+    textTransform: "uppercase",
+    color: colors.paper,
+  },
 });

@@ -1,21 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
-} from "react-native-reanimated";
-import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { useMemo, useState } from "react";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActionButton } from "@/components/ui/action-button";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonHero, SkeletonText } from "@/components/ui/skeleton-presets";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
 import { Field } from "@/components/ui/text-input";
 import { colors } from "@/constants/theme";
 import { fetchRental } from "@/lib/api/rentals";
-import { formatXAF } from "@/lib/format";
-import { motion, useReduceMotion } from "@/lib/motion";
 import { useAuthStore } from "@/lib/auth/session";
+import { formatXAF } from "@/lib/format";
+import { motion } from "@/lib/motion";
 
 function calcDuration(start: string, end: string, unit: string): number {
   if (!start || !end) return 0;
@@ -59,40 +56,16 @@ export function RentalDetailScreen() {
   const [driverName, setDriverName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
 
-  // Motion: fade-in hero image and metadata block on mount.
-  const reduceMotion = useReduceMotion();
-  const heroProgress = useSharedValue(reduceMotion ? 1 : 0);
-  const metaProgress = useSharedValue(reduceMotion ? 1 : 0);
-
-  useEffect(() => {
-    if (reduceMotion) {
-      heroProgress.value = 1;
-      metaProgress.value = 1;
-      return;
-    }
-    heroProgress.value = withTiming(1, { duration: motion.duration.base });
-    metaProgress.value = withDelay(80, withTiming(1, { duration: motion.duration.base }));
-  }, [heroProgress, metaProgress, reduceMotion]);
-
-  const heroStyle = useAnimatedStyle(() => ({
-    opacity: heroProgress.value,
-  }));
-  const metaStyle = useAnimatedStyle(() => ({
-    opacity: metaProgress.value,
-    transform: [{ translateY: (1 - metaProgress.value) * 12 }],
-  }));
-
   const query = useQuery({
     queryKey: ["rental", vehicleId],
     queryFn: () => fetchRental(vehicleId as string),
     enabled: !!vehicleId,
   });
 
-  const duration = useMemo(() => calcDuration(startDate, endDate, query.data?.durationUnit ?? "day"), [
-    startDate,
-    endDate,
-    query.data,
-  ]);
+  const duration = useMemo(
+    () => calcDuration(startDate, endDate, query.data?.durationUnit ?? "day"),
+    [startDate, endDate, query.data],
+  );
   const total = query.data && duration > 0 ? query.data.pricePerUnit * duration : 0;
 
   if (!vehicleId) {
@@ -106,7 +79,16 @@ export function RentalDetailScreen() {
   }
 
   if (query.isPending) {
-    return <LoadingState label="Chargement du véhicule…" />;
+    return (
+      <View style={styles.root}>
+        <View style={styles.content}>
+          <SkeletonHero />
+          <View style={{ marginTop: 16 }}>
+            <SkeletonText lines={4} />
+          </View>
+        </View>
+      </View>
+    );
   }
 
   if (query.isError || !query.data) {
@@ -152,22 +134,26 @@ export function RentalDetailScreen() {
       contentInsetAdjustmentBehavior="automatic"
     >
       {vehicle.photos && vehicle.photos.length > 0 ? (
-        <Animated.View style={[styles.heroWrap, heroStyle]}>
-          <Image
-            source={{ uri: vehicle.photos[0] }}
-            style={styles.hero}
-            resizeMode="cover"
-            accessibilityIgnoresInvertColors
-            accessibilityLabel={`${vehicle.make} ${vehicle.model}`}
-          />
-        </Animated.View>
+        <Reveal>
+          <View style={styles.heroWrap}>
+            <Image
+              source={{ uri: vehicle.photos[0] }}
+              style={styles.hero}
+              resizeMode="cover"
+              accessibilityIgnoresInvertColors
+              accessibilityLabel={`${vehicle.make} ${vehicle.model}`}
+            />
+          </View>
+        </Reveal>
       ) : (
-        <Animated.View style={[styles.heroWrap, styles.heroPlaceholder, heroStyle]}>
-          <Text style={styles.heroPlaceholderText}>{vehicle.make.charAt(0)}</Text>
-        </Animated.View>
+        <Reveal>
+          <View style={[styles.heroWrap, styles.heroPlaceholder]}>
+            <Text style={styles.heroPlaceholderText}>{vehicle.make.charAt(0)}</Text>
+          </View>
+        </Reveal>
       )}
 
-      <Animated.View style={metaStyle}>
+      <Reveal delay={motion.stagger(1)}>
         <Text style={styles.eyebrow}>{vehicle.category}</Text>
         <Text style={styles.title}>
           {vehicle.make} {vehicle.model}
@@ -193,135 +179,140 @@ export function RentalDetailScreen() {
         <Text style={styles.price}>
           {formatXAF(vehicle.pricePerUnit)} / {vehicle.durationUnit}
         </Text>
-      </Animated.View>
+      </Reveal>
 
       {vehicle.photos && vehicle.photos.length > 1 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.thumbsRow}
-        >
-          {vehicle.photos.slice(0, 6).map((p, i) => (
-            <Image
-              key={`${p}-${i}`}
-              source={{ uri: p }}
-              style={styles.thumb}
-              resizeMode="cover"
-              accessibilityIgnoresInvertColors
-            />
-          ))}
-        </ScrollView>
+        <Reveal delay={motion.stagger(2)}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.thumbsRow}
+          >
+            {vehicle.photos.slice(0, 6).map((p, i) => (
+              <Image
+                key={`${p}-${i}`}
+                source={{ uri: p }}
+                style={styles.thumb}
+                resizeMode="cover"
+                accessibilityIgnoresInvertColors
+              />
+            ))}
+          </ScrollView>
+        </Reveal>
       ) : null}
 
-      <Text style={styles.sectionTitle}>Détails & conditions</Text>
-      <View style={styles.infoCard}>
-        <Text style={styles.infoRow}>
-          <Text style={styles.infoStrong}>Capacité :</Text> {vehicle.capacity}
-        </Text>
-        <Text style={styles.infoRow}>
-          <Text style={styles.infoStrong}>Transmission :</Text> {vehicle.transmission ?? "—"}
-        </Text>
-        <Text style={styles.infoRow}>
-          <Text style={styles.infoStrong}>Carburant :</Text> {vehicle.fuelType ?? "—"}
-        </Text>
-        <Text style={styles.infoNote}>
-          Le véhicule est disponible à {vehicle.pickupCity}. Annulation selon politique affichée lors du paiement.
-        </Text>
-      </View>
-
-      <Text style={styles.sectionTitle}>Réserver</Text>
-      <View style={styles.formCard}>
-        <View style={styles.dateRow}>
-          <View style={styles.dateCol}>
-            <Field
-              label="Début"
-              value={startDate}
-              onChangeText={setStartDate}
-              placeholder={minStart}
-              keyboardType="numeric"
-            />
-          </View>
-          <View style={styles.dateCol}>
-            <Field
-              label="Fin"
-              value={endDate}
-              onChangeText={setEndDate}
-              placeholder={tomorrowIso()}
-              keyboardType="numeric"
-            />
-          </View>
+      <Reveal delay={motion.stagger(3)}>
+        <Text style={styles.sectionTitle}>Détails & conditions</Text>
+        <View style={styles.infoCard}>
+          <Text style={styles.infoRow}>
+            <Text style={styles.infoStrong}>Capacité :</Text> {vehicle.capacity}
+          </Text>
+          <Text style={styles.infoRow}>
+            <Text style={styles.infoStrong}>Transmission :</Text> {vehicle.transmission ?? "—"}
+          </Text>
+          <Text style={styles.infoRow}>
+            <Text style={styles.infoStrong}>Carburant :</Text> {vehicle.fuelType ?? "—"}
+          </Text>
+          <Text style={styles.infoNote}>
+            Le véhicule est disponible à {vehicle.pickupCity}. Annulation selon politique affichée lors du paiement.
+          </Text>
         </View>
-        <Field
-          label="Ville retrait"
-          value={pickupCity}
-          onChangeText={setPickupCity}
-          placeholder={vehicle.pickupCity}
-          autoCapitalize="words"
-        />
-        <Field
-          label="Adresse retrait (optionnel)"
-          value={pickupAddress}
-          onChangeText={setPickupAddress}
-          placeholder="ex : Akwa, boulevard de la liberté"
-          autoCapitalize="words"
-        />
-        <Field
-          label="Ville restitution"
-          value={dropoffCity}
-          onChangeText={setDropoffCity}
-          placeholder={pickupCity.trim() || vehicle.pickupCity}
-          autoCapitalize="words"
-        />
-        <Field
-          label="Adresse restitution (optionnel)"
-          value={dropoffAddress}
-          onChangeText={setDropoffAddress}
-          placeholder="ex : Bonapriso, rue…"
-          autoCapitalize="words"
-        />
-        {vehicle.hasDriver ? (
-          <>
-            <Field
-              label="Nom chauffeur"
-              value={driverName}
-              onChangeText={setDriverName}
-              placeholder="ex : Jean Mbarga"
-              autoCapitalize="words"
-            />
-            <Field
-              label="Téléphone chauffeur"
-              value={driverPhone}
-              onChangeText={setDriverPhone}
-              placeholder="+2376XXXXXXXX"
-              keyboardType="phone-pad"
-            />
-          </>
-        ) : null}
+      </Reveal>
 
-        {datesValid ? (
-          <View style={styles.recap}>
-            <Text style={styles.recapLabel}>
-              {duration} {vehicle.durationUnit}(s) × {formatXAF(vehicle.pricePerUnit)}
-            </Text>
-            <Text style={styles.recapTotal}>{formatXAF(total)}</Text>
+      <Reveal delay={motion.stagger(4)}>
+        <Text style={styles.sectionTitle}>Réserver</Text>
+        <View style={styles.formCard}>
+          <View style={styles.dateRow}>
+            <View style={styles.dateCol}>
+              <Field
+                label="Début"
+                value={startDate}
+                onChangeText={setStartDate}
+                placeholder={minStart}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={styles.dateCol}>
+              <Field
+                label="Fin"
+                value={endDate}
+                onChangeText={setEndDate}
+                placeholder={tomorrowIso()}
+                keyboardType="numeric"
+              />
+            </View>
           </View>
-        ) : null}
-
-        <View style={styles.cta}>
-          <Button
-            label={accessToken ? "Continuer" : "Se connecter pour réserver"}
-            onPress={onReserve}
-            disabled={Boolean(accessToken) && !canSubmit}
+          <Field
+            label="Ville retrait"
+            value={pickupCity}
+            onChangeText={setPickupCity}
+            placeholder={vehicle.pickupCity}
+            autoCapitalize="words"
           />
+          <Field
+            label="Adresse retrait (optionnel)"
+            value={pickupAddress}
+            onChangeText={setPickupAddress}
+            placeholder="ex : Akwa, boulevard de la liberté"
+            autoCapitalize="words"
+          />
+          <Field
+            label="Ville restitution"
+            value={dropoffCity}
+            onChangeText={setDropoffCity}
+            placeholder={pickupCity.trim() || vehicle.pickupCity}
+            autoCapitalize="words"
+          />
+          <Field
+            label="Adresse restitution (optionnel)"
+            value={dropoffAddress}
+            onChangeText={setDropoffAddress}
+            placeholder="ex : Bonapriso, rue…"
+            autoCapitalize="words"
+          />
+          {vehicle.hasDriver ? (
+            <>
+              <Field
+                label="Nom chauffeur"
+                value={driverName}
+                onChangeText={setDriverName}
+                placeholder="ex : Jean Mbarga"
+                autoCapitalize="words"
+              />
+              <Field
+                label="Téléphone chauffeur"
+                value={driverPhone}
+                onChangeText={setDriverPhone}
+                placeholder="+2376XXXXXXXX"
+                keyboardType="phone-pad"
+              />
+            </>
+          ) : null}
+
+          {datesValid ? (
+            <View style={styles.recap}>
+              <Text style={styles.recapLabel}>
+                {duration} {vehicle.durationUnit}(s) × {formatXAF(vehicle.pricePerUnit)}
+              </Text>
+              <Text style={styles.recapTotal}>{formatXAF(total)}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.cta}>
+            <ActionButton
+              label={accessToken ? "Continuer" : "Se connecter pour réserver"}
+              onPress={onReserve}
+              disabled={Boolean(accessToken) && !canSubmit}
+            />
+          </View>
+          {!accessToken ? (
+            <Text style={styles.helper}>Connectez-vous pour finaliser la réservation.</Text>
+          ) : null}
+          <Text style={styles.helper}>
+            Format : AAAA-MM-JJ. Début ≥ {minStart}.
+          </Text>
         </View>
-        {!accessToken ? (
-          <Text style={styles.helper}>Connectez-vous pour finaliser la réservation.</Text>
-        ) : null}
-        {/* Accessibility hint about date format (mobile-friendly, no native picker needed) */}
-        <Text style={styles.helper}>
-          Format : AAAA-MM-JJ. Début ≥ {minStart}.
-        </Text>
-      </View>
+      </Reveal>
 
       {startDate !== "" && endDate !== "" && duration < 1 ? (
         <Text style={styles.error}>La date de fin doit être après la date de début.</Text>
@@ -352,6 +343,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: colors.ink,
     paddingHorizontal: 24,
+    letterSpacing: -0.6,
   },
   meta: {
     fontSize: 14,

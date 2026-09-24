@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import {
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,6 +24,10 @@ import {
 import { StatIndicator } from "@/components/ui/stat-indicator";
 import { Reveal } from "@/components/ui/reveal";
 import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { AnimatedCounter } from "@/components/ui/animated-counter";
+import { HeartToggle } from "@/components/ui/heart-toggle";
+import { IconButton } from "@/components/ui/icon-button";
+import { LottieIllustration } from "@/components/ui/lottie-illustration";
 import { colors } from "@/constants/theme";
 import { formatDate, formatRelative, formatTime, formatXAF } from "@/lib/format";
 import {
@@ -156,8 +159,30 @@ export function HomeScreen() {
       contentInsetAdjustmentBehavior="automatic"
     >
       <Reveal>
-        <Text style={styles.eyebrow}>CamerMove</Text>
-        <Text style={styles.title}>Réservez votre voyage</Text>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.eyebrow}>CamerMove</Text>
+            <Text style={styles.title}>Réservez votre voyage</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <IconButton
+              name="refresh"
+              variant="subtle"
+              accessibilityLabel="Rafraîchir les données"
+              onPress={() => {
+                void statsQuery.refetch();
+                void railsQuery.refetch();
+                void agenciesQuery.refetch();
+              }}
+            />
+            <IconButton
+              name="ticket"
+              variant="subtle"
+              accessibilityLabel="Voir mes billets"
+              onPress={() => router.push("/(tabs)/tickets" as never)}
+            />
+          </View>
+        </View>
       </Reveal>
 
       <Reveal delay={60}>
@@ -277,12 +302,12 @@ export function HomeScreen() {
           />
           <StatIndicator
             label="Hôtels"
-            value={`${statsQuery.data.hotelsCount}`}
+            value={statsQuery.data.hotelsCount.toString()}
             tooltip="Nombre d'hôtels et appart-hôtels référencés par CamerMove."
           />
           <StatIndicator
             label="Locations"
-            value={`${statsQuery.data.rentalsCount}`}
+            value={statsQuery.data.rentalsCount.toString()}
             tooltip="Véhicules de location disponibles via nos agences partenaires."
           />
         </View>
@@ -598,6 +623,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: { fontSize: 32, fontWeight: "500", color: colors.ink, marginBottom: 24 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
   widget: {
     backgroundColor: colors.surface1,
     borderWidth: 1,

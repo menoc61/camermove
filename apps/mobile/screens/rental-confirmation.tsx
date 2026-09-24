@@ -1,19 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
-import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { useEffect } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActionButton } from "@/components/ui/action-button";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonHero, SkeletonText } from "@/components/ui/skeleton-presets";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
 import { colors } from "@/constants/theme";
 import { fetchRentalBooking } from "@/lib/api/rentals";
 import { useAuthStore } from "@/lib/auth/session";
 import { formatXAF } from "@/lib/format";
-import { motion, useReduceMotion } from "@/lib/motion";
+import { motion } from "@/lib/motion";
 
 function firstString(value: string | string[] | undefined): string {
   if (typeof value === "string") return value;
@@ -33,25 +31,6 @@ export function RentalConfirmationScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const id = firstString(params.id);
   const accessToken = useAuthStore((s) => s.accessToken);
-
-  const reduceMotion = useReduceMotion();
-  const progress = useSharedValue(reduceMotion ? 1 : 0);
-  // Re-run on mount only; `reduceMotion` change while mounted is a no-op.
-  const mountedOnce = useRef(false);
-  useEffect(() => {
-    if (mountedOnce.current) return;
-    mountedOnce.current = true;
-    if (reduceMotion) {
-      progress.value = 1;
-      return;
-    }
-    progress.value = withTiming(1, { duration: motion.duration.base });
-  }, [progress, reduceMotion]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: progress.value,
-    transform: [{ scale: 0.95 + 0.05 * progress.value }],
-  }));
 
   useEffect(() => {
     if (!accessToken && id) {
@@ -91,7 +70,16 @@ export function RentalConfirmationScreen() {
   }
 
   if (bookingQuery.isPending) {
-    return <LoadingState label="Chargement de la réservation…" />;
+    return (
+      <View style={styles.root}>
+        <View style={styles.content}>
+          <SkeletonHero />
+          <View style={{ marginTop: 16 }}>
+            <SkeletonText lines={5} />
+          </View>
+        </View>
+      </View>
+    );
   }
 
   if (bookingQuery.isError || !bookingQuery.data) {
@@ -104,8 +92,7 @@ export function RentalConfirmationScreen() {
   }
 
   const booking = bookingQuery.data;
-  const pendingPayment =
-    booking.status === "pending_payment" || booking.status === "pending";
+  const pendingPayment = booking.status === "pending_payment" || booking.status === "pending";
 
   return (
     <ScrollView
@@ -114,56 +101,60 @@ export function RentalConfirmationScreen() {
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
     >
-      <Animated.View style={[styles.successBlock, animatedStyle]}>
-        <View style={styles.successMark}>
-          <Text style={styles.successMarkText}>✓</Text>
-        </View>
-        <Text style={styles.eyebrow}>Location créée</Text>
-        <Text style={styles.title}>Merci !</Text>
-        <Text selectable style={styles.reference}>
-          Réf. {booking.id}
-        </Text>
-      </Animated.View>
-
-      <View style={styles.card}>
-        <Text style={styles.row}>
-          <Text style={styles.strong}>Véhicule :</Text>{" "}
-          {booking.vehicle ? `${booking.vehicle.make} ${booking.vehicle.model}` : "—"}
-          {booking.vehicle?.category ? ` · ${booking.vehicle.category}` : ""}
-        </Text>
-        <Text style={styles.row}>
-          <Text style={styles.strong}>Début :</Text> {formatDay(booking.startDate)}
-        </Text>
-        <Text style={styles.row}>
-          <Text style={styles.strong}>Fin :</Text> {formatDay(booking.endDate)}
-        </Text>
-        <Text style={styles.row}>
-          <Text style={styles.strong}>Retrait :</Text> {booking.pickupCity}
-        </Text>
-        <Text style={styles.totalLabel}>Total</Text>
-        <Text style={styles.total}>{formatXAF(booking.totalAmount)}</Text>
-        <Text style={styles.row}>
-          <Text style={styles.strong}>Statut :</Text> {booking.status}
-        </Text>
-
-        {pendingPayment && booking.vehicle ? (
-          <View style={styles.cta}>
-            <Button
-              label="Procéder au paiement"
-              onPress={() => router.push(`/rentals/${booking.vehicle!.id}` as never)}
-            />
+      <Reveal>
+        <View style={styles.successBlock}>
+          <View style={styles.successMark}>
+            <Text style={styles.successMarkText}>✓</Text>
           </View>
-        ) : null}
+          <Text style={styles.eyebrow}>Location créée</Text>
+          <Text style={styles.title}>Merci !</Text>
+          <Text selectable style={styles.reference}>
+            Réf. {booking.id}
+          </Text>
+        </View>
+      </Reveal>
 
-        <Pressable
-          onPress={() => router.push("/(tabs)/account" as never)}
-          accessibilityRole="button"
-          accessibilityLabel="Aller au tableau de bord"
-          style={styles.secondary}
-        >
-          <Text style={styles.secondaryText}>Aller à mon compte →</Text>
-        </Pressable>
-      </View>
+      <Reveal delay={motion.stagger(1)}>
+        <View style={styles.card}>
+          <Text style={styles.row}>
+            <Text style={styles.strong}>Véhicule :</Text>{" "}
+            {booking.vehicle ? `${booking.vehicle.make} ${booking.vehicle.model}` : "—"}
+            {booking.vehicle?.category ? ` · ${booking.vehicle.category}` : ""}
+          </Text>
+          <Text style={styles.row}>
+            <Text style={styles.strong}>Début :</Text> {formatDay(booking.startDate)}
+          </Text>
+          <Text style={styles.row}>
+            <Text style={styles.strong}>Fin :</Text> {formatDay(booking.endDate)}
+          </Text>
+          <Text style={styles.row}>
+            <Text style={styles.strong}>Retrait :</Text> {booking.pickupCity}
+          </Text>
+          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.total}>{formatXAF(booking.totalAmount)}</Text>
+          <Text style={styles.row}>
+            <Text style={styles.strong}>Statut :</Text> {booking.status}
+          </Text>
+
+          {pendingPayment && booking.vehicle ? (
+            <View style={styles.cta}>
+              <ActionButton
+                label="Procéder au paiement"
+                onPress={() => router.push(`/rentals/${booking.vehicle!.id}` as never)}
+              />
+            </View>
+          ) : null}
+
+          <AnimatedPressFeedback
+            onPress={() => router.push("/(tabs)/account" as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Aller au tableau de bord"
+            style={styles.secondary}
+          >
+            <Text style={styles.secondaryText}>Aller à mon compte →</Text>
+          </AnimatedPressFeedback>
+        </View>
+      </Reveal>
     </ScrollView>
   );
 }
@@ -195,7 +186,7 @@ const styles = StyleSheet.create({
     color: colors.ink2,
     marginTop: 12,
   },
-  title: { fontSize: 28, fontWeight: "500", color: colors.ink },
+  title: { fontSize: 28, fontWeight: "500", color: colors.ink, letterSpacing: -0.6 },
   reference: {
     fontSize: 13,
     color: colors.ink2,

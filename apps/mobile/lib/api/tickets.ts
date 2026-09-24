@@ -41,6 +41,15 @@ export function verifyTicket(token: string, code: string): Promise<unknown> {
   return request("/api/v1/tickets/verify", { method: "POST", token, body: { code } });
 }
 
-export function lookupTicket(ref: string): Promise<unknown> {
-  return request("/api/v1/tickets/lookup", { params: { ref } });
+export interface TicketLookupResponse {
+  reference: string;
+  tripOrigin: string;
+  tripDestination: string;
+  departureAt: string;
+  status: string;
+  passengerFirstName: string;
+}
+
+export function lookupTicket(ref: string): Promise<TicketLookupResponse> {
+  return request<TicketLookupResponse>("/api/v1/tickets/lookup", { params: { ref } });
 }

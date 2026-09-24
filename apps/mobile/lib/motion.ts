@@ -16,6 +16,15 @@ export const motion = {
     out: "cubic-bezier(0.22, 1, 0.36, 1)",
     inOut: "cubic-bezier(0.65, 0, 0.35, 1)",
   },
+  /**
+   * Returns a millisecond stagger offset that compounds with the reveal
+   * primitive's base duration. Use as `motion.stagger(0)`, `motion.stagger(1)`,
+   * `motion.stagger(2)` … to stagger successive children.
+   *
+   *   <Reveal delay={motion.stagger(0)}>…</Reveal>
+   *   <Reveal delay={motion.stagger(1)}>…</Reveal>
+   */
+  stagger: (index: number): number => index * 80,
 } as const;
 
 /**

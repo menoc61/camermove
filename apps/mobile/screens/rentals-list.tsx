@@ -1,12 +1,17 @@
+import { FlashList } from "@shopify/flash-list";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonCard, SkeletonList, SkeletonTile } from "@/components/ui/skeleton-presets";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
 import { Field } from "@/components/ui/text-input";
 import { colors } from "@/constants/theme";
 import { fetchRentals, type RentalsParams, type RentalVehicle } from "@/lib/api/rentals";
 import { formatXAF } from "@/lib/format";
+import { motion } from "@/lib/motion";
 
 const CATEGORIES = [
   { value: "", label: "Toutes" },
@@ -63,7 +68,16 @@ export function RentalsListScreen() {
   }
 
   if (query.isPending) {
-    return <LoadingState label="Recherche des véhicules…" />;
+    return (
+      <View style={styles.root}>
+        <View style={styles.header}>
+          <SkeletonTile />
+        </View>
+        <View style={styles.listPending}>
+          <SkeletonList count={4} />
+        </View>
+      </View>
+    );
   }
 
   if (query.isError) {
@@ -81,120 +95,126 @@ export function RentalsListScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Location véhicules</Text>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Louez près de chez vous</Text>
-          {data ? <Text style={styles.count}>{data.total} véhicules</Text> : null}
+      <Reveal>
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>Location véhicules</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>Louez près de chez vous</Text>
+            {data ? <Text style={styles.count}>{data.total} véhicules</Text> : null}
+          </View>
         </View>
-      </View>
+      </Reveal>
 
-      <ScrollView
-        horizontal
-        keyboardShouldPersistTaps="handled"
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-      >
-        <Field
-          label="Ville retrait"
-          value={pickupCity}
-          onChangeText={(v) => {
-            setPickupCity(v);
-            setPage(1);
-          }}
-          placeholder="Douala"
-          autoCapitalize="words"
-          style={styles.filterField}
-        />
-        <Field
-          label="Prix min (FCFA)"
-          value={minPrice}
-          onChangeText={(v) => {
-            setMinPrice(v);
-            setPage(1);
-          }}
-          keyboardType="numeric"
-          placeholder="0"
-          style={styles.filterField}
-        />
-        <Field
-          label="Prix max (FCFA)"
-          value={maxPrice}
-          onChangeText={(v) => {
-            setMaxPrice(v);
-            setPage(1);
-          }}
-          keyboardType="numeric"
-          placeholder="0"
-          style={styles.filterField}
-        />
-        <Field
-          label="Recherche"
-          value={q}
-          onChangeText={(v) => {
-            setQ(v);
-            setPage(1);
-          }}
-          placeholder="Marque, modèle"
-          autoCapitalize="words"
-          style={styles.filterField}
-        />
-      </ScrollView>
-
-      <View style={styles.chipRow}>
-        <Text style={styles.chipLabel}>Catégorie</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {CATEGORIES.map((opt) => {
-            const active = category === opt.value;
-            return (
-              <Pressable
-                key={opt.value || "all"}
-                onPress={() => {
-                  setCategory(opt.value);
-                  setPage(1);
-                }}
-                style={[styles.chip, active && styles.chipActive]}
-                accessibilityRole="button"
-                accessibilityLabel={`Catégorie : ${opt.label}`}
-                accessibilityState={{ selected: active }}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
-              </Pressable>
-            );
-          })}
+      <Reveal delay={motion.stagger(1)}>
+        <ScrollView
+          horizontal
+          keyboardShouldPersistTaps="handled"
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          <Field
+            label="Ville retrait"
+            value={pickupCity}
+            onChangeText={(v) => {
+              setPickupCity(v);
+              setPage(1);
+            }}
+            placeholder="Douala"
+            autoCapitalize="words"
+            style={styles.filterField}
+          />
+          <Field
+            label="Prix min (FCFA)"
+            value={minPrice}
+            onChangeText={(v) => {
+              setMinPrice(v);
+              setPage(1);
+            }}
+            keyboardType="numeric"
+            placeholder="0"
+            style={styles.filterField}
+          />
+          <Field
+            label="Prix max (FCFA)"
+            value={maxPrice}
+            onChangeText={(v) => {
+              setMaxPrice(v);
+              setPage(1);
+            }}
+            keyboardType="numeric"
+            placeholder="0"
+            style={styles.filterField}
+          />
+          <Field
+            label="Recherche"
+            value={q}
+            onChangeText={(v) => {
+              setQ(v);
+              setPage(1);
+            }}
+            placeholder="Marque, modèle"
+            autoCapitalize="words"
+            style={styles.filterField}
+          />
         </ScrollView>
-      </View>
+      </Reveal>
 
-      <View style={styles.chipRow}>
-        <Text style={styles.chipLabel}>Chauffeur</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {DRIVER_OPTIONS.map((opt) => {
-            const active = hasDriver === opt.value;
-            return (
-              <Pressable
-                key={opt.value}
-                onPress={() => {
-                  setHasDriver(opt.value as "all" | "true" | "false");
-                  setPage(1);
-                }}
-                style={[styles.chip, active && styles.chipActive]}
-                accessibilityRole="button"
-                accessibilityLabel={`Chauffeur : ${opt.label}`}
-                accessibilityState={{ selected: active }}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+      <Reveal delay={motion.stagger(2)}>
+        <View style={styles.chipRow}>
+          <Text style={styles.chipLabel}>Catégorie</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {CATEGORIES.map((opt) => {
+              const active = category === opt.value;
+              return (
+                <AnimatedPressFeedback
+                  key={opt.value || "all"}
+                  onPress={() => {
+                    setCategory(opt.value);
+                    setPage(1);
+                  }}
+                  style={[styles.chip, active && styles.chipActive]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Catégorie : ${opt.label}`}
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </AnimatedPressFeedback>
+              );
+            })}
+          </ScrollView>
+        </View>
 
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={
+        <View style={styles.chipRow}>
+          <Text style={styles.chipLabel}>Chauffeur</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {DRIVER_OPTIONS.map((opt) => {
+              const active = hasDriver === opt.value;
+              return (
+                <AnimatedPressFeedback
+                  key={opt.value}
+                  onPress={() => {
+                    setHasDriver(opt.value as "all" | "true" | "false");
+                    setPage(1);
+                  }}
+                  style={[styles.chip, active && styles.chipActive]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Chauffeur : ${opt.label}`}
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </AnimatedPressFeedback>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </Reveal>
+
+      <View style={styles.listWrap}>
+        {items.length === 0 ? (
           <EmptyState
             message="Aucun véhicule disponible — essayez d'autres filtres."
             actionLabel="Réinitialiser les filtres"
@@ -208,78 +228,94 @@ export function RentalsListScreen() {
               setPage(1);
             }}
           />
-        }
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => openVehicle(item)}
-            style={styles.card}
-            accessibilityRole="button"
-            accessibilityLabel={`Voir ${item.make} ${item.model}`}
-          >
-            <View style={styles.photoWrap}>
-              {item.photos && item.photos.length > 0 ? (
-                <Image
-                  source={{ uri: item.photos[0] }}
-                  style={styles.photo}
-                  resizeMode="cover"
-                  accessibilityIgnoresInvertColors
-                />
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Text style={styles.photoPlaceholderText}>{item.make.charAt(0)}</Text>
+        ) : (
+          <FlashList
+            data={items as RentalVehicle[]}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
+              <AnimatedPressFeedback
+                onPress={() => openVehicle(item)}
+                style={styles.card}
+                accessibilityRole="button"
+                accessibilityLabel={`Voir ${item.make} ${item.model}`}
+              >
+                <View style={styles.photoWrap}>
+                  {item.photos && item.photos.length > 0 ? (
+                    <Image
+                      source={{ uri: item.photos[0] }}
+                      style={styles.photo}
+                      resizeMode="cover"
+                      accessibilityIgnoresInvertColors
+                    />
+                  ) : (
+                    <View style={styles.photoPlaceholder}>
+                      <Text style={styles.photoPlaceholderText}>
+                        {item.make.charAt(0)}
+                      </Text>
+                    </View>
+                  )}
+                  {item.hasDriver ? (
+                    <View style={styles.driverBadge}>
+                      <Text style={styles.driverBadgeText}>Avec chauffeur</Text>
+                    </View>
+                  ) : null}
                 </View>
-              )}
-              {item.hasDriver ? (
-                <View style={styles.driverBadge}>
-                  <Text style={styles.driverBadgeText}>Avec chauffeur</Text>
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTitle}>
+                    {item.make} {item.model}
+                    {item.year ? ` · ${item.year}` : ""}
+                  </Text>
+                  <Text style={styles.cardMeta}>
+                    {item.category} · {item.capacity} places · {item.pickupCity}
+                    {item.transmission ? ` · ${item.transmission}` : ""}
+                  </Text>
+                  <Text style={styles.cardPrice}>
+                    {formatXAF(item.pricePerUnit)} / {item.durationUnit}
+                  </Text>
                 </View>
-              ) : null}
-            </View>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardTitle}>
-                {item.make} {item.model}
-                {item.year ? ` · ${item.year}` : ""}
-              </Text>
-              <Text style={styles.cardMeta}>
-                {item.category} · {item.capacity} places · {item.pickupCity}
-                {item.transmission ? ` · ${item.transmission}` : ""}
-              </Text>
-              <Text style={styles.cardPrice}>
-                {formatXAF(item.pricePerUnit)} / {item.durationUnit}
-              </Text>
-            </View>
-          </Pressable>
+              </AnimatedPressFeedback>
+            )}
+            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          />
         )}
-      />
+      </View>
 
       {data && totalPages > 1 ? (
-        <View style={styles.pager}>
-          <Text style={styles.pagerLabel}>
-            Page {page} / {totalPages}
-          </Text>
-          <View style={styles.pagerButtons}>
-            <Pressable
-              onPress={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              style={[styles.pagerButton, page <= 1 && styles.pagerButtonDisabled]}
-              accessibilityRole="button"
-              accessibilityLabel="Page précédente"
-              accessibilityState={{ disabled: page <= 1 }}
-            >
-              <Text style={[styles.pagerButtonText, page <= 1 && styles.pagerButtonTextDisabled]}>←</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              style={[styles.pagerButton, page >= totalPages && styles.pagerButtonDisabled]}
-              accessibilityRole="button"
-              accessibilityLabel="Page suivante"
-              accessibilityState={{ disabled: page >= totalPages }}
-            >
-              <Text style={[styles.pagerButtonText, page >= totalPages && styles.pagerButtonTextDisabled]}>→</Text>
-            </Pressable>
+        <Reveal delay={motion.stagger(3)}>
+          <View style={styles.pager}>
+            <Text style={styles.pagerLabel}>
+              Page {page} / {totalPages}
+            </Text>
+            <View style={styles.pagerButtons}>
+              <AnimatedPressFeedback
+                onPress={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                style={[styles.pagerButton, page <= 1 && styles.pagerButtonDisabled]}
+                accessibilityRole="button"
+                accessibilityLabel="Page précédente"
+                accessibilityState={{ disabled: page <= 1 }}
+              >
+                <Text style={[styles.pagerButtonText, page <= 1 && styles.pagerButtonTextDisabled]}>
+                  ←
+                </Text>
+              </AnimatedPressFeedback>
+              <AnimatedPressFeedback
+                onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                style={[styles.pagerButton, page >= totalPages && styles.pagerButtonDisabled]}
+                accessibilityRole="button"
+                accessibilityLabel="Page suivante"
+                accessibilityState={{ disabled: page >= totalPages }}
+              >
+                <Text style={[styles.pagerButtonText, page >= totalPages && styles.pagerButtonTextDisabled]}>
+                  →
+                </Text>
+              </AnimatedPressFeedback>
+            </View>
           </View>
-        </View>
+        </Reveal>
       ) : null}
     </View>
   );
@@ -291,13 +327,13 @@ const styles = StyleSheet.create({
   eyebrow: {
     fontSize: 11,
     fontWeight: "500",
-    letterSpacing: 2.4,
+    letterSpacing: 2.6,
     textTransform: "uppercase",
     color: colors.ink2,
     marginBottom: 8,
   },
   headerRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
-  title: { fontSize: 24, fontWeight: "500", color: colors.ink },
+  title: { fontSize: 24, fontWeight: "500", color: colors.ink, letterSpacing: -0.6 },
   count: { fontSize: 11, letterSpacing: 1.6, textTransform: "uppercase", color: colors.ink2 },
   filterRow: { gap: 12, paddingHorizontal: 24, paddingVertical: 12 },
   filterField: { minWidth: 160, marginBottom: 0 },
@@ -323,7 +359,9 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipText: { fontSize: 13, color: colors.ink },
   chipTextActive: { color: colors.paper },
-  list: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24, gap: 12 },
+  listWrap: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  listPending: { paddingHorizontal: 24 },
+  list: { paddingBottom: 24 },
   card: {
     backgroundColor: colors.surface1,
     borderWidth: 1,

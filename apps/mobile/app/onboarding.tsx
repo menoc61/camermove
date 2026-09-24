@@ -1,9 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { useAnimatedStyle, withSpring } from "react-native-reanimated";
+import { StyleSheet, Text, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import { ActionButton } from "@/components/ui/action-button";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { Reveal } from "@/components/ui/reveal";
 import { colors, typography } from "@/constants/theme";
+import { motion } from "@/lib/motion";
 
 export const ONBOARDED_KEY = "cm-onboarded";
 
@@ -16,7 +25,7 @@ const SLIDES = [
   {
     eyebrow: "02 — Services",
     title: "Hôtels, locations, colis et assurance",
-    body: "Tous les services CamerMove dans une seule app.",
+    body: "Tous les services CamerMove dans une seule app, avec paiement Mobile Money.",
   },
   {
     eyebrow: "03 — Billets",
@@ -26,15 +35,18 @@ const SLIDES = [
 ];
 
 function Dot({ active }: { active: boolean }) {
-  const style = useAnimatedStyle(() => ({
-    width: withSpring(active ? 24 : 8, { damping: 20, stiffness: 300 }),
-  }));
-  return <Animated.View style={[styles.dot, active && styles.dotActive, style]} />;
+  const width = useSharedValue(active ? 24 : 8);
+  const activeStyle = useAnimatedStyle(() => ({ width: width.value }));
+  // Use derived shared value to avoid setState cascade when active flips.
+  width.value = withSpring(active ? 24 : 8, { damping: 20, stiffness: 300 });
+  return <Animated.View style={[styles.dot, active && styles.dotActive, activeStyle]} />;
 }
 
 export default function Onboarding() {
   const router = useRouter();
   const [index, setIndex] = useState(0);
+  const opacity = useSharedValue(1);
+  const translateY = useSharedValue(0);
   const last = index === SLIDES.length - 1;
 
   async function finish() {
@@ -46,34 +58,67 @@ export default function Onboarding() {
     router.replace("/(tabs)");
   }
 
+  function next() {
+    if (last) {
+      void finish();
+      return;
+    }
+    // Crossfade between slides
+    opacity.value = withTiming(0, { duration: motion.duration.fast }, () => {
+      opacity.value = withTiming(1, { duration: motion.duration.base });
+    });
+    translateY.value = withTiming(-8, { duration: motion.duration.fast }, () => {
+      translateY.value = withTiming(0, { duration: motion.duration.base });
+    });
+    setIndex(index + 1);
+  }
+
   const slide = SLIDES[index]!;
+  const slideStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
 
   return (
     <View style={styles.root}>
-      <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
-      <Text style={styles.title}>{slide.title}</Text>
-      <Text style={styles.body}>{slide.body}</Text>
+      <Animated.View style={slideStyle}>
+        <Reveal>
+          <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
+          <Text style={styles.title}>{slide.title}</Text>
+          <Text style={styles.body}>{slide.body}</Text>
+        </Reveal>
+      </Animated.View>
+
       <View style={styles.dots}>
-        {SLIDES.map((s, i) => (
-          <Dot key={s.eyebrow} active={i === index} />
+        {SLIDES.map((s) => (
+          <Dot key={s.eyebrow} active={s === slide} />
         ))}
       </View>
+
       <View style={styles.row}>
         {index > 0 ? (
-          <Pressable onPress={() => setIndex(index - 1)} style={styles.ghost}>
+          <AnimatedPressFeedback
+            onPress={() => setIndex(index - 1)}
+            style={styles.ghost}
+            accessibilityRole="button"
+            accessibilityLabel="Slide précédent"
+          >
             <Text style={styles.ghostLabel}>Retour</Text>
-          </Pressable>
+          </AnimatedPressFeedback>
         ) : (
-          <Pressable onPress={finish} style={styles.ghost}>
+          <AnimatedPressFeedback
+            onPress={finish}
+            style={styles.ghost}
+            accessibilityRole="button"
+            accessibilityLabel="Passer l'introduction"
+          >
             <Text style={styles.ghostLabel}>Passer</Text>
-          </Pressable>
+          </AnimatedPressFeedback>
         )}
-        <Pressable
-          onPress={() => (last ? void finish() : setIndex(index + 1))}
-          style={styles.primary}
-        >
-          <Text style={styles.primaryLabel}>{last ? "Commencer" : "Suivant"}</Text>
-        </Pressable>
+        <ActionButton
+          label={last ? "Commencer" : "Suivant"}
+          onPress={next}
+        />
       </View>
     </View>
   );
@@ -101,14 +146,6 @@ const styles = StyleSheet.create({
   dot: { height: 8, width: 8, backgroundColor: colors.surface3 },
   dotActive: { backgroundColor: colors.woodDark },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  ghost: { paddingVertical: 14, paddingHorizontal: 8 },
+  ghost: { paddingVertical: 14, paddingHorizontal: 8, minHeight: 44, justifyContent: "center" },
   ghostLabel: { fontSize: 12, fontWeight: "500", letterSpacing: 2.6, color: colors.ink2 },
-  primary: { backgroundColor: colors.ink, paddingVertical: 18, paddingHorizontal: 28 },
-  primaryLabel: {
-    fontSize: 12,
-    fontWeight: "500",
-    letterSpacing: 2.6,
-    textTransform: "uppercase",
-    color: colors.paper,
-  },
 });

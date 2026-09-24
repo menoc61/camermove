@@ -7,6 +7,9 @@ import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
 import { EmptyState, ErrorState } from "@/components/ui/screen-state";
 import { Reveal } from "@/components/ui/reveal";
 import { SkeletonHero, SkeletonText } from "@/components/ui/skeleton-presets";
+import { SuccessCheckmark } from "@/components/ui/success-checkmark";
+import { LottieIllustration } from "@/components/ui/lottie-illustration";
+import { IconButton } from "@/components/ui/icon-button";
 import { colors } from "@/constants/theme";
 import { getBooking } from "@/lib/api/bookings";
 import { useAuthStore } from "@/lib/auth/session";
@@ -129,8 +132,26 @@ export function ConfirmationScreen() {
       contentInsetAdjustmentBehavior="automatic"
     >
       <Reveal>
-        <Text style={styles.eyebrow}>Réservation confirmée</Text>
-        <Text style={styles.title}>Merci !</Text>
+        <View style={styles.heroBlock}>
+          <SuccessCheckmark size={64} />
+          <LottieIllustration preset="ticket" size={64} tint={colors.ink} />
+          <Text style={styles.eyebrow}>Réservation confirmée</Text>
+          <Text style={styles.title}>Merci !</Text>
+        </View>
+        <View style={styles.shareRow}>
+          <IconButton
+            name="share"
+            variant="ghost"
+            accessibilityLabel="Partager la référence"
+            onPress={() => router.push(`/tickets/lookup?ref=${encodeURIComponent(booking.reference)}` as never)}
+          />
+          <IconButton
+            name="favorite"
+            variant="ghost"
+            accessibilityLabel="Ajouter aux favoris"
+            onPress={() => router.push("/(tabs)/account" as never)}
+          />
+        </View>
       </Reveal>
 
       <Reveal delay={80} direction="up" distance={20}>
@@ -178,6 +199,17 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.paper },
   content: { padding: 24, paddingBottom: 48 },
   guard: { flex: 1, backgroundColor: colors.paper },
+  heroBlock: {
+    alignItems: "center",
+    marginTop: 24,
+    gap: 12,
+  },
+  shareRow: {
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    marginBottom: 16,
+  },
   eyebrow: {
     fontSize: 11,
     fontWeight: "500",

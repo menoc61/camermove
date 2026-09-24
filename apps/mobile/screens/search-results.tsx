@@ -4,7 +4,7 @@ import { FlashList } from "@shopify/flash-list";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { TripCard } from "@/components/search/trip-card";
 import { Button } from "@/components/ui/button";
 import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
@@ -190,9 +190,9 @@ export function SearchResultsScreen() {
             </View>
             <View style={styles.sheetActions}>
               <Button label="Appliquer" onPress={() => setFiltersOpen(false)} />
-              <Pressable onPress={resetFilters} accessibilityRole="button" accessibilityLabel="Réinitialiser les filtres">
+              <AnimatedPressFeedback onPress={resetFilters} accessibilityRole="button" accessibilityLabel="Réinitialiser les filtres">
                 <Text style={styles.reset}>Réinitialiser</Text>
-              </Pressable>
+              </AnimatedPressFeedback>
             </View>
           </View>
         </RNHostView>

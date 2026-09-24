@@ -1,19 +1,27 @@
-import { Host, List, ListItem } from "@expo/ui";
+import { FlashList } from "@shopify/flash-list";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Button } from "@/components/ui/button";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/screen-state";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActionButton } from "@/components/ui/action-button";
+import { AnimatedPressFeedback } from "@/components/ui/animated-pressable";
+import { AnimatedCounter } from "@/components/ui/animated-counter";
+import { HeartToggle } from "@/components/ui/heart-toggle";
+import { IconButton } from "@/components/ui/icon-button";
+import { Reveal } from "@/components/ui/reveal";
+import { SkeletonCard, SkeletonList, SkeletonTile } from "@/components/ui/skeleton-presets";
+import { EmptyState, ErrorState } from "@/components/ui/screen-state";
+import { StatIndicator } from "@/components/ui/stat-indicator";
 import { useToast } from "@/components/ui/toast";
 import { colors } from "@/constants/theme";
 import { useAuthStore } from "@/lib/auth/session";
-import { fetchMyBookings } from "@/lib/api/bookings";
+import { fetchMyBookings, type MyBookingItem } from "@/lib/api/bookings";
 import { getDashboard } from "@/lib/api/dashboard";
 import { fetchFavorites } from "@/lib/api/favorites";
 import { fetchMyNotifications } from "@/lib/api/notifications";
-import { fetchMyPayments } from "@/lib/api/payments";
+import { fetchMyPayments, type MyPaymentItem } from "@/lib/api/payments";
 import { formatDate, formatTime, formatXAF } from "@/lib/format";
+import { motion } from "@/lib/motion";
 
 type BookingScope = "upcoming" | "history";
 
@@ -88,7 +96,15 @@ export function AccountScreen() {
     router.replace("/login");
   }
 
-  if (dashboardQuery.isPending) return <LoadingState label="Chargement de votre compte…" />;
+  if (dashboardQuery.isPending) {
+    return (
+      <View style={styles.content}>
+        <SkeletonTile />
+        <View style={{ marginTop: 24 }}><SkeletonList count={4} /></View>
+      </View>
+    );
+  }
+
   if (dashboardQuery.isError || !dashboardQuery.data) {
     return (
       <ErrorState
@@ -108,134 +124,185 @@ export function AccountScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.eyebrow}>CamerMove</Text>
-      <Text style={styles.title}>Bonjour</Text>
-      {user ? (
-        <Text selectable style={styles.email}>
-          {user.email}
-        </Text>
-      ) : null}
+      <Reveal>
+        <Text style={styles.eyebrow}>CamerMove</Text>
+        <Text style={styles.title}>Bonjour</Text>
+        {user ? (
+          <Text selectable style={styles.email}>
+            {user.email}
+          </Text>
+        ) : null}
+      </Reveal>
 
       {dashboard.totals ? (
-        <View style={styles.totals}>
-          {TOTAL_LABELS.map((t) => (
-            <View key={t.key} style={styles.total}>
-              <Text style={styles.totalValue}>{dashboard.totals?.[t.key] ?? 0}</Text>
-              <Text style={styles.totalLabel}>{t.label}</Text>
-            </View>
-          ))}
-        </View>
+        <Reveal delay={motion.stagger(1)}>
+          <View style={styles.totals}>
+            {TOTAL_LABELS.map((t) => (
+              <View key={t.key} style={styles.total}>
+                <Text style={styles.totalValue}>{dashboard.totals?.[t.key] ?? 0}</Text>
+                <Text style={styles.totalLabel}>{t.label}</Text>
+              </View>
+            ))}
+          </View>
+        </Reveal>
       ) : null}
 
       {hero ? (
-        <Pressable
-          onPress={hero.ticketId ? () => router.push(`/tickets/${hero.ticketId}`) : undefined}
-          style={styles.hero}
-          accessibilityRole="button"
-          accessibilityLabel={`Prochain voyage ${hero.origin} vers ${hero.destination}`}
-        >
-          <Text style={styles.heroEyebrow}>Prochain voyage</Text>
-          <Text style={styles.heroRoute}>
-            {hero.origin} → {hero.destination}
-          </Text>
-          <Text style={styles.heroMeta}>
-            {formatDate(hero.departureAt)} · {formatTime(hero.departureAt)} · {formatXAF(hero.totalAmount)}
-          </Text>
-        </Pressable>
+        <Reveal delay={motion.stagger(2)}>
+          <AnimatedPressFeedback
+            onPress={hero.ticketId ? () => router.push(`/tickets/${hero.ticketId}`) : undefined}
+            style={styles.hero}
+            accessibilityRole="button"
+            accessibilityLabel={`Prochain voyage ${hero.origin} vers ${hero.destination}`}
+          >
+            <Text style={styles.heroEyebrow}>Prochain voyage</Text>
+            <Text style={styles.heroRoute}>
+              {hero.origin} → {hero.destination}
+            </Text>
+            <Text style={styles.heroMeta}>
+              {formatDate(hero.departureAt)} · {formatTime(hero.departureAt)} · {formatXAF(hero.totalAmount)}
+            </Text>
+          </AnimatedPressFeedback>
+        </Reveal>
       ) : null}
 
-      <Text style={styles.sectionTitle}>Mes réservations</Text>
-      <View style={styles.toggle}>
-        {(["upcoming", "history"] as BookingScope[]).map((s) => (
-          <Pressable
-            key={s}
-            onPress={() => setScope(s)}
-            style={[styles.toggleButton, scope === s && styles.toggleActive]}
-            accessibilityRole="button"
-            accessibilityLabel={s === "upcoming" ? "Voyages à venir" : "Historique"}
-          >
-            <Text style={[styles.toggleText, scope === s && styles.toggleTextActive]}>
-              {s === "upcoming" ? "À venir" : "Historique"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      {bookingsQuery.isPending ? (
-        <Text style={styles.note}>Chargement des réservations…</Text>
-      ) : bookingsQuery.isError ? (
-        <ErrorState
-          message="Impossible de charger vos réservations."
-          onRetry={() => void bookingsQuery.refetch()}
-        />
-      ) : bookingsQuery.data.items.length === 0 ? (
-        <EmptyState message="Aucune réservation dans cette section." />
-      ) : (
-        bookingsQuery.data.items.map((b) => (
-          <Pressable
-            key={b.id}
-            onPress={b.ticketId ? () => router.push(`/tickets/${b.ticketId}`) : undefined}
-            style={styles.card}
-          >
-            <Text selectable style={styles.cardRef}>
-              {b.reference}
-            </Text>
-            <Text style={styles.cardRoute}>
-              {b.origin} → {b.destination}
-            </Text>
-            <Text style={styles.cardMeta}>
-              {formatDate(b.departureAt)} · {formatTime(b.departureAt)} · {formatXAF(b.totalAmount)}
-            </Text>
-          </Pressable>
-        ))
-      )}
+      <Reveal delay={motion.stagger(3)}>
+        <Text style={styles.sectionTitle}>Mes réservations</Text>
+        <View style={styles.toggle}>
+          {(["upcoming", "history"] as BookingScope[]).map((s) => (
+            <AnimatedPressFeedback
+              key={s}
+              onPress={() => setScope(s)}
+              style={[styles.toggleButton, scope === s && styles.toggleActive]}
+              accessibilityRole="button"
+              accessibilityLabel={s === "upcoming" ? "Voyages à venir" : "Historique"}
+            >
+              <Text style={[styles.toggleText, scope === s && styles.toggleTextActive]}>
+                {s === "upcoming" ? "À venir" : "Historique"}
+              </Text>
+            </AnimatedPressFeedback>
+          ))}
+        </View>
+      </Reveal>
 
-      <Text style={styles.sectionTitle}>Mes paiements</Text>
-      {paymentsQuery.isPending ? (
-        <Text style={styles.note}>Chargement des paiements…</Text>
-      ) : paymentsQuery.isError ? (
-        <ErrorState
-          message="Impossible de charger vos paiements."
-          onRetry={() => void paymentsQuery.refetch()}
-        />
-      ) : paymentsQuery.data.items.length === 0 ? (
-        <EmptyState message="Aucun paiement pour le moment." />
-      ) : (
-        paymentsQuery.data.items.map((p) => (
-          <View key={p.id} style={styles.card}>
-            <Text style={styles.cardRoute}>{formatXAF(p.amount)}</Text>
-            <Text style={styles.cardMeta}>
-              {p.provider}
-              {p.method ? ` · ${p.method}` : ""} · {p.status} · {formatDate(p.createdAt)}
-            </Text>
+      <Reveal delay={motion.stagger(4)}>
+        {bookingsQuery.isPending ? (
+          <View style={{ height: 220 }}>
+            <SkeletonList count={3} />
           </View>
-        ))
-      )}
+        ) : bookingsQuery.isError ? (
+          <ErrorState
+            message="Impossible de charger vos réservations."
+            onRetry={() => void bookingsQuery.refetch()}
+          />
+        ) : bookingsQuery.data.items.length === 0 ? (
+          <EmptyState message="Aucune réservation dans cette section." />
+        ) : (
+          <FlashList
+            data={bookingsQuery.data.items as MyBookingItem[]}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <AnimatedPressFeedback
+                onPress={item.ticketId ? () => router.push(`/tickets/${item.ticketId}`) : undefined}
+                style={styles.card}
+              >
+                <Text selectable style={styles.cardRef}>
+                  {item.reference}
+                </Text>
+                <Text style={styles.cardRoute}>
+                  {item.origin} → {item.destination}
+                </Text>
+                <Text style={styles.cardMeta}>
+                  {formatDate(item.departureAt)} · {formatTime(item.departureAt)} · {formatXAF(item.totalAmount)}
+                </Text>
+              </AnimatedPressFeedback>
+            )}
+            ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+            contentContainerStyle={{ paddingBottom: 8 }}
+          />
+        )}
+      </Reveal>
 
-      <Text style={styles.sectionTitle}>Mon compte</Text>
-      <Host matchContents>
-        <List>
-          <ListItem
-            supportingText={
-              favoritesQuery.data ? `${favoritesQuery.data.total} enregistrement(s)` : "…"
-            }
+      <Reveal delay={motion.stagger(5)}>
+        <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Mes paiements</Text>
+      </Reveal>
+      <Reveal delay={motion.stagger(6)}>
+        {paymentsQuery.isPending ? (
+          <View style={{ height: 220 }}>
+            <SkeletonList count={3} />
+          </View>
+        ) : paymentsQuery.isError ? (
+          <ErrorState
+            message="Impossible de charger vos paiements."
+            onRetry={() => void paymentsQuery.refetch()}
+          />
+        ) : paymentsQuery.data.items.length === 0 ? (
+          <EmptyState message="Aucun paiement pour le moment." />
+        ) : (
+          <View style={{ height: Math.min(56 * paymentsQuery.data.items.length + 8, 280) }}>
+            <FlashList
+              data={paymentsQuery.data.items as MyPaymentItem[]}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={styles.card}>
+                  <Text style={styles.cardRoute}>{formatXAF(item.amount)}</Text>
+                  <Text style={styles.cardMeta}>
+                    {item.provider}
+                    {item.method ? ` · ${item.method}` : ""} · {item.status} · {formatDate(item.createdAt)}
+                  </Text>
+                </View>
+              )}
+              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+            />
+          </View>
+        )}
+      </Reveal>
+
+      <Reveal delay={motion.stagger(7)}>
+        <View style={styles.statRow}>
+          <View style={styles.favCell}>
+            <HeartToggle
+              active={false}
+              onToggle={() => router.push("/(tabs)/search" as never)}
+              size={32}
+              accessibilityLabel="Ajouter aux favoris"
+            />
+            <StatIndicator
+              label="Favoris"
+              value={
+                favoritesQuery.data
+                  ? favoritesQuery.data.total.toString()
+                  : "—"
+              }
+            />
+          </View>
+          <StatIndicator
+            label="Notifications"
+            value={unread > 0 ? `${unread} non lues` : "À jour"}
+          />
+          <StatIndicator
+            label="Statut compte"
+            value={user?.role ?? "Voyageur"}
+          />
+        </View>
+      </Reveal>
+
+      <Reveal delay={motion.stagger(8)}>
+        <View style={styles.logout}>
+          <ActionButton
+            label={armed ? "Confirmer la déconnexion" : "Se déconnecter"}
+            onPress={onLogout}
+            variant={armed ? "danger" : "primary"}
+          />
+          <AnimatedPressFeedback
+            onPress={() => router.push("/lookup")}
+            accessibilityRole="link"
+            style={styles.lookupLink}
           >
-            Mes favoris
-          </ListItem>
-          <ListItem supportingText={unread > 0 ? `${unread} non lue(s)` : "Tout est lu"}>
-            Notifications
-          </ListItem>
-          <ListItem onPress={() => router.push("/tickets/lookup")}>
-            Vérifier un billet
-          </ListItem>
-        </List>
-      </Host>
-
-      <View style={styles.logout}>
-        <Button
-          label={armed ? "Confirmer la déconnexion" : "Se déconnecter"}
-          onPress={onLogout}
-        />
-      </View>
+            <Text style={styles.lookupLinkLabel}>Vérifier un billet invité</Text>
+          </AnimatedPressFeedback>
+        </View>
+      </Reveal>
     </ScrollView>
   );
 }
@@ -292,6 +359,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
     borderRadius: 0,
+    minHeight: 44,
+    justifyContent: "center",
   },
   toggleActive: { backgroundColor: colors.ink, borderColor: colors.ink },
   toggleText: {
@@ -308,11 +377,19 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: 0,
     padding: 14,
-    marginBottom: 8,
   },
   cardRef: { fontSize: 13, fontWeight: "500", letterSpacing: 1.2, color: colors.ink, marginBottom: 2 },
   cardRoute: { fontSize: 16, fontWeight: "500", color: colors.ink, marginBottom: 2 },
   cardMeta: { fontSize: 13, color: colors.ink2, fontVariant: ["tabular-nums"] },
-  note: { fontSize: 14, color: colors.ink2, marginBottom: 8 },
-  logout: { marginTop: 24 },
+  statRow: { flexDirection: "row", gap: 12, marginTop: 24, marginBottom: 16, flexWrap: "wrap" },
+  favCell: { alignItems: "center", gap: 8, paddingVertical: 8 },
+  logout: { marginTop: 16, gap: 12 },
+  lookupLink: { paddingVertical: 14, alignItems: "center", minHeight: 44, justifyContent: "center" },
+  lookupLinkLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    color: colors.ink,
+  },
 });
